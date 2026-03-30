@@ -118,6 +118,7 @@ export function FileTree() {
                     activeProject === project.name &&
                     activePath === doc.path
                   }
+                  author={doc.author}
                   onClick={() => openDocument(project.name, doc.path)}
                   depth={1}
                 />

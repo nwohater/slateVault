@@ -50,6 +50,14 @@ export interface VaultSettings {
   remote_branch: string;
 }
 
+export interface VaultStatsInfo {
+  project_count: number;
+  doc_count: number;
+  mcp_port: number;
+  remote_branch: string;
+  remote_url: string | null;
+}
+
 export interface FrontMatter {
   id: string;
   title: string;

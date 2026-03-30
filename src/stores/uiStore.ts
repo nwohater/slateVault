@@ -4,6 +4,7 @@ type ActiveView = "editor" | "search";
 
 interface UIState {
   sidebarWidth: number;
+  showEditor: boolean;
   showPreview: boolean;
   previewRatio: number;
   activeView: ActiveView;
@@ -11,6 +12,7 @@ interface UIState {
   terminalHeight: number;
 
   setSidebarWidth: (width: number) => void;
+  toggleEditor: () => void;
   togglePreview: () => void;
   setPreviewRatio: (ratio: number) => void;
   setActiveView: (view: ActiveView) => void;
@@ -20,6 +22,7 @@ interface UIState {
 
 export const useUIStore = create<UIState>((set) => ({
   sidebarWidth: 260,
+  showEditor: true,
   showPreview: true,
   previewRatio: 0.5,
   activeView: "editor",
@@ -29,7 +32,18 @@ export const useUIStore = create<UIState>((set) => ({
   setSidebarWidth: (width: number) =>
     set({ sidebarWidth: Math.max(180, Math.min(500, width)) }),
 
-  togglePreview: () => set((s) => ({ showPreview: !s.showPreview })),
+  toggleEditor: () =>
+    set((s) => ({
+      showEditor: !s.showEditor,
+      // Ensure at least one pane is visible
+      showPreview: !s.showEditor ? s.showPreview : true,
+    })),
+
+  togglePreview: () =>
+    set((s) => ({
+      showPreview: !s.showPreview,
+      showEditor: !s.showPreview ? s.showEditor : true,
+    })),
 
   setPreviewRatio: (ratio: number) =>
     set({ previewRatio: Math.max(0.2, Math.min(0.8, ratio)) }),

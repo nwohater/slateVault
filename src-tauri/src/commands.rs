@@ -379,3 +379,17 @@ pub fn set_vault_config(
     vault.save_config().map_err(|e| e.to_string())?;
     Ok("Settings updated".to_string())
 }
+
+#[tauri::command]
+pub fn rebuild_index(
+    state: State<'_, VaultState>,
+) -> CmdResult<usize> {
+    with_vault(&state, |vault| vault.rebuild_index())
+}
+
+#[tauri::command]
+pub fn vault_stats(
+    state: State<'_, VaultState>,
+) -> CmdResult<slatevault_core::VaultStats> {
+    with_vault(&state, |vault| vault.stats())
+}

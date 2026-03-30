@@ -7,6 +7,7 @@ import type {
   CommitInfo,
   RemoteConfig,
   VaultSettings,
+  VaultStatsInfo,
 } from "@/types";
 
 export async function createVault(
@@ -149,4 +150,12 @@ export async function resizeTerminal(
 
 export async function closeTerminal(): Promise<string> {
   return invoke("close_terminal");
+}
+
+export async function rebuildIndex(): Promise<number> {
+  return invoke("rebuild_index");
+}
+
+export async function vaultStats(): Promise<VaultStatsInfo> {
+  return invoke("vault_stats");
 }

@@ -240,10 +240,25 @@ impl ServerHandler for SlateVaultMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             instructions: Some(
-                "slateVault is a local-first markdown document vault. \
-                 Use get_project_context at the start of each session to load pinned AI context files. \
-                 Use write_document to persist any documentation you generate. \
-                 Use search_documents to find existing content across the vault."
+                "slateVault is a local-first markdown document vault for persisting AI-generated documentation.\n\n\
+                 ## Startup workflow\n\
+                 1. Call list_projects to see what projects exist\n\
+                 2. If a relevant project exists, call get_project_context to load its pinned AI context files\n\
+                 3. If no relevant project exists, ask the user which project to use or whether to create one\n\n\
+                 ## Writing documents\n\
+                 - Use write_document to save any documentation, specs, decisions, or notes you generate\n\
+                 - Choose a descriptive path like 'architecture.md' or 'decisions/001-use-tauri.md'\n\
+                 - Always set ai_tool to your tool name (e.g. 'claude-code') so authorship is tracked\n\
+                 - Documents are auto-staged for git commit when ai_tool is set\n\n\
+                 ## Reading and searching\n\
+                 - Use search_documents before writing to check if a document on the topic already exists\n\
+                 - Use read_document to load existing docs for context or updates\n\
+                 - Use list_documents to see all docs in a project\n\n\
+                 ## Best practices\n\
+                 - Do NOT create projects without asking the user first\n\
+                 - Organize docs by type: specs/, decisions/, guides/, notes/\n\
+                 - Update existing documents rather than creating duplicates\n\
+                 - Use tags to categorize documents for easy filtering"
                     .to_string(),
             ),
             capabilities: ServerCapabilities::builder()

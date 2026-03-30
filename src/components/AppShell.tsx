@@ -11,6 +11,8 @@ import { MarkdownPreview } from "./preview/MarkdownPreview";
 import { SearchView } from "./search/SearchView";
 import { VaultPicker } from "./vault/VaultPicker";
 import { ResizeHandle } from "./shared/ResizeHandle";
+import { StatusBar } from "./StatusBar";
+import { Onboarding } from "./Onboarding";
 
 const TerminalPanel = dynamic(
   () =>
@@ -23,6 +25,7 @@ const TerminalPanel = dynamic(
 export function AppShell() {
   const isOpen = useVaultStore((s) => s.isOpen);
   const sidebarWidth = useUIStore((s) => s.sidebarWidth);
+  const showEditor = useUIStore((s) => s.showEditor);
   const showPreview = useUIStore((s) => s.showPreview);
   const previewRatio = useUIStore((s) => s.previewRatio);
   const activeView = useUIStore((s) => s.activeView);
@@ -30,10 +33,12 @@ export function AppShell() {
   const terminalHeight = useUIStore((s) => s.terminalHeight);
   const setSidebarWidth = useUIStore((s) => s.setSidebarWidth);
   const setPreviewRatio = useUIStore((s) => s.setPreviewRatio);
+  const toggleEditor = useUIStore((s) => s.toggleEditor);
   const togglePreview = useUIStore((s) => s.togglePreview);
   const setActiveView = useUIStore((s) => s.setActiveView);
   const toggleTerminal = useUIStore((s) => s.toggleTerminal);
   const setTerminalHeight = useUIStore((s) => s.setTerminalHeight);
+  const projects = useVaultStore((s) => s.projects);
   const isDirty = useEditorStore((s) => s.isDirty);
   const saveDocument = useEditorStore((s) => s.saveDocument);
 
@@ -44,7 +49,7 @@ export function AppShell() {
         e.preventDefault();
         setActiveView(activeView === "search" ? "editor" : "search");
       }
-      if (e.ctrlKey && e.key === "`") {
+      if (e.ctrlKey && e.key === "t") {
         e.preventDefault();
         toggleTerminal();
       }
@@ -57,8 +62,8 @@ export function AppShell() {
     return <VaultPicker />;
   }
 
-  const editorFlex = showPreview ? previewRatio : 1;
-  const previewFlex = showPreview ? 1 - previewRatio : 0;
+  const editorFlex = showEditor ? (showPreview ? previewRatio : 1) : 0;
+  const previewFlex = showPreview ? (showEditor ? 1 - previewRatio : 1) : 0;
 
   return (
     <div className="flex h-screen overflow-hidden bg-neutral-950">
@@ -89,12 +94,28 @@ export function AppShell() {
             Search
           </button>
           {activeView === "editor" && (
-            <button
-              onClick={togglePreview}
-              className="px-2 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-            >
-              {showPreview ? "Hide Preview" : "Show Preview"}
-            </button>
+            <>
+              <button
+                onClick={toggleEditor}
+                className={`px-2 py-0.5 rounded transition-colors ${
+                  showEditor
+                    ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+                    : "bg-neutral-700 text-neutral-400"
+                }`}
+              >
+                {showEditor ? "Hide Editor" : "Show Editor"}
+              </button>
+              <button
+                onClick={togglePreview}
+                className={`px-2 py-0.5 rounded transition-colors ${
+                  showPreview
+                    ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+                    : "bg-neutral-700 text-neutral-400"
+                }`}
+              >
+                {showPreview ? "Hide Preview" : "Show Preview"}
+              </button>
+            </>
           )}
           <button
             onClick={toggleTerminal}
@@ -115,37 +136,42 @@ export function AppShell() {
             </button>
           )}
           <div className="flex-1" />
-          <kbd className="text-neutral-500">Ctrl+` terminal</kbd>
+          <kbd className="text-neutral-500">Ctrl+T terminal</kbd>
         </div>
 
-        {/* Content + Terminal */}
+        {/* Content + Terminal + StatusBar */}
         <div className="flex-1 flex flex-col min-h-0">
           {/* Main content */}
           <div className="flex-1 flex min-h-0">
-            {activeView === "search" ? (
+            {projects.length === 0 ? (
+              <Onboarding />
+            ) : activeView === "search" ? (
               <SearchView />
             ) : (
               <>
-                <div style={{ flex: editorFlex }} className="min-w-0">
-                  <EditorPane />
-                </div>
+                {showEditor && (
+                  <div style={{ flex: editorFlex }} className="min-w-0">
+                    <EditorPane />
+                  </div>
+                )}
+
+                {showEditor && showPreview && (
+                  <ResizeHandle
+                    direction="vertical"
+                    onResize={(delta) => {
+                      const mainWidth =
+                        window.innerWidth - sidebarWidth - 4;
+                      setPreviewRatio(
+                        previewRatio + delta / mainWidth
+                      );
+                    }}
+                  />
+                )}
 
                 {showPreview && (
-                  <>
-                    <ResizeHandle
-                      direction="vertical"
-                      onResize={(delta) => {
-                        const mainWidth =
-                          window.innerWidth - sidebarWidth - 4;
-                        setPreviewRatio(
-                          previewRatio + delta / mainWidth
-                        );
-                      }}
-                    />
-                    <div style={{ flex: previewFlex }} className="min-w-0">
-                      <MarkdownPreview />
-                    </div>
-                  </>
+                  <div style={{ flex: previewFlex }} className="min-w-0">
+                    <MarkdownPreview />
+                  </div>
                 )}
               </>
             )}
@@ -184,6 +210,9 @@ export function AppShell() {
             </>
           )}
         </div>
+
+        {/* Status bar */}
+        <StatusBar />
       </div>
     </div>
   );
