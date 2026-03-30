@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useVaultStore } from "@/stores/vaultStore";
+import * as commands from "@/lib/commands";
 
 const RECENT_VAULTS_KEY = "slatevault_recent_vaults";
 const MAX_RECENT = 5;
@@ -33,7 +34,8 @@ function addRecentVault(path: string, name: string) {
 export function VaultPicker() {
   const [path, setPath] = useState("");
   const [name, setName] = useState("");
-  const [mode, setMode] = useState<"open" | "create">("open");
+  const [repoUrl, setRepoUrl] = useState("");
+  const [mode, setMode] = useState<"open" | "create" | "clone">("open");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [recentVaults, setRecentVaults] = useState<RecentVault[]>([]);
@@ -65,11 +67,24 @@ export function VaultPicker() {
   };
 
   const handleSubmit = async () => {
-    if (!path.trim()) return;
+    if (mode === "clone") {
+      if (!repoUrl.trim() || !path.trim()) return;
+    } else if (!path.trim()) return;
     setError(null);
     setLoading(true);
     try {
-      if (mode === "create") {
+      if (mode === "clone") {
+        await commands.gitClone(repoUrl.trim(), path.trim());
+        // Derive vault name from repo URL
+        const repoName = repoUrl.trim().split("/").pop()?.replace(/\.git$/, "") || "vault";
+        try {
+          await openVault(path.trim());
+        } catch {
+          // No vault.toml — initialize as a vault first
+          await createVault(path.trim(), repoName);
+        }
+        addRecentVault(path.trim(), repoName);
+      } else if (mode === "create") {
         const vaultName = name.trim() || "default";
         await createVault(path.trim(), vaultName);
         addRecentVault(path.trim(), vaultName);
@@ -144,12 +159,38 @@ export function VaultPicker() {
           >
             Create Vault
           </button>
+          <button
+            onClick={() => setMode("clone")}
+            className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${
+              mode === "clone"
+                ? "bg-neutral-800 text-neutral-100"
+                : "text-neutral-500 hover:text-neutral-300"
+            }`}
+          >
+            Clone Repo
+          </button>
         </div>
 
         <div className="space-y-3">
+          {mode === "clone" && (
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">
+                Repository URL
+              </label>
+              <input
+                type="text"
+                value={repoUrl}
+                onChange={(e) => setRepoUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                placeholder="https://github.com/user/repo.git"
+                className="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600 text-sm"
+              />
+            </div>
+          )}
+
           <div>
             <label className="block text-xs text-neutral-400 mb-1">
-              Vault path
+              {mode === "clone" ? "Destination path" : "Vault path"}
             </label>
             <div className="flex gap-2">
               <input
@@ -191,14 +232,16 @@ export function VaultPicker() {
 
           <button
             onClick={handleSubmit}
-            disabled={loading || !path.trim()}
+            disabled={loading || !path.trim() || (mode === "clone" && !repoUrl.trim())}
             className="w-full py-2 bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white rounded-lg text-sm font-medium transition-colors"
           >
             {loading
-              ? "..."
-              : mode === "create"
-                ? "Create & Open"
-                : "Open Vault"}
+              ? (mode === "clone" ? "Cloning..." : "...")
+              : mode === "clone"
+                ? "Clone & Open"
+                : mode === "create"
+                  ? "Create & Open"
+                  : "Open Vault"}
           </button>
         </div>
       </div>

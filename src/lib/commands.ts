@@ -80,6 +80,10 @@ export async function getProjectContext(
   return invoke("get_project_context", { project });
 }
 
+export async function gitClone(url: string, path: string): Promise<string> {
+  return invoke("git_clone", { url, path });
+}
+
 export async function gitCommit(message: string): Promise<string> {
   return invoke("git_commit", { message });
 }

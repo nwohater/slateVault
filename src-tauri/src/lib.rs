@@ -43,6 +43,7 @@ pub fn run() {
             commands::git_log,
             commands::git_remote_config,
             commands::git_set_remote_config,
+            commands::git_clone,
             commands::git_push,
             commands::git_pull,
             commands::get_vault_config,

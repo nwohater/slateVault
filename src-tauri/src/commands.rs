@@ -293,6 +293,24 @@ pub fn git_set_remote_config(
 }
 
 #[tauri::command]
+pub fn git_clone(url: String, path: String) -> CmdResult<String> {
+    let dest = PathBuf::from(&path);
+    if dest.exists() && std::fs::read_dir(&dest).map(|mut d| d.next().is_some()).unwrap_or(false) {
+        return Err("Destination directory already exists and is not empty".to_string());
+    }
+    let output = std::process::Command::new("git")
+        .args(["clone", &url, &path])
+        .output()
+        .map_err(|e| format!("Failed to run git: {}", e))?;
+    if output.status.success() {
+        Ok(format!("Cloned {} into {}", url, path))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Clone failed: {}", stderr.trim()))
+    }
+}
+
+#[tauri::command]
 pub fn git_push(
     state: State<'_, VaultState>,
 ) -> CmdResult<String> {
