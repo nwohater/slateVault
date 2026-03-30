@@ -27,14 +27,7 @@
   },
   "plugins": {
     "shell": {
-      "open": true,
-      "scope": [
-        {
-          "name": "git",
-          "cmd": "git",
-          "args": true
-        }
-      ]
+      "open": true
     }
   },
   "bundle": {
