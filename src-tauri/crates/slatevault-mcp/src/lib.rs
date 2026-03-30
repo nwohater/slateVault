@@ -1,1 +1,4 @@
-// MCP server implementation — will be built out in M2
+mod server;
+mod tools;
+
+pub use server::SlateVaultMcpServer;
