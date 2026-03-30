@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUIStore } from "@/stores/uiStore";
+import type { Theme } from "@/stores/uiStore";
 import { useEditorStore } from "@/stores/editorStore";
 import { Sidebar } from "./sidebar/Sidebar";
 import { EditorPane } from "./editor/EditorPane";
@@ -38,9 +39,16 @@ export function AppShell() {
   const setActiveView = useUIStore((s) => s.setActiveView);
   const toggleTerminal = useUIStore((s) => s.toggleTerminal);
   const setTerminalHeight = useUIStore((s) => s.setTerminalHeight);
+  const setTheme = useUIStore((s) => s.setTheme);
   const projects = useVaultStore((s) => s.projects);
   const isDirty = useEditorStore((s) => s.isDirty);
   const saveDocument = useEditorStore((s) => s.saveDocument);
+
+  // Restore theme from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("sv-theme") as Theme | null;
+    if (saved && saved !== "dark") setTheme(saved);
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -74,7 +82,7 @@ export function AppShell() {
 
       <ResizeHandle
         direction="vertical"
-        onResize={(delta) => setSidebarWidth(sidebarWidth + delta)}
+        onResize={(delta) => setSidebarWidth((w) => w + delta)}
       />
 
       {/* Main area */}
@@ -161,9 +169,7 @@ export function AppShell() {
                     onResize={(delta) => {
                       const mainWidth =
                         window.innerWidth - sidebarWidth - 4;
-                      setPreviewRatio(
-                        previewRatio + delta / mainWidth
-                      );
+                      setPreviewRatio((r) => r + delta / mainWidth);
                     }}
                   />
                 )}

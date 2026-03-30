@@ -22,6 +22,10 @@ interface VaultState {
     description?: string,
     tags?: string[]
   ) => Promise<void>;
+  deleteDocument: (project: string, path: string) => Promise<void>;
+  deleteProject: (name: string) => Promise<void>;
+  renameDocument: (project: string, oldPath: string, newPath: string) => Promise<void>;
+  renameProject: (oldName: string, newName: string) => Promise<void>;
   toggleProject: (name: string) => void;
 }
 
@@ -104,6 +108,42 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     await commands.createProject(name, description, tags);
     await get().loadProjects();
     await get().loadStats();
+  },
+
+  deleteDocument: async (project, path) => {
+    await commands.deleteDocument(project, path);
+    await get().loadDocuments(project);
+    await get().loadStats();
+  },
+
+  deleteProject: async (name) => {
+    await commands.deleteProject(name);
+    set((s) => {
+      const docs = { ...s.documents };
+      delete docs[name];
+      const expanded = new Set(s.expandedProjects);
+      expanded.delete(name);
+      return { documents: docs, expandedProjects: expanded };
+    });
+    await get().loadProjects();
+    await get().loadStats();
+  },
+
+  renameDocument: async (project, oldPath, newPath) => {
+    await commands.renameDocument(project, oldPath, newPath);
+    await get().loadDocuments(project);
+  },
+
+  renameProject: async (oldName, newName) => {
+    await commands.renameProject(oldName, newName);
+    set((s) => {
+      const docs = { ...s.documents };
+      delete docs[oldName];
+      const expanded = new Set(s.expandedProjects);
+      if (expanded.delete(oldName)) expanded.add(newName);
+      return { documents: docs, expandedProjects: expanded };
+    });
+    await get().loadProjects();
   },
 
   toggleProject: (name: string) => {

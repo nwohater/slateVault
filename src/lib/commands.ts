@@ -158,6 +158,39 @@ export async function closeTerminal(): Promise<string> {
   return invoke("close_terminal");
 }
 
+export async function showInFolder(
+  project: string,
+  path?: string
+): Promise<void> {
+  return invoke("show_in_folder", { project, path });
+}
+
+export async function deleteDocument(
+  project: string,
+  path: string
+): Promise<string> {
+  return invoke("delete_document", { project, path });
+}
+
+export async function deleteProject(name: string): Promise<string> {
+  return invoke("delete_project", { name });
+}
+
+export async function renameDocument(
+  project: string,
+  oldPath: string,
+  newPath: string
+): Promise<string> {
+  return invoke("rename_document", { project, oldPath, newPath });
+}
+
+export async function renameProject(
+  oldName: string,
+  newName: string
+): Promise<string> {
+  return invoke("rename_project", { oldName, newName });
+}
+
 export async function rebuildIndex(): Promise<number> {
   return invoke("rebuild_index");
 }

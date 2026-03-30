@@ -5,6 +5,7 @@ interface TreeNodeProps {
   isActive?: boolean;
   author?: string;
   onClick: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
   depth: number;
 }
 
@@ -21,6 +22,7 @@ export function TreeNode({
   isActive,
   author,
   onClick,
+  onContextMenu,
   depth,
 }: TreeNodeProps) {
   const badge = author ? authorBadge[author] : null;
@@ -28,6 +30,7 @@ export function TreeNode({
   return (
     <button
       onClick={onClick}
+      onContextMenu={onContextMenu}
       className={`
         w-full flex items-center gap-1.5 px-2 py-1 text-xs text-left
         hover:bg-neutral-800 transition-colors

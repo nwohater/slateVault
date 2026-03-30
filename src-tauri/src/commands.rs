@@ -421,6 +421,117 @@ pub fn set_vault_config(
 }
 
 #[tauri::command]
+pub fn show_in_folder(
+    project: String,
+    path: Option<String>,
+    state: State<'_, VaultState>,
+) -> CmdResult<()> {
+    with_vault(&state, |vault| {
+        let full_path = match &path {
+            Some(doc_path) => {
+                let project_obj = vault.open_project(&project)?;
+                project_obj.docs_dir().join(doc_path)
+            }
+            None => vault.projects_dir().join(&project),
+        };
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            let path_str = full_path.to_string_lossy().replace('/', "\\");
+            std::process::Command::new("explorer.exe")
+                .raw_arg(format!("/select,\"{path_str}\""))
+                .spawn()?;
+        }
+
+        #[cfg(target_os = "macos")]
+        std::process::Command::new("open")
+            .args(["-R", &full_path.to_string_lossy()])
+            .spawn()?;
+
+        #[cfg(target_os = "linux")]
+        {
+            let parent = full_path.parent().unwrap_or(&full_path);
+            std::process::Command::new("xdg-open")
+                .arg(parent)
+                .spawn()?;
+        }
+
+        Ok(())
+    })
+}
+
+#[tauri::command]
+pub fn delete_document(
+    project: String,
+    path: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let project_obj = vault.open_project(&project)?;
+        let file_path = project_obj.docs_dir().join(&path);
+        std::fs::remove_file(&file_path)?;
+        Ok(format!("Deleted: {}/{}", project, path))
+    })
+}
+
+#[tauri::command]
+pub fn delete_project(
+    name: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let project_path = vault.projects_dir().join(&name);
+        std::fs::remove_dir_all(&project_path)?;
+        Ok(format!("Project '{}' deleted", name))
+    })
+}
+
+#[tauri::command]
+pub fn rename_document(
+    project: String,
+    old_path: String,
+    new_path: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let project_obj = vault.open_project(&project)?;
+        let docs_dir = project_obj.docs_dir();
+        std::fs::rename(docs_dir.join(&old_path), docs_dir.join(&new_path))?;
+        Ok(format!("Renamed: {}/{} -> {}", project, old_path, new_path))
+    })
+}
+
+#[tauri::command]
+pub fn rename_project(
+    old_name: String,
+    new_name: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let projects_dir = vault.projects_dir();
+        let new_path = projects_dir.join(&new_name);
+        if new_path.exists() {
+            return Err(slatevault_core::CoreError::ProjectAlreadyExists(new_name.clone()));
+        }
+        std::fs::rename(projects_dir.join(&old_name), &new_path)?;
+        // Update name in project.toml
+        let toml_path = new_path.join("project.toml");
+        if toml_path.exists() {
+            if let Ok(toml_str) = std::fs::read_to_string(&toml_path) {
+                if let Ok(mut config) = toml::from_str::<slatevault_core::config::ProjectConfig>(&toml_str) {
+                    config.project.name = new_name.clone();
+                    if let Ok(new_toml) = toml::to_string_pretty(&config) {
+                        let _ = std::fs::write(&toml_path, new_toml);
+                    }
+                }
+            }
+        }
+        Ok(format!("Renamed project '{}' to '{}'", old_name, new_name))
+    })
+}
+
+#[tauri::command]
 pub fn rebuild_index(
     state: State<'_, VaultState>,
 ) -> CmdResult<usize> {

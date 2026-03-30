@@ -3,10 +3,14 @@
 import { useEffect, useState } from "react";
 import * as commands from "@/lib/commands";
 import { useVaultStore } from "@/stores/vaultStore";
+import { useUIStore } from "@/stores/uiStore";
+import type { Theme } from "@/stores/uiStore";
 import type { VaultSettings } from "@/types";
 
 export function SettingsPanel() {
   const loadStats = useVaultStore((s) => s.loadStats);
+  const theme = useUIStore((s) => s.theme);
+  const setTheme = useUIStore((s) => s.setTheme);
   const [settings, setSettings] = useState<VaultSettings | null>(null);
   const [name, setName] = useState("");
   const [mcpEnabled, setMcpEnabled] = useState(true);
@@ -181,6 +185,39 @@ export function SettingsPanel() {
               </div>
             </>
           )}
+        </div>
+      </div>
+
+      {/* Theme section */}
+      <div className="p-3 border-b border-neutral-800">
+        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
+          Theme
+        </h3>
+        <div className="flex gap-2">
+          {(
+            [
+              { id: "dark", label: "Dark", swatch: "#171717" },
+              { id: "light", label: "Light", swatch: "#f2f2ef" },
+              { id: "olive", label: "Olive", swatch: "#222a18" },
+              { id: "deepblue", label: "Deep Blue", swatch: "#141c2e" },
+            ] as { id: Theme; label: string; swatch: string }[]
+          ).map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTheme(t.id)}
+              className={`flex-1 flex flex-col items-center gap-1.5 py-2 rounded border transition-colors ${
+                theme === t.id
+                  ? "border-blue-500 bg-neutral-800"
+                  : "border-neutral-700 hover:border-neutral-600"
+              }`}
+            >
+              <span
+                className="w-6 h-6 rounded-full border border-neutral-600"
+                style={{ background: t.swatch }}
+              />
+              <span className="text-neutral-300">{t.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
