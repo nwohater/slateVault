@@ -1,12 +1,15 @@
 mod commands;
+mod terminal;
 
 use commands::VaultState;
+use terminal::PtyState;
 use std::sync::Mutex;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(VaultState(Mutex::new(None)))
+        .manage(PtyState::new())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -40,6 +43,10 @@ pub fn run() {
             commands::git_pull,
             commands::get_vault_config,
             commands::set_vault_config,
+            terminal::spawn_terminal,
+            terminal::write_terminal,
+            terminal::resize_terminal,
+            terminal::close_terminal,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
