@@ -48,9 +48,21 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
     await get().loadProjects();
     await get().loadStats();
+
+    // Auto-start MCP server for this vault
+    try {
+      const stats = get().stats;
+      if (stats?.mcp_enabled) {
+        await commands.startMcpServer(path, stats.mcp_port);
+      }
+    } catch (e) {
+      console.error("MCP server start failed:", e);
+    }
   },
 
   closeVault: () => {
+    // Stop MCP server
+    commands.stopMcpServer().catch(() => {});
     set({
       isOpen: false,
       vaultPath: null,

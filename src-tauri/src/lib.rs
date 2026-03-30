@@ -1,15 +1,19 @@
 mod commands;
+mod mcp_manager;
 mod terminal;
 
 use commands::VaultState;
+use mcp_manager::McpProcessState;
 use terminal::PtyState;
 use std::sync::Mutex;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(VaultState(Mutex::new(None)))
         .manage(PtyState::new())
+        .manage(McpProcessState::new())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -49,7 +53,29 @@ pub fn run() {
             terminal::write_terminal,
             terminal::resize_terminal,
             terminal::close_terminal,
+            mcp_manager::start_mcp_server,
+            mcp_manager::stop_mcp_server,
+            mcp_manager::mcp_server_status,
         ])
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                // Push on close if configured
+                let state = window.state::<VaultState>();
+                if let Ok(guard) = state.0.lock() {
+                    if let Some(ref vault) = *guard {
+                        if vault.config.sync.push_on_close && vault.config.sync.remote_url.is_some() {
+                            let branch = &vault.config.sync.remote_branch;
+                            let root = vault.root.to_string_lossy().to_string();
+                            let _ = std::process::Command::new("git")
+                                .args(["-C", &root, "push", "origin", branch])
+                                .output();
+                        }
+                    }
+                }
+                // Stop MCP server
+                window.state::<McpProcessState>().stop();
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -22,6 +22,9 @@ export function FileTree() {
 
   useEffect(() => {
     loadProjects();
+    // Poll for external changes (MCP writes, etc.)
+    const interval = setInterval(loadProjects, 5000);
+    return () => clearInterval(interval);
   }, [loadProjects]);
 
   const handleCreateDoc = async (projectName: string) => {

@@ -60,6 +60,13 @@ export interface VaultStatsInfo {
   remote_url: string | null;
 }
 
+export interface McpServerStatus {
+  running: boolean;
+  vault_path: string | null;
+  port: number | null;
+  binary_found: boolean;
+}
+
 export interface FrontMatter {
   id: string;
   title: string;

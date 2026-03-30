@@ -15,7 +15,15 @@ export function Sidebar() {
   const createProject = useVaultStore((s) => s.createProject);
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
+  const loadProjects = useVaultStore((s) => s.loadProjects);
   const [view, setView] = useState<SidebarView>("files");
+
+  const switchView = (v: SidebarView) => {
+    setView(v);
+    if (v === "files") {
+      loadProjects();
+    }
+  };
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
@@ -59,7 +67,7 @@ export function Sidebar() {
         {tabs.map((t) => (
           <button
             key={t.id}
-            onClick={() => setView(t.id)}
+            onClick={() => switchView(t.id)}
             className={`flex-1 py-1.5 transition-colors ${
               view === t.id
                 ? "text-neutral-100 border-b border-blue-500"

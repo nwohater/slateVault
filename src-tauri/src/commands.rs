@@ -29,6 +29,22 @@ pub fn open_vault(path: String, state: State<'_, VaultState>) -> CmdResult<Strin
     let root = PathBuf::from(&path);
     let vault = Vault::open(&root).map_err(|e| e.to_string())?;
     let name = vault.config.vault.name.clone();
+
+    // Pull on open if configured
+    if vault.config.sync.pull_on_open && vault.config.sync.remote_url.is_some() {
+        let branch = &vault.config.sync.remote_branch;
+        let _ = std::process::Command::new("git")
+            .args(["-C", &root.to_string_lossy(), "pull", "origin", branch])
+            .output();
+    }
+
+    // Write active vault path so MCP server can find it
+    if let Some(home) = dirs::home_dir() {
+        let active_dir = home.join(".slatevault");
+        let _ = std::fs::create_dir_all(&active_dir);
+        let _ = std::fs::write(active_dir.join("active-vault"), root.to_string_lossy().as_bytes());
+    }
+
     let mut lock = state.0.lock().map_err(|e| e.to_string())?;
     *lock = Some(vault);
     Ok(format!("Opened vault '{}'", name))

@@ -8,6 +8,7 @@ import type {
   RemoteConfig,
   VaultSettings,
   VaultStatsInfo,
+  McpServerStatus,
 } from "@/types";
 
 export async function createVault(
@@ -159,4 +160,19 @@ export async function rebuildIndex(): Promise<number> {
 
 export async function vaultStats(): Promise<VaultStatsInfo> {
   return invoke("vault_stats");
+}
+
+export async function startMcpServer(
+  vault_path: string,
+  port: number
+): Promise<string> {
+  return invoke("start_mcp_server", { vaultPath: vault_path, port });
+}
+
+export async function stopMcpServer(): Promise<string> {
+  return invoke("stop_mcp_server");
+}
+
+export async function mcpServerStatus(): Promise<McpServerStatus> {
+  return invoke("mcp_server_status");
 }
