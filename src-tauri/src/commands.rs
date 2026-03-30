@@ -319,3 +319,63 @@ pub fn git_pull(
         Err(format!("Pull failed: {}", stderr.trim()).to_string())
     }
 }
+
+#[derive(Serialize)]
+pub struct VaultSettings {
+    pub name: String,
+    pub path: String,
+    pub mcp_port: u16,
+    pub auto_stage_ai_writes: bool,
+    pub ssh_key_path: Option<String>,
+    pub remote_url: Option<String>,
+    pub remote_branch: String,
+}
+
+#[tauri::command]
+pub fn get_vault_config(
+    state: State<'_, VaultState>,
+) -> CmdResult<VaultSettings> {
+    with_vault(&state, |vault| {
+        Ok(VaultSettings {
+            name: vault.config.vault.name.clone(),
+            path: vault.root.to_string_lossy().to_string(),
+            mcp_port: vault.config.mcp.port,
+            auto_stage_ai_writes: vault.config.mcp.auto_stage_ai_writes,
+            ssh_key_path: vault.config.sync.ssh_key_path.clone(),
+            remote_url: vault.config.sync.remote_url.clone(),
+            remote_branch: vault.config.sync.remote_branch.clone(),
+        })
+    })
+}
+
+#[derive(Deserialize)]
+pub struct SetVaultConfigArgs {
+    pub name: Option<String>,
+    pub mcp_port: Option<u16>,
+    pub auto_stage_ai_writes: Option<bool>,
+    pub ssh_key_path: Option<String>,
+}
+
+#[tauri::command]
+pub fn set_vault_config(
+    args: SetVaultConfigArgs,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    let mut lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_mut().ok_or("No vault is open")?;
+    if let Some(name) = args.name {
+        vault.config.vault.name = name;
+    }
+    if let Some(port) = args.mcp_port {
+        vault.config.mcp.port = port;
+    }
+    if let Some(v) = args.auto_stage_ai_writes {
+        vault.config.mcp.auto_stage_ai_writes = v;
+    }
+    // Empty string clears the path, Some(path) sets it
+    if let Some(path) = args.ssh_key_path {
+        vault.config.sync.ssh_key_path = if path.is_empty() { None } else { Some(path) };
+    }
+    vault.save_config().map_err(|e| e.to_string())?;
+    Ok("Settings updated".to_string())
+}

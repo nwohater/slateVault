@@ -25,6 +25,8 @@ pub struct SyncConfig {
     pub pull_on_open: bool,
     #[serde(default)]
     pub push_on_close: bool,
+    #[serde(default)]
+    pub ssh_key_path: Option<String>,
 }
 
 impl Default for SyncConfig {
@@ -34,6 +36,7 @@ impl Default for SyncConfig {
             remote_branch: "main".to_string(),
             pull_on_open: true,
             push_on_close: false,
+            ssh_key_path: None,
         }
     }
 }

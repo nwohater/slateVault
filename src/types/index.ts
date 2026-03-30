@@ -40,6 +40,16 @@ export interface RemoteConfig {
   push_on_close: boolean;
 }
 
+export interface VaultSettings {
+  name: string;
+  path: string;
+  mcp_port: number;
+  auto_stage_ai_writes: boolean;
+  ssh_key_path: string | null;
+  remote_url: string | null;
+  remote_branch: string;
+}
+
 export interface FrontMatter {
   id: string;
   title: string;

@@ -5,8 +5,9 @@ import { useVaultStore } from "@/stores/vaultStore";
 import { FileTree } from "./FileTree";
 import { SearchBar } from "./SearchBar";
 import { GitPanel } from "../git/GitPanel";
+import { SettingsPanel } from "../settings/SettingsPanel";
 
-type SidebarView = "files" | "git";
+type SidebarView = "files" | "git" | "settings";
 
 export function Sidebar() {
   const vaultName = useVaultStore((s) => s.vaultName);
@@ -21,6 +22,12 @@ export function Sidebar() {
     setNewProjectName("");
     setShowNewProject(false);
   };
+
+  const tabs: { id: SidebarView; label: string }[] = [
+    { id: "files", label: "Files" },
+    { id: "git", label: "Git" },
+    { id: "settings", label: "Settings" },
+  ];
 
   return (
     <div className="flex flex-col h-full bg-neutral-900 border-r border-neutral-800">
@@ -44,31 +51,23 @@ export function Sidebar() {
 
       {/* View tabs */}
       <div className="flex border-b border-neutral-800 text-xs">
-        <button
-          onClick={() => setView("files")}
-          className={`flex-1 py-1.5 transition-colors ${
-            view === "files"
-              ? "text-neutral-100 border-b border-blue-500"
-              : "text-neutral-500 hover:text-neutral-300"
-          }`}
-        >
-          Files
-        </button>
-        <button
-          onClick={() => setView("git")}
-          className={`flex-1 py-1.5 transition-colors ${
-            view === "git"
-              ? "text-neutral-100 border-b border-blue-500"
-              : "text-neutral-500 hover:text-neutral-300"
-          }`}
-        >
-          Git
-        </button>
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setView(t.id)}
+            className={`flex-1 py-1.5 transition-colors ${
+              view === t.id
+                ? "text-neutral-100 border-b border-blue-500"
+                : "text-neutral-500 hover:text-neutral-300"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {view === "files" ? (
+      {view === "files" && (
         <>
-          {/* New project input */}
           {showNewProject && (
             <div className="px-3 py-2 border-b border-neutral-800 space-y-2">
               <input
@@ -100,18 +99,22 @@ export function Sidebar() {
               </div>
             </div>
           )}
-
-          {/* Search */}
           <SearchBar />
-
-          {/* File tree */}
           <div className="flex-1 overflow-y-auto">
             <FileTree />
           </div>
         </>
-      ) : (
+      )}
+
+      {view === "git" && (
         <div className="flex-1 min-h-0">
           <GitPanel />
+        </div>
+      )}
+
+      {view === "settings" && (
+        <div className="flex-1 min-h-0">
+          <SettingsPanel />
         </div>
       )}
     </div>

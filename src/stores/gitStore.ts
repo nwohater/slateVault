@@ -96,7 +96,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   setRemoteConfig: async (config) => {
     await commands.gitSetRemoteConfig({
-      remote_url: config.remote_url,
+      remote_url: config.remote_url ?? undefined,
       remote_branch: config.remote_branch,
       pull_on_open: config.pull_on_open,
       push_on_close: config.push_on_close,
