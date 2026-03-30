@@ -84,10 +84,10 @@ export function VaultPicker() {
   };
 
   return (
-    <div className="flex items-center justify-center h-screen bg-neutral-950">
+    <div className="flex items-center justify-center h-screen bg-neutral-950 overflow-auto">
       <div className="w-full max-w-md p-8">
         <div className="flex justify-center mb-6">
-          <img src="/slateVault.png" alt="slateVault" className="h-80 object-contain" />
+          <img src="/slateVault.png" alt="slateVault" className="h-64 object-contain" />
         </div>
         <p className="text-neutral-500 text-center text-sm mb-8">
           Local-first, AI-native markdown vault

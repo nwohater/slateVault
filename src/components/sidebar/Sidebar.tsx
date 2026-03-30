@@ -11,10 +11,19 @@ type SidebarView = "files" | "git" | "settings";
 
 export function Sidebar() {
   const vaultName = useVaultStore((s) => s.vaultName);
+  const closeVault = useVaultStore((s) => s.closeVault);
   const createProject = useVaultStore((s) => s.createProject);
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
+  const loadProjects = useVaultStore((s) => s.loadProjects);
   const [view, setView] = useState<SidebarView>("files");
+
+  const switchView = (v: SidebarView) => {
+    setView(v);
+    if (v === "files") {
+      loadProjects();
+    }
+  };
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
@@ -33,9 +42,13 @@ export function Sidebar() {
     <div className="flex flex-col h-full bg-neutral-900 border-r border-neutral-800">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800">
-        <span className="text-sm font-semibold text-neutral-200 truncate">
+        <button
+          onClick={closeVault}
+          className="text-sm font-semibold text-neutral-200 truncate hover:text-blue-400 transition-colors"
+          title="Switch vault"
+        >
           {vaultName || "slateVault"}
-        </span>
+        </button>
         <div className="flex items-center gap-1">
           {view === "files" && (
             <button
@@ -54,7 +67,7 @@ export function Sidebar() {
         {tabs.map((t) => (
           <button
             key={t.id}
-            onClick={() => setView(t.id)}
+            onClick={() => switchView(t.id)}
             className={`flex-1 py-1.5 transition-colors ${
               view === t.id
                 ? "text-neutral-100 border-b border-blue-500"

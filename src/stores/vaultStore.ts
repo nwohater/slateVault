@@ -16,6 +16,7 @@ interface VaultState {
   loadProjects: () => Promise<void>;
   loadDocuments: (project: string) => Promise<void>;
   loadStats: () => Promise<void>;
+  closeVault: () => void;
   createProject: (
     name: string,
     description?: string,
@@ -47,6 +48,30 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
     await get().loadProjects();
     await get().loadStats();
+
+    // Auto-start MCP server for this vault
+    try {
+      const stats = get().stats;
+      if (stats?.mcp_enabled) {
+        await commands.startMcpServer(path, stats.mcp_port);
+      }
+    } catch (e) {
+      console.error("MCP server start failed:", e);
+    }
+  },
+
+  closeVault: () => {
+    // Stop MCP server
+    commands.stopMcpServer().catch(() => {});
+    set({
+      isOpen: false,
+      vaultPath: null,
+      vaultName: null,
+      projects: [],
+      documents: {},
+      expandedProjects: new Set(),
+      stats: null,
+    });
   },
 
   createVault: async (path: string, name: string) => {

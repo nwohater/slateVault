@@ -34,21 +34,43 @@ Your local-first, AI-native markdown vault is ready.
 6. **Open terminal** — Press Ctrl+\` to open the embedded terminal
 7. **MCP integration** — AI tools can read and write to this vault via the MCP server
 
-## MCP Server
+## Connect Claude Code (MCP)
 
-The MCP server runs on port 3742 by default. Configure it in Settings.
+slateVault includes an MCP server that lets AI tools read and write to your vault.
 
-To connect Claude Code, add to your MCP config:
+### Setup (one time)
 
-\`\`\`json
-{
-  "mcpServers": {
-    "slatevault": {
-      "command": "slatevault-mcp"
-    }
-  }
-}
+Run this in your terminal to install the MCP globally:
+
+\`\`\`bash
+claude mcp add -s user slatevault -- slatevault-mcp
 \`\`\`
+
+That's it! The MCP server automatically connects to whichever vault you have open in the app.
+
+### How it works
+
+- When you open a vault, slateVault writes the path to \`~/.slatevault/active-vault\`
+- When Claude Code starts a session, the MCP server reads that file and connects to the same vault
+- AI tools can then create projects, write documents, search, and read your docs
+- Documents written by AI are tagged with \`author: ai\` and auto-staged for git commit
+
+### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| \`list_projects\` | See all projects in the vault |
+| \`create_project\` | Create a new project |
+| \`get_project_context\` | Load pinned AI context files |
+| \`write_document\` | Create or update a document |
+| \`read_document\` | Read a document's content |
+| \`list_documents\` | List docs in a project |
+| \`search_documents\` | Full-text search across the vault |
+
+### Settings
+
+Configure the MCP server port and auto-stage behavior in the **Settings** tab.
+You can also copy the setup command from Settings > MCP Server.
 
 Happy writing!
 `,
