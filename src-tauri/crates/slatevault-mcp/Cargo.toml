@@ -1,0 +1,13 @@
+[package]
+name = "slatevault-mcp"
+version.workspace = true
+edition.workspace = true
+description = "MCP server for slateVault — exposes vault operations as MCP tools"
+
+[dependencies]
+slatevault-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+log.workspace = true
+anyhow.workspace = true
