@@ -43,6 +43,8 @@ pub fn run() {
             commands::git_pull,
             commands::get_vault_config,
             commands::set_vault_config,
+            commands::rebuild_index,
+            commands::vault_stats,
             terminal::spawn_terminal,
             terminal::write_terminal,
             terminal::resize_terminal,

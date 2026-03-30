@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ProjectInfo, DocumentInfo } from "@/types";
+import type { ProjectInfo, DocumentInfo, VaultStatsInfo } from "@/types";
 import * as commands from "@/lib/commands";
 
 interface VaultState {
@@ -7,13 +7,15 @@ interface VaultState {
   vaultPath: string | null;
   vaultName: string | null;
   projects: ProjectInfo[];
-  documents: Record<string, DocumentInfo[]>; // keyed by project name
+  documents: Record<string, DocumentInfo[]>;
   expandedProjects: Set<string>;
+  stats: VaultStatsInfo | null;
 
   openVault: (path: string) => Promise<void>;
   createVault: (path: string, name: string) => Promise<void>;
   loadProjects: () => Promise<void>;
   loadDocuments: (project: string) => Promise<void>;
+  loadStats: () => Promise<void>;
   createProject: (
     name: string,
     description?: string,
@@ -29,12 +31,22 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   projects: [],
   documents: {},
   expandedProjects: new Set(),
+  stats: null,
 
   openVault: async (path: string) => {
     const result = await commands.openVault(path);
     const name = result.replace("Opened vault '", "").replace("'", "");
     set({ isOpen: true, vaultPath: path, vaultName: name });
+
+    // Rebuild search index on open
+    try {
+      await commands.rebuildIndex();
+    } catch (e) {
+      console.error("Index rebuild failed:", e);
+    }
+
     await get().loadProjects();
+    await get().loadStats();
   },
 
   createVault: async (path: string, name: string) => {
@@ -54,9 +66,19 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }));
   },
 
+  loadStats: async () => {
+    try {
+      const stats = await commands.vaultStats();
+      set({ stats });
+    } catch {
+      // ignore
+    }
+  },
+
   createProject: async (name, description, tags) => {
     await commands.createProject(name, description, tags);
     await get().loadProjects();
+    await get().loadStats();
   },
 
   toggleProject: (name: string) => {
@@ -66,7 +88,6 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         next.delete(name);
       } else {
         next.add(name);
-        // Load documents when expanding
         get().loadDocuments(name);
       }
       return { expandedProjects: next };

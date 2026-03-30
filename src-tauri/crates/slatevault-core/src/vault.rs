@@ -81,6 +81,46 @@ impl Vault {
         self.root.join("projects")
     }
 
+    /// Rebuild the FTS5 search index by walking all documents in all projects.
+    pub fn rebuild_index(&self) -> Result<usize> {
+        let mut count = 0;
+        let projects = self.list_projects()?;
+        for project_config in &projects {
+            let name = &project_config.project.name;
+            if let Ok(docs) = self.list_documents(name, None) {
+                for doc in &docs {
+                    self.search.index_document(
+                        name,
+                        &doc.path,
+                        &doc.front_matter.title,
+                        &doc.content,
+                        &doc.front_matter.tags,
+                    )?;
+                    count += 1;
+                }
+            }
+        }
+        Ok(count)
+    }
+
+    /// Get summary stats for the vault.
+    pub fn stats(&self) -> Result<VaultStats> {
+        let projects = self.list_projects()?;
+        let mut doc_count = 0;
+        for p in &projects {
+            if let Ok(docs) = self.list_documents(&p.project.name, None) {
+                doc_count += docs.len();
+            }
+        }
+        Ok(VaultStats {
+            project_count: projects.len(),
+            doc_count,
+            mcp_port: self.config.mcp.port,
+            remote_branch: self.config.sync.remote_branch.clone(),
+            remote_url: self.config.sync.remote_url.clone(),
+        })
+    }
+
     // -- Project operations --
 
     pub fn create_project(
@@ -420,4 +460,13 @@ pub struct CommitInfo {
     pub message: String,
     pub author: String,
     pub date: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct VaultStats {
+    pub project_count: usize,
+    pub doc_count: usize,
+    pub mcp_port: u16,
+    pub remote_branch: String,
+    pub remote_url: Option<String>,
 }
