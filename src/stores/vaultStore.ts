@@ -16,6 +16,7 @@ interface VaultState {
   loadProjects: () => Promise<void>;
   loadDocuments: (project: string) => Promise<void>;
   loadStats: () => Promise<void>;
+  closeVault: () => void;
   createProject: (
     name: string,
     description?: string,
@@ -47,6 +48,18 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
     await get().loadProjects();
     await get().loadStats();
+  },
+
+  closeVault: () => {
+    set({
+      isOpen: false,
+      vaultPath: null,
+      vaultName: null,
+      projects: [],
+      documents: {},
+      expandedProjects: new Set(),
+      stats: null,
+    });
   },
 
   createVault: async (path: string, name: string) => {
