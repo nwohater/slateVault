@@ -6,6 +6,7 @@ import type {
   FileStatus,
   CommitInfo,
   RemoteConfig,
+  VaultSettings,
 } from "@/types";
 
 export async function createVault(
@@ -116,4 +117,17 @@ export async function gitSetRemoteConfig(config: {
   push_on_close?: boolean;
 }): Promise<string> {
   return invoke("git_set_remote_config", { args: config });
+}
+
+export async function getVaultConfig(): Promise<VaultSettings> {
+  return invoke("get_vault_config");
+}
+
+export async function setVaultConfig(config: {
+  name?: string;
+  mcp_port?: number;
+  auto_stage_ai_writes?: boolean;
+  ssh_key_path?: string;
+}): Promise<string> {
+  return invoke("set_vault_config", { args: config });
 }

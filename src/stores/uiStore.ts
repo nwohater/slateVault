@@ -1,19 +1,24 @@
 import { create } from "zustand";
 
+type ActiveView = "editor" | "search";
+
 interface UIState {
   sidebarWidth: number;
   showPreview: boolean;
-  previewRatio: number; // 0-1, portion of main area for editor
+  previewRatio: number;
+  activeView: ActiveView;
 
   setSidebarWidth: (width: number) => void;
   togglePreview: () => void;
   setPreviewRatio: (ratio: number) => void;
+  setActiveView: (view: ActiveView) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
   sidebarWidth: 260,
   showPreview: true,
   previewRatio: 0.5,
+  activeView: "editor",
 
   setSidebarWidth: (width: number) =>
     set({ sidebarWidth: Math.max(180, Math.min(500, width)) }),
@@ -22,4 +27,6 @@ export const useUIStore = create<UIState>((set) => ({
 
   setPreviewRatio: (ratio: number) =>
     set({ previewRatio: Math.max(0.2, Math.min(0.8, ratio)) }),
+
+  setActiveView: (view) => set({ activeView: view }),
 }));

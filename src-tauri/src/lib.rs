@@ -38,6 +38,8 @@ pub fn run() {
             commands::git_set_remote_config,
             commands::git_push,
             commands::git_pull,
+            commands::get_vault_config,
+            commands::set_vault_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
