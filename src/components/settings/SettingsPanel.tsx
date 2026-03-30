@@ -123,6 +123,29 @@ export function SettingsPanel() {
             />
             Auto-stage AI writes
           </label>
+          <div className="pt-1">
+            <label className="block text-neutral-500 mb-1">Claude Code Setup</label>
+            <div className="flex gap-1">
+              <code className="flex-1 px-2 py-1 bg-neutral-800 rounded text-neutral-400 text-[10px] truncate">
+                claude mcp add -s user slatevault -- slatevault-mcp
+              </code>
+              <button
+                onClick={() => {
+                  const cmd = `claude mcp add -s user slatevault -- slatevault-mcp`;
+                  navigator.clipboard.writeText(cmd);
+                  setOutput("Copied MCP setup command!");
+                  setTimeout(() => setOutput(null), 2000);
+                }}
+                className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-neutral-400 flex-shrink-0"
+              >
+                Copy
+              </button>
+            </div>
+            <p className="text-neutral-600 mt-1">
+              Run this in your terminal to connect Claude Code to slateVault.
+              The MCP server automatically connects to whichever vault is open.
+            </p>
+          </div>
         </div>
       </div>
 
