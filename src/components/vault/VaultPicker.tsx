@@ -1,8 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useVaultStore } from "@/stores/vaultStore";
+
+const RECENT_VAULTS_KEY = "slatevault_recent_vaults";
+const MAX_RECENT = 5;
+
+interface RecentVault {
+  path: string;
+  name: string;
+  lastOpened: string;
+}
+
+function getRecentVaults(): RecentVault[] {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_VAULTS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function addRecentVault(path: string, name: string) {
+  const recent = getRecentVaults().filter((v) => v.path !== path);
+  recent.unshift({ path, name, lastOpened: new Date().toISOString() });
+  localStorage.setItem(
+    RECENT_VAULTS_KEY,
+    JSON.stringify(recent.slice(0, MAX_RECENT))
+  );
+}
 
 export function VaultPicker() {
   const [path, setPath] = useState("");
@@ -10,13 +36,31 @@ export function VaultPicker() {
   const [mode, setMode] = useState<"open" | "create">("open");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [recentVaults, setRecentVaults] = useState<RecentVault[]>([]);
   const openVault = useVaultStore((s) => s.openVault);
   const createVault = useVaultStore((s) => s.createVault);
+
+  useEffect(() => {
+    setRecentVaults(getRecentVaults());
+  }, []);
 
   const handleBrowse = async () => {
     const selected = await open({ directory: true, title: "Select vault folder" });
     if (selected) {
       setPath(selected);
+    }
+  };
+
+  const handleOpen = async (vaultPath: string, vaultName?: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      await openVault(vaultPath);
+      addRecentVault(vaultPath, vaultName || vaultPath.split(/[\\/]/).pop() || "vault");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -26,9 +70,11 @@ export function VaultPicker() {
     setLoading(true);
     try {
       if (mode === "create") {
-        await createVault(path.trim(), name.trim() || "default");
+        const vaultName = name.trim() || "default";
+        await createVault(path.trim(), vaultName);
+        addRecentVault(path.trim(), vaultName);
       } else {
-        await openVault(path.trim());
+        await handleOpen(path.trim());
       }
     } catch (e) {
       setError(String(e));
@@ -40,15 +86,44 @@ export function VaultPicker() {
   return (
     <div className="flex items-center justify-center h-screen bg-neutral-950">
       <div className="w-full max-w-md p-8">
-        <h1 className="text-3xl font-bold text-neutral-100 text-center mb-2">
-          slateVault
-        </h1>
+        <div className="flex justify-center mb-6">
+          <img src="/slateVault.png" alt="slateVault" className="h-80 object-contain" />
+        </div>
         <p className="text-neutral-500 text-center text-sm mb-8">
           Local-first, AI-native markdown vault
         </p>
 
+        {/* Recent vaults */}
+        {recentVaults.length > 0 && (
+          <div className="mb-6">
+            <label className="block text-xs text-neutral-500 mb-2">
+              Recent Vaults
+            </label>
+            <div className="space-y-1">
+              {recentVaults.map((v) => (
+                <button
+                  key={v.path}
+                  onClick={() => handleOpen(v.path, v.name)}
+                  disabled={loading}
+                  className="w-full flex items-center gap-3 px-3 py-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left transition-colors disabled:opacity-50"
+                >
+                  <span className="text-blue-400 text-sm">V</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-neutral-200 truncate">
+                      {v.name}
+                    </div>
+                    <div className="text-xs text-neutral-500 truncate">
+                      {v.path}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Mode tabs */}
-        <div className="flex mb-6 bg-neutral-900 rounded-lg p-0.5">
+        <div className="flex mb-4 bg-neutral-900 rounded-lg p-0.5">
           <button
             onClick={() => setMode("open")}
             className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${

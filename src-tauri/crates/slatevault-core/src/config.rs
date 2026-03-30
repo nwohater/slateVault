@@ -16,7 +16,7 @@ pub struct VaultMeta {
     pub version: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncConfig {
     pub remote_url: Option<String>,
     #[serde(default = "default_branch")]
@@ -25,6 +25,17 @@ pub struct SyncConfig {
     pub pull_on_open: bool,
     #[serde(default)]
     pub push_on_close: bool,
+}
+
+impl Default for SyncConfig {
+    fn default() -> Self {
+        Self {
+            remote_url: None,
+            remote_branch: "main".to_string(),
+            pull_on_open: true,
+            push_on_close: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
