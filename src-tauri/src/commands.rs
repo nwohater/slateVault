@@ -324,6 +324,7 @@ pub fn git_pull(
 pub struct VaultSettings {
     pub name: String,
     pub path: String,
+    pub mcp_enabled: bool,
     pub mcp_port: u16,
     pub auto_stage_ai_writes: bool,
     pub ssh_key_path: Option<String>,
@@ -339,6 +340,7 @@ pub fn get_vault_config(
         Ok(VaultSettings {
             name: vault.config.vault.name.clone(),
             path: vault.root.to_string_lossy().to_string(),
+            mcp_enabled: vault.config.mcp.enabled,
             mcp_port: vault.config.mcp.port,
             auto_stage_ai_writes: vault.config.mcp.auto_stage_ai_writes,
             ssh_key_path: vault.config.sync.ssh_key_path.clone(),
@@ -351,6 +353,7 @@ pub fn get_vault_config(
 #[derive(Deserialize)]
 pub struct SetVaultConfigArgs {
     pub name: Option<String>,
+    pub mcp_enabled: Option<bool>,
     pub mcp_port: Option<u16>,
     pub auto_stage_ai_writes: Option<bool>,
     pub ssh_key_path: Option<String>,
@@ -365,6 +368,9 @@ pub fn set_vault_config(
     let vault = lock.as_mut().ok_or("No vault is open")?;
     if let Some(name) = args.name {
         vault.config.vault.name = name;
+    }
+    if let Some(v) = args.mcp_enabled {
+        vault.config.mcp.enabled = v;
     }
     if let Some(port) = args.mcp_port {
         vault.config.mcp.port = port;

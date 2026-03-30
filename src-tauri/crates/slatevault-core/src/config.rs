@@ -43,6 +43,8 @@ impl Default for SyncConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
     #[serde(default = "default_mcp_port")]
     pub port: u16,
     #[serde(default = "default_true")]
@@ -52,6 +54,7 @@ pub struct McpConfig {
 impl Default for McpConfig {
     fn default() -> Self {
         Self {
+            enabled: true,
             port: default_mcp_port(),
             auto_stage_ai_writes: true,
         }

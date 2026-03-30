@@ -21,7 +21,14 @@ export function StatusBar() {
         <>
           <span>{stats.project_count} projects</span>
           <span>{stats.doc_count} docs</span>
-          <span>MCP :{stats.mcp_port}</span>
+          <span className="flex items-center gap-1">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                stats.mcp_enabled ? "bg-green-500" : "bg-red-500"
+              }`}
+            />
+            MCP :{stats.mcp_port}
+          </span>
           {stats.remote_url && (
             <span>{stats.remote_branch}</span>
           )}
