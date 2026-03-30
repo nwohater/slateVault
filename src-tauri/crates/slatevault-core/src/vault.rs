@@ -115,6 +115,7 @@ impl Vault {
         Ok(VaultStats {
             project_count: projects.len(),
             doc_count,
+            mcp_enabled: self.config.mcp.enabled,
             mcp_port: self.config.mcp.port,
             remote_branch: self.config.sync.remote_branch.clone(),
             remote_url: self.config.sync.remote_url.clone(),
@@ -466,6 +467,7 @@ pub struct CommitInfo {
 pub struct VaultStats {
     pub project_count: usize,
     pub doc_count: usize,
+    pub mcp_enabled: bool,
     pub mcp_port: u16,
     pub remote_branch: String,
     pub remote_url: Option<String>,
