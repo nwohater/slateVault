@@ -48,7 +48,7 @@ export function ResizeHandle({ direction, onResize }: ResizeHandleProps) {
         ${
           direction === "vertical"
             ? "w-1 cursor-col-resize"
-            : "h-1 cursor-row-resize"
+            : "h-1.5 cursor-row-resize"
         }
       `}
     />

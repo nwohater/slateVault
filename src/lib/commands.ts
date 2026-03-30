@@ -131,3 +131,22 @@ export async function setVaultConfig(config: {
 }): Promise<string> {
   return invoke("set_vault_config", { args: config });
 }
+
+export async function spawnTerminal(cwd: string): Promise<string> {
+  return invoke("spawn_terminal", { cwd });
+}
+
+export async function writeTerminal(data: string): Promise<void> {
+  return invoke("write_terminal", { data });
+}
+
+export async function resizeTerminal(
+  rows: number,
+  cols: number
+): Promise<void> {
+  return invoke("resize_terminal", { rows, cols });
+}
+
+export async function closeTerminal(): Promise<string> {
+  return invoke("close_terminal");
+}

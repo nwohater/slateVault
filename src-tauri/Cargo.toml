@@ -45,3 +45,4 @@ tauri-plugin-shell = "2"
 slatevault-core.workspace = true
 tokio.workspace = true
 tauri-plugin-dialog = "2.6.0"
+portable-pty = "0.9.0"
