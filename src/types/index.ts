@@ -43,6 +43,7 @@ export interface RemoteConfig {
 export interface VaultSettings {
   name: string;
   path: string;
+  mcp_enabled: boolean;
   mcp_port: number;
   auto_stage_ai_writes: boolean;
   ssh_key_path: string | null;
@@ -53,6 +54,7 @@ export interface VaultSettings {
 export interface VaultStatsInfo {
   project_count: number;
   doc_count: number;
+  mcp_enabled: boolean;
   mcp_port: number;
   remote_branch: string;
   remote_url: string | null;

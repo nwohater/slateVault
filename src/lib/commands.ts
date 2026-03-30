@@ -126,6 +126,7 @@ export async function getVaultConfig(): Promise<VaultSettings> {
 
 export async function setVaultConfig(config: {
   name?: string;
+  mcp_enabled?: boolean;
   mcp_port?: number;
   auto_stage_ai_writes?: boolean;
   ssh_key_path?: string;

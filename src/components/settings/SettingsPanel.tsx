@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import * as commands from "@/lib/commands";
+import { useVaultStore } from "@/stores/vaultStore";
 import type { VaultSettings } from "@/types";
 
 export function SettingsPanel() {
+  const loadStats = useVaultStore((s) => s.loadStats);
   const [settings, setSettings] = useState<VaultSettings | null>(null);
   const [name, setName] = useState("");
+  const [mcpEnabled, setMcpEnabled] = useState(true);
   const [mcpPort, setMcpPort] = useState(3742);
   const [autoStage, setAutoStage] = useState(true);
   const [sshKeyPath, setSshKeyPath] = useState("");
@@ -22,6 +25,7 @@ export function SettingsPanel() {
       const s = await commands.getVaultConfig();
       setSettings(s);
       setName(s.name);
+      setMcpEnabled(s.mcp_enabled);
       setMcpPort(s.mcp_port);
       setAutoStage(s.auto_stage_ai_writes);
       setSshKeyPath(s.ssh_key_path || "");
@@ -36,11 +40,13 @@ export function SettingsPanel() {
     try {
       await commands.setVaultConfig({
         name,
+        mcp_enabled: mcpEnabled,
         mcp_port: mcpPort,
         auto_stage_ai_writes: autoStage,
         ssh_key_path: sshKeyPath,
       });
       setOutput("Settings saved");
+      await loadStats();
       setTimeout(() => setOutput(null), 2000);
     } catch (e) {
       setOutput(`Save failed: ${e}`);
@@ -87,6 +93,16 @@ export function SettingsPanel() {
           MCP Server
         </h3>
         <div className="space-y-2">
+          <label className="flex items-center gap-2 text-neutral-400">
+            <input
+              type="checkbox"
+              checked={mcpEnabled}
+              onChange={(e) => setMcpEnabled(e.target.checked)}
+              className="rounded"
+            />
+            Enabled
+            <span className={`w-2 h-2 rounded-full ${mcpEnabled ? "bg-green-500" : "bg-red-500"}`} />
+          </label>
           <div>
             <label className="block text-neutral-500 mb-1">Port</label>
             <input
