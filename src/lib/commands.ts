@@ -1,5 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ProjectInfo, DocumentInfo, SearchResultInfo } from "@/types";
+import type {
+  ProjectInfo,
+  DocumentInfo,
+  SearchResultInfo,
+  FileStatus,
+  CommitInfo,
+  RemoteConfig,
+} from "@/types";
 
 export async function createVault(
   path: string,
@@ -72,4 +79,41 @@ export async function getProjectContext(
 
 export async function gitCommit(message: string): Promise<string> {
   return invoke("git_commit", { message });
+}
+
+export async function gitStatus(): Promise<FileStatus[]> {
+  return invoke("git_status");
+}
+
+export async function gitStage(path: string): Promise<string> {
+  return invoke("git_stage", { path });
+}
+
+export async function gitUnstage(path: string): Promise<string> {
+  return invoke("git_unstage", { path });
+}
+
+export async function gitLog(limit?: number): Promise<CommitInfo[]> {
+  return invoke("git_log", { limit });
+}
+
+export async function gitRemoteConfig(): Promise<RemoteConfig> {
+  return invoke("git_remote_config");
+}
+
+export async function gitPush(): Promise<string> {
+  return invoke("git_push");
+}
+
+export async function gitPull(): Promise<string> {
+  return invoke("git_pull");
+}
+
+export async function gitSetRemoteConfig(config: {
+  remote_url?: string;
+  remote_branch?: string;
+  pull_on_open?: boolean;
+  push_on_close?: boolean;
+}): Promise<string> {
+  return invoke("git_set_remote_config", { args: config });
 }

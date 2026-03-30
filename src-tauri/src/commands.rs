@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use slatevault_core::Vault;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -104,7 +104,7 @@ pub fn read_document(
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
         let doc = vault.read_document(&project, &path)?;
-        Ok(doc.content)
+        doc.to_string()
     })
 }
 
@@ -177,4 +177,145 @@ pub fn git_commit(
         let oid = vault.commit(&message)?;
         Ok(format!("Committed: {}", oid))
     })
+}
+
+#[tauri::command]
+pub fn git_status(
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<slatevault_core::FileStatus>> {
+    with_vault(&state, |vault| vault.status())
+}
+
+#[tauri::command]
+pub fn git_stage(
+    path: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        vault.stage_path(&path)?;
+        Ok(format!("Staged: {}", path))
+    })
+}
+
+#[tauri::command]
+pub fn git_unstage(
+    path: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        vault.unstage_file(&path)?;
+        Ok(format!("Unstaged: {}", path))
+    })
+}
+
+#[tauri::command]
+pub fn git_log(
+    limit: Option<usize>,
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<slatevault_core::CommitInfo>> {
+    with_vault(&state, |vault| vault.log(limit.unwrap_or(50)))
+}
+
+#[derive(Serialize)]
+pub struct RemoteConfig {
+    pub remote_url: Option<String>,
+    pub remote_branch: String,
+    pub pull_on_open: bool,
+    pub push_on_close: bool,
+}
+
+#[tauri::command]
+pub fn git_remote_config(
+    state: State<'_, VaultState>,
+) -> CmdResult<RemoteConfig> {
+    with_vault(&state, |vault| {
+        Ok(RemoteConfig {
+            remote_url: vault.config.sync.remote_url.clone(),
+            remote_branch: vault.config.sync.remote_branch.clone(),
+            pull_on_open: vault.config.sync.pull_on_open,
+            push_on_close: vault.config.sync.push_on_close,
+        })
+    })
+}
+
+#[derive(Deserialize)]
+pub struct SetRemoteConfigArgs {
+    pub remote_url: Option<String>,
+    pub remote_branch: Option<String>,
+    pub pull_on_open: Option<bool>,
+    pub push_on_close: Option<bool>,
+}
+
+#[tauri::command]
+pub fn git_set_remote_config(
+    args: SetRemoteConfigArgs,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    let mut lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_mut().ok_or("No vault is open")?;
+    if let Some(ref url) = args.remote_url {
+        if !url.is_empty() {
+            vault.set_git_remote(url).map_err(|e| e.to_string())?;
+            vault.config.sync.remote_url = Some(url.clone());
+        } else {
+            vault.config.sync.remote_url = None;
+        }
+    }
+    if let Some(ref branch) = args.remote_branch {
+        if !branch.is_empty() {
+            vault.config.sync.remote_branch = branch.clone();
+        }
+    }
+    if let Some(v) = args.pull_on_open {
+        vault.config.sync.pull_on_open = v;
+    }
+    if let Some(v) = args.push_on_close {
+        vault.config.sync.push_on_close = v;
+    }
+    vault.save_config().map_err(|e| e.to_string())?;
+    Ok("Remote config updated".to_string())
+}
+
+#[tauri::command]
+pub fn git_push(
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let branch = &vault.config.sync.remote_branch;
+    // Ensure branch name matches by renaming if needed
+    let _ = std::process::Command::new("git")
+        .args(["-C", &vault.root.to_string_lossy(), "branch", "-M", branch])
+        .output();
+    let output = std::process::Command::new("git")
+        .args(["-C", &vault.root.to_string_lossy(), "push", "-u", "origin", branch])
+        .output()
+        .map_err(|e| format!("Failed to run git: {}", e))?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        Ok(format!("{}{}", stdout, stderr).trim().to_string())
+    } else {
+        Err(format!("Push failed: {}", stderr.trim()).to_string())
+    }
+}
+
+#[tauri::command]
+pub fn git_pull(
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let branch = &vault.config.sync.remote_branch;
+    let output = std::process::Command::new("git")
+        .args(["-C", &vault.root.to_string_lossy(), "pull", "origin", branch])
+        .output()
+        .map_err(|e| format!("Failed to run git: {}", e))?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        Ok(format!("{}{}", stdout, stderr).trim().to_string())
+    } else {
+        Err(format!("Pull failed: {}", stderr.trim()).to_string())
+    }
 }

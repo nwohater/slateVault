@@ -21,6 +21,25 @@ export interface SearchResultInfo {
   snippet: string;
 }
 
+export interface FileStatus {
+  path: string;
+  status: string; // "staged_new" | "staged_modified" | "staged_deleted" | "new" | "modified" | "deleted"
+}
+
+export interface CommitInfo {
+  oid: string;
+  message: string;
+  author: string;
+  date: string;
+}
+
+export interface RemoteConfig {
+  remote_url: string | null;
+  remote_branch: string;
+  pull_on_open: boolean;
+  push_on_close: boolean;
+}
+
 export interface FrontMatter {
   id: string;
   title: string;

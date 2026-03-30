@@ -8,6 +8,11 @@
   "permissions": [
     "core:default",
     "shell:default",
+    "shell:allow-execute",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [{ "name": "git", "cmd": "git", "args": true }]
+    },
     "dialog:default"
   ]
 }

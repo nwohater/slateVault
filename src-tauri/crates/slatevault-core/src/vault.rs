@@ -41,8 +41,9 @@ impl Vault {
             "index.db\nindex.db-journal\n.DS_Store\n",
         )?;
 
-        // Init git repo
+        // Init git repo with 'main' as default branch
         let repo = git2::Repository::init(root)?;
+        repo.config()?.set_str("init.defaultBranch", "main")?;
 
         // Init search index
         let search = SearchIndex::open(&root.join("index.db"))?;
@@ -240,12 +241,132 @@ impl Vault {
         Ok(())
     }
 
+    pub fn stage_path(&self, relative_path: &str) -> Result<()> {
+        let full = self.root.join(relative_path);
+        self.stage_file(&full)
+    }
+
+    pub fn unstage_file(&self, relative_path: &str) -> Result<()> {
+        let mut index = self.repo.index()?;
+        let head = self.repo.head();
+
+        match head {
+            Ok(head_ref) => {
+                let tree = head_ref.peel_to_tree()?;
+                let entry = tree.get_path(std::path::Path::new(relative_path));
+                match entry {
+                    Ok(entry) => {
+                        // File existed in HEAD — restore index entry to HEAD version
+                        let idx_entry = git2::IndexEntry {
+                            ctime: git2::IndexTime::new(0, 0),
+                            mtime: git2::IndexTime::new(0, 0),
+                            dev: 0,
+                            ino: 0,
+                            mode: entry.filemode() as u32,
+                            uid: 0,
+                            gid: 0,
+                            file_size: 0,
+                            id: entry.id(),
+                            flags: 0,
+                            flags_extended: 0,
+                            path: relative_path.as_bytes().to_vec(),
+                        };
+                        index.add(&idx_entry)?;
+                    }
+                    Err(_) => {
+                        // File is new (not in HEAD) — remove from index entirely
+                        index.remove_path(std::path::Path::new(relative_path))?;
+                    }
+                }
+            }
+            Err(_) => {
+                // No HEAD (initial commit) — remove from index
+                index.remove_path(std::path::Path::new(relative_path))?;
+            }
+        }
+
+        index.write()?;
+        Ok(())
+    }
+
+    pub fn status(&self) -> Result<Vec<FileStatus>> {
+        let statuses = self.repo.statuses(Some(
+            git2::StatusOptions::new()
+                .include_untracked(true)
+                .recurse_untracked_dirs(true),
+        ))?;
+
+        let mut result = Vec::new();
+        for entry in statuses.iter() {
+            let path = entry.path().unwrap_or("").to_string();
+            let s = entry.status();
+
+            let status_str = if s.contains(git2::Status::INDEX_NEW) {
+                "staged_new"
+            } else if s.contains(git2::Status::INDEX_MODIFIED) {
+                "staged_modified"
+            } else if s.contains(git2::Status::INDEX_DELETED) {
+                "staged_deleted"
+            } else if s.contains(git2::Status::WT_NEW) {
+                "new"
+            } else if s.contains(git2::Status::WT_MODIFIED) {
+                "modified"
+            } else if s.contains(git2::Status::WT_DELETED) {
+                "deleted"
+            } else {
+                continue;
+            };
+
+            result.push(FileStatus {
+                path,
+                status: status_str.to_string(),
+            });
+        }
+
+        Ok(result)
+    }
+
+    pub fn log(&self, limit: usize) -> Result<Vec<CommitInfo>> {
+        let mut commits = Vec::new();
+        let head = match self.repo.head() {
+            Ok(h) => h,
+            Err(_) => return Ok(commits), // No commits yet
+        };
+        let oid = head.target().ok_or_else(|| {
+            crate::CoreError::Git(git2::Error::from_str("HEAD has no target"))
+        })?;
+
+        let mut revwalk = self.repo.revwalk()?;
+        revwalk.push(oid)?;
+        revwalk.set_sorting(git2::Sort::TIME)?;
+
+        for (i, oid) in revwalk.enumerate() {
+            if i >= limit {
+                break;
+            }
+            let oid = oid?;
+            let commit = self.repo.find_commit(oid)?;
+            commits.push(CommitInfo {
+                oid: oid.to_string()[..8].to_string(),
+                message: commit.message().unwrap_or("").trim().to_string(),
+                author: commit.author().name().unwrap_or("unknown").to_string(),
+                date: chrono::DateTime::from_timestamp(commit.time().seconds(), 0)
+                    .map(|d| d.to_rfc3339())
+                    .unwrap_or_default(),
+            });
+        }
+
+        Ok(commits)
+    }
+
     pub fn commit(&self, message: &str) -> Result<git2::Oid> {
         let mut index = self.repo.index()?;
         let tree_oid = index.write_tree()?;
         let tree = self.repo.find_tree(tree_oid)?;
 
-        let sig = self.repo.signature()?;
+        let sig = self.repo.signature().or_else(|_| {
+            git2::Signature::now("slateVault User", "user@slatevault.local")
+        })?;
 
         let parent = self.repo.head().ok().and_then(|head| {
             head.peel_to_commit().ok()
@@ -264,4 +385,39 @@ impl Vault {
 
         Ok(oid)
     }
+
+    // -- Config operations --
+
+    pub fn save_config(&self) -> Result<()> {
+        let toml_str = toml::to_string_pretty(&self.config)?;
+        std::fs::write(self.root.join("vault.toml"), toml_str)?;
+        Ok(())
+    }
+
+    pub fn set_git_remote(&self, url: &str) -> Result<()> {
+        let remote = self.repo.find_remote("origin");
+        match remote {
+            Ok(_) => {
+                self.repo.remote_set_url("origin", url)?;
+            }
+            Err(_) => {
+                self.repo.remote("origin", url)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FileStatus {
+    pub path: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CommitInfo {
+    pub oid: String,
+    pub message: String,
+    pub author: String,
+    pub date: String,
 }

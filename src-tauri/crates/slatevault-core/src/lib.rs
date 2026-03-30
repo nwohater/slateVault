@@ -6,4 +6,4 @@ pub mod search;
 pub mod vault;
 
 pub use error::CoreError;
-pub use vault::Vault;
+pub use vault::{CommitInfo, FileStatus, Vault};
