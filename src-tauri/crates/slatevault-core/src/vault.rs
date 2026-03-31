@@ -277,7 +277,11 @@ impl Vault {
             .strip_prefix(&self.root)
             .unwrap_or(path);
         let mut index = self.repo.index()?;
-        index.add_path(relative)?;
+        if path.exists() {
+            index.add_path(relative)?;
+        } else {
+            index.remove_path(relative)?;
+        }
         index.write()?;
         Ok(())
     }

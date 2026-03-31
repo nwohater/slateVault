@@ -265,7 +265,7 @@ export function FileTree() {
                   }}
                   className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
                 >
-                  Show in Explorer
+                  {navigator.platform?.toLowerCase().includes("mac") ? "Show in Finder" : "Show in Explorer"}
                 </button>
                 <div className="my-1 border-t border-neutral-700" />
                 <button
