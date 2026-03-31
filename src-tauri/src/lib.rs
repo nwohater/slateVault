@@ -24,6 +24,17 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            // Set window icon explicitly
+            if let Some(window) = app.get_webview_window("main") {
+                let icon = tauri::image::Image::from_path(
+                    app.path().resource_dir()
+                        .unwrap_or_default()
+                        .join("icons/icon.ico"),
+                );
+                if let Ok(icon) = icon {
+                    let _ = window.set_icon(icon);
+                }
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
