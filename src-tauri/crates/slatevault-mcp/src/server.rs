@@ -385,105 +385,136 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
-    #[tool(description = "Generate a structured agent brief for a project. Assembles canonical docs, focused context, and project structure into a single prompt-ready briefing. Use this at the start of any complex task.")]
+    #[tool(description = "Generate a structured, actionable agent brief for a project. Includes project summary, key documents, current focus, constraints, and suggested actions. Use this at the start of any complex task.")]
     fn generate_agent_brief(
         &self,
         Parameters(params): Parameters<GenerateAgentBriefParams>,
     ) -> Result<CallToolResult, McpError> {
         let vault = self.open_vault()?;
-
-        let mut output = format!("# Agent Brief: {}\n\n", params.project);
-
-        // 1. Project structure
         let docs = vault
             .list_documents(&params.project, None)
             .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+        let project_config = vault
+            .open_project(&params.project)
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
 
-        let doc_count = docs.len();
-        let canonical_count = docs.iter().filter(|d| d.front_matter.canonical).count();
+        let canonical: Vec<_> = docs.iter().filter(|d| d.front_matter.canonical).collect();
         let protected_count = docs.iter().filter(|d| d.front_matter.protected).count();
+        let ai_count = docs.iter().filter(|d| format!("{:?}", d.front_matter.author).to_lowercase() == "ai").count();
+        let draft_count = docs.iter().filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "draft").count();
 
-        output.push_str(&format!(
-            "## Project Overview\n- **Documents:** {}\n- **Canonical:** {}\n- **Protected:** {}\n\n",
-            doc_count, canonical_count, protected_count
-        ));
-
-        // List folders
-        let mut folders: Vec<String> = docs
-            .iter()
-            .filter_map(|d| {
-                let parts: Vec<&str> = d.path.split('/').collect();
-                if parts.len() > 1 { Some(parts[0].to_string()) } else { None }
-            })
-            .collect();
-        folders.sort();
-        folders.dedup();
-        if !folders.is_empty() {
-            output.push_str("**Folders:** ");
-            output.push_str(&folders.join(", "));
-            output.push_str("\n\n");
+        // Folder counts
+        let mut folder_counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+        for doc in &docs {
+            let folder = if doc.path.contains('/') { doc.path.split('/').next().unwrap_or("root") } else { "(root)" };
+            *folder_counts.entry(folder.to_string()).or_default() += 1;
         }
 
-        // 2. Canonical docs (full content)
-        let canonical: Vec<_> = docs.iter().filter(|d| d.front_matter.canonical).collect();
+        let mut output = format!("# Agent Brief: {}\n\n", params.project);
+
+        // 1. Project Summary
+        output.push_str("## Project Summary\n\n");
+        let desc = &project_config.config.project.description;
+        if !desc.is_empty() {
+            output.push_str(&format!("{}\n\n", desc));
+        }
+        output.push_str(&format!(
+            "- **Documents:** {} ({} canonical, {} protected, {} AI-authored, {} drafts)\n",
+            docs.len(), canonical.len(), protected_count, ai_count, draft_count
+        ));
+        if !folder_counts.is_empty() {
+            output.push_str("\n**Structure:**\n");
+            for (folder, count) in &folder_counts {
+                output.push_str(&format!("- `{}/` — {} doc{}\n", folder, count, if *count != 1 { "s" } else { "" }));
+            }
+        }
+        output.push_str("\n");
+
+        // 2. Key Documents (canonical — full content, read first)
         if !canonical.is_empty() {
-            output.push_str("---\n\n## Canonical Documents (Source of Truth)\n\n");
+            output.push_str("---\n\n## Key Documents (Read First)\n\n_These are canonical — they define the source of truth._\n\n");
             for doc in &canonical {
-                output.push_str(&format!(
-                    "### {} [{}]\n\n{}\n\n",
-                    doc.front_matter.title,
-                    format!("{:?}", doc.front_matter.status).to_lowercase(),
-                    doc.content,
-                ));
+                output.push_str(&format!("### {}\n\n{}\n\n", doc.front_matter.title, doc.content));
             }
         }
 
-        // 3. AI context files
+        // Pinned context files
         if let Ok(context) = vault.get_project_context(&params.project) {
-            if !context.is_empty() {
-                output.push_str("---\n\n## Pinned Context Files\n\n");
-                for (path, content) in &context {
-                    // Skip if already included as canonical
-                    if canonical.iter().any(|c| c.path == *path) {
-                        continue;
-                    }
+            let new_ctx: Vec<_> = context.iter()
+                .filter(|(path, _)| !canonical.iter().any(|c| c.path == *path))
+                .collect();
+            if !new_ctx.is_empty() {
+                output.push_str("---\n\n## Pinned Context\n\n");
+                for (path, content) in &new_ctx {
                     output.push_str(&format!("### {}\n\n{}\n\n", path, content));
                 }
             }
         }
 
-        // 4. Focused context (if query provided)
+        // Focused context (if query provided)
         if let Some(ref focus) = params.focus {
             let max = params.max_docs.unwrap_or(10);
             if let Ok(bundle) = vault.build_context_bundle(focus, Some(&params.project), Some(max)) {
-                if !bundle.docs.is_empty() {
+                let new_docs: Vec<_> = bundle.docs.iter()
+                    .filter(|d| !canonical.iter().any(|c| c.path == d.path))
+                    .collect();
+                if !new_docs.is_empty() {
                     output.push_str(&format!(
                         "---\n\n## Focused Context: \"{}\"\n\n_{} relevant docs_\n\n",
-                        focus,
-                        bundle.docs.len()
+                        focus, new_docs.len()
                     ));
-                    for doc in &bundle.docs {
-                        // Skip if already included above
-                        if canonical.iter().any(|c| c.path == doc.path) {
-                            continue;
-                        }
-                        output.push_str(&format!(
-                            "### {}\n\n{}\n\n",
-                            doc.title, doc.content,
-                        ));
+                    for doc in &new_docs {
+                        output.push_str(&format!("### {}\n\n{}\n\n", doc.title, doc.content));
                     }
                 }
             }
         }
 
-        // 5. Constraints
-        output.push_str("---\n\n## Constraints\n\n");
-        output.push_str(&format!(
-            "- Protected docs cannot be overwritten — use `propose_doc_update` or `append_to_doc`\n\
-             - Canonical docs are the source of truth — prioritize them over drafts\n\
-             - Documents written by AI are tagged with `author: ai` and auto-staged for git\n\
-             - Use `convert_to_spec` to structure messy notes into clean specs\n"
-        ));
+        // 3. Current Focus (recently modified)
+        let mut recent: Vec<_> = docs.iter().collect();
+        recent.sort_by(|a, b| b.front_matter.modified.cmp(&a.front_matter.modified));
+        let recent_5: Vec<_> = recent.into_iter().take(5).collect();
+        output.push_str("---\n\n## Current Focus (Recently Modified)\n\n");
+        for doc in &recent_5 {
+            let status = format!("{:?}", doc.front_matter.status).to_lowercase();
+            output.push_str(&format!(
+                "- **{}** [{}] — {}\n",
+                doc.front_matter.title, status, doc.front_matter.modified.format("%Y-%m-%d")
+            ));
+        }
+        output.push_str("\n");
+
+        // 4. Constraints & Rules
+        output.push_str("---\n\n## Constraints & Rules\n\n");
+        output.push_str("- Do NOT overwrite protected documents — use `propose_doc_update` or `append_to_doc`\n");
+        output.push_str("- Canonical docs are the source of truth — prioritize over drafts\n");
+        output.push_str("- AI-authored docs are tagged `author: ai` and auto-staged for git\n");
+        output.push_str("- Use `convert_to_spec` to structure messy notes\n");
+        output.push_str("- Use `build_context_bundle` for focused context on specific topics\n\n");
+
+        // 5. Suggested Actions
+        output.push_str("## Suggested Actions\n\n");
+        output.push_str("You can:\n");
+        output.push_str("- Analyze architecture and propose improvements\n");
+        output.push_str("- Generate implementation plans or feature specs\n");
+        output.push_str("- Update documentation via `propose_doc_update` (creates PR)\n");
+        output.push_str("- Check for stale docs with `detect_stale_docs`\n");
+        output.push_str("- Convert rough notes to specs with `convert_to_spec`\n");
+        output.push_str("- Search for related context with `build_context_bundle`\n\n");
+
+        // Document index
+        let non_canonical: Vec<_> = docs.iter().filter(|d| !d.front_matter.canonical).collect();
+        if !non_canonical.is_empty() {
+            output.push_str("---\n\n## Document Index\n\n");
+            for doc in &non_canonical {
+                let status = format!("{:?}", doc.front_matter.status).to_lowercase();
+                let author = format!("{:?}", doc.front_matter.author).to_lowercase();
+                output.push_str(&format!(
+                    "- **{}** (`{}`) [{}, {}]\n",
+                    doc.front_matter.title, doc.path, status, author
+                ));
+            }
+        }
 
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }

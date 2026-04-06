@@ -794,48 +794,108 @@ pub fn generate_project_brief(
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
         let docs = vault.list_documents(&project, None)?;
-        let doc_count = docs.len();
+        let project_config = vault.open_project(&project)?;
+        let desc = &project_config.config.project.description;
+
         let canonical: Vec<_> = docs.iter().filter(|d| d.front_matter.canonical).collect();
+        let protected_count = docs.iter().filter(|d| d.front_matter.protected).count();
+        let ai_count = docs.iter().filter(|d| format!("{:?}", d.front_matter.author).to_lowercase() == "ai").count();
+        let draft_count = docs.iter().filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "draft").count();
+        let final_count = docs.iter().filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "final").count();
 
-        let mut brief = format!("# Project Brief: {}\n\n", project);
-        brief.push_str(&format!("{} documents", doc_count));
-        if !canonical.is_empty() {
-            brief.push_str(&format!(", {} canonical", canonical.len()));
+        // Group by folder
+        let mut folder_counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+        for doc in &docs {
+            let folder = doc.path.split('/').next().unwrap_or("root");
+            let folder = if doc.path.contains('/') { folder } else { "(root)" };
+            *folder_counts.entry(folder.to_string()).or_default() += 1;
         }
-        brief.push_str("\n\n");
 
-        // Canonical docs first
+        let mut brief = format!("# Agent Brief: {}\n\n", project);
+
+        // 1. Project Summary
+        brief.push_str("## Project Summary\n\n");
+        if !desc.is_empty() {
+            brief.push_str(&format!("{}\n\n", desc));
+        }
+        brief.push_str(&format!(
+            "- **Total documents:** {}\n- **Canonical (source of truth):** {}\n- **Protected:** {}\n- **AI-authored:** {}\n- **Drafts:** {} | **Final:** {}\n\n",
+            docs.len(), canonical.len(), protected_count, ai_count, draft_count, final_count
+        ));
+
+        // Folder breakdown
+        if !folder_counts.is_empty() {
+            brief.push_str("**Structure:**\n");
+            for (folder, count) in &folder_counts {
+                brief.push_str(&format!("- `{}/` — {} doc{}\n", folder, count, if *count != 1 { "s" } else { "" }));
+            }
+            brief.push_str("\n");
+        }
+
+        // 2. Key Documents (canonical — full content)
         if !canonical.is_empty() {
-            brief.push_str("## Source of Truth\n\n");
+            brief.push_str("---\n\n## Key Documents (Read First)\n\n");
+            brief.push_str("_These are canonical — they define the source of truth._\n\n");
             for doc in &canonical {
                 brief.push_str(&format!("### {}\n\n{}\n\n", doc.front_matter.title, doc.content));
             }
-            brief.push_str("---\n\n");
         }
 
-        // Context files
+        // Context files (not already included as canonical)
         if let Ok(context) = vault.get_project_context(&project) {
-            if !context.is_empty() {
-                brief.push_str("## Context\n\n");
-                for (path, content) in &context {
-                    if canonical.iter().any(|c| c.path == *path) {
-                        continue;
-                    }
+            let new_context: Vec<_> = context.iter()
+                .filter(|(path, _)| !canonical.iter().any(|c| c.path == *path))
+                .collect();
+            if !new_context.is_empty() {
+                brief.push_str("---\n\n## Pinned Context\n\n");
+                for (path, content) in &new_context {
                     brief.push_str(&format!("### {}\n\n{}\n\n", path, content));
                 }
-                brief.push_str("---\n\n");
             }
         }
 
-        // All other docs (titles only for overview)
-        let non_canonical: Vec<_> = docs.iter().filter(|d| !d.front_matter.canonical).collect();
-        if !non_canonical.is_empty() {
-            brief.push_str("## All Documents\n\n");
-            for doc in &non_canonical {
+        // 3. Current Focus (recent docs by modification date)
+        let mut recent: Vec<_> = docs.iter().collect();
+        recent.sort_by(|a, b| b.front_matter.modified.cmp(&a.front_matter.modified));
+        let recent_5: Vec<_> = recent.into_iter().take(5).collect();
+        if !recent_5.is_empty() {
+            brief.push_str("---\n\n## Current Focus (Recently Modified)\n\n");
+            for doc in &recent_5 {
                 let status = format!("{:?}", doc.front_matter.status).to_lowercase();
                 brief.push_str(&format!(
-                    "- **{}** (`{}`) [{}]\n",
-                    doc.front_matter.title, doc.path, status
+                    "- **{}** [{}] — {}\n",
+                    doc.front_matter.title, status, doc.front_matter.modified.format("%Y-%m-%d")
+                ));
+            }
+            brief.push_str("\n");
+        }
+
+        // 4. Constraints & Rules
+        brief.push_str("---\n\n## Constraints & Rules\n\n");
+        brief.push_str("- Do NOT overwrite protected documents — use `propose_doc_update` or `append_to_doc`\n");
+        brief.push_str("- Canonical docs are the source of truth — prioritize over drafts\n");
+        brief.push_str("- AI-authored docs are tagged `author: ai` and auto-staged for git\n");
+        brief.push_str("- Use `convert_to_spec` to structure messy notes into clean specs\n");
+        brief.push_str("- Use `build_context_bundle` to gather focused context for complex tasks\n\n");
+
+        // 5. Suggested Actions
+        brief.push_str("## Suggested Actions\n\n");
+        brief.push_str("- Review and update any draft documents\n");
+        brief.push_str("- Propose improvements to canonical docs via `propose_doc_update`\n");
+        brief.push_str("- Search for related context with `build_context_bundle`\n");
+        brief.push_str("- Check for stale docs with `detect_stale_docs`\n");
+        brief.push_str("- Generate specs from notes with `convert_to_spec`\n");
+
+        // All docs index
+        let non_canonical: Vec<_> = docs.iter().filter(|d| !d.front_matter.canonical).collect();
+        if !non_canonical.is_empty() {
+            brief.push_str("\n---\n\n## Document Index\n\n");
+            for doc in &non_canonical {
+                let status = format!("{:?}", doc.front_matter.status).to_lowercase();
+                let author = format!("{:?}", doc.front_matter.author).to_lowercase();
+                brief.push_str(&format!(
+                    "- **{}** (`{}`) [{}, {}]\n",
+                    doc.front_matter.title, doc.path, status, author
                 ));
             }
         }
