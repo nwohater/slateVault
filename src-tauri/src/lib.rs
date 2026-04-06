@@ -70,6 +70,7 @@ pub fn run() {
             commands::delete_project,
             commands::rename_document,
             commands::rename_project,
+            commands::get_related_docs,
             commands::export_project_docs,
             commands::write_binary_file,
             commands::read_vault_file,

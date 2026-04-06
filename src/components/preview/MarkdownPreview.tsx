@@ -1,18 +1,34 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkFrontmatter from "remark-frontmatter";
 import { useEditorStore } from "@/stores/editorStore";
 import { EmptyState } from "../shared/EmptyState";
+import * as commands from "@/lib/commands";
+import type { RelatedDocInfo } from "@/types";
 
 export function MarkdownPreview() {
   const content = useEditorStore((s) => s.content);
   const activePath = useEditorStore((s) => s.activePath);
   const frontMatter = useEditorStore((s) => s.frontMatter);
+  const activeProject = useEditorStore((s) => s.activeProject);
+  const openDocument = useEditorStore((s) => s.openDocument);
   const previewRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
+  const [relatedDocs, setRelatedDocs] = useState<RelatedDocInfo[]>([]);
+
+  useEffect(() => {
+    if (activeProject && activePath) {
+      commands
+        .getRelatedDocs(activeProject, activePath)
+        .then(setRelatedDocs)
+        .catch(() => setRelatedDocs([]));
+    } else {
+      setRelatedDocs([]);
+    }
+  }, [activeProject, activePath]);
 
   if (!activePath) {
     return <EmptyState title="Preview" description="Open a document to preview" />;
@@ -238,6 +254,38 @@ export function MarkdownPreview() {
             {content}
           </ReactMarkdown>
         </article>
+
+        {/* Related docs */}
+        {relatedDocs.length > 0 && (
+          <div className="mt-6 pt-4 border-t border-neutral-800">
+            <h4 className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">
+              Related Documents
+            </h4>
+            <div className="space-y-1">
+              {relatedDocs.map((rd) => (
+                <button
+                  key={rd.path}
+                  onClick={() => openDocument(rd.project, rd.path)}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-neutral-800 text-left transition-colors"
+                >
+                  <span className="text-xs text-neutral-300 truncate flex-1">
+                    {rd.title}
+                  </span>
+                  <div className="flex gap-1 flex-shrink-0">
+                    {rd.shared_tags.slice(0, 2).map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-1 rounded bg-neutral-800 text-neutral-500 text-[9px]"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

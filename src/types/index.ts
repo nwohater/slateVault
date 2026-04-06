@@ -133,6 +133,13 @@ export interface TemplateInfo {
   is_default: boolean;
 }
 
+export interface RelatedDocInfo {
+  project: string;
+  path: string;
+  title: string;
+  shared_tags: string[];
+}
+
 export interface FrontMatter {
   id: string;
   title: string;

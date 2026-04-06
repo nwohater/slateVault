@@ -125,6 +125,15 @@ pub struct DetectStaleDocsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Read a scratchpad/note and return its content with a structured spec template. Use write_document to save the structured output.")]
+pub struct ConvertToSpecParams {
+    #[schemars(description = "Project name")]
+    pub project: String,
+    #[schemars(description = "Path to the source note/scratchpad document")]
+    pub source_path: String,
+}
+
 #[schemars(description = "Get all canonical (source-of-truth) documents for a project — fast path for loading critical context")]
 pub struct GetCanonicalContextParams {
     #[schemars(description = "Project name")]

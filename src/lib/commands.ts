@@ -15,6 +15,7 @@ import type {
   CredentialsMasked,
   TemplateInfo,
   ProjectExport,
+  RelatedDocInfo,
 } from "@/types";
 
 export async function createVault(
@@ -35,6 +36,13 @@ export async function createProject(
   template?: string
 ): Promise<string> {
   return invoke("create_project", { name, description, tags, template });
+}
+
+export async function getRelatedDocs(
+  project: string,
+  path: string
+): Promise<RelatedDocInfo[]> {
+  return invoke("get_related_docs", { project, path });
 }
 
 export async function exportProjectDocs(
@@ -76,7 +84,9 @@ export async function writeDocument(
   title: string,
   content: string,
   tags?: string[],
-  ai_tool?: string
+  ai_tool?: string,
+  canonical?: boolean,
+  isProtected?: boolean
 ): Promise<string> {
   return invoke("write_document", {
     project,
@@ -85,6 +95,8 @@ export async function writeDocument(
     content,
     tags,
     ai_tool,
+    canonical,
+    isProtected,
   });
 }
 

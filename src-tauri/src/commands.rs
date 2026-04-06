@@ -745,6 +745,57 @@ pub fn git_push_branch(
     }
 }
 
+// -- Related docs command --
+
+#[derive(Serialize)]
+pub struct RelatedDocInfo {
+    pub project: String,
+    pub path: String,
+    pub title: String,
+    pub shared_tags: Vec<String>,
+}
+
+#[tauri::command]
+pub fn get_related_docs(
+    project: String,
+    path: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<RelatedDocInfo>> {
+    with_vault(&state, |vault| {
+        let doc = vault.read_document(&project, &path)?;
+        let doc_tags = &doc.front_matter.tags;
+        if doc_tags.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let all_docs = vault.list_documents(&project, None)?;
+        let mut related = Vec::new();
+
+        for other in &all_docs {
+            if other.path == path {
+                continue;
+            }
+            let shared: Vec<String> = doc_tags
+                .iter()
+                .filter(|t| other.front_matter.tags.contains(t))
+                .cloned()
+                .collect();
+            if !shared.is_empty() {
+                related.push(RelatedDocInfo {
+                    project: project.clone(),
+                    path: other.path.clone(),
+                    title: other.front_matter.title.clone(),
+                    shared_tags: shared,
+                });
+            }
+        }
+
+        // Sort by number of shared tags (most related first)
+        related.sort_by(|a, b| b.shared_tags.len().cmp(&a.shared_tags.len()));
+        Ok(related.into_iter().take(5).collect())
+    })
+}
+
 // -- Export commands --
 
 #[derive(Serialize)]

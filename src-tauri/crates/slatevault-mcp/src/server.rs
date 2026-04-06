@@ -385,6 +385,47 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
+    #[tool(description = "Read a scratchpad/note and return its content alongside a structured spec template. The agent should use this to transform messy notes into clean specs, then write the result with write_document.")]
+    fn convert_to_spec(
+        &self,
+        Parameters(params): Parameters<ConvertToSpecParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        let doc = vault
+            .read_document(&params.project, &params.source_path)
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        let output = format!(
+            "## Instructions\n\n\
+             Transform the source content below into a structured spec using this template:\n\n\
+             ```markdown\n\
+             # [Title]\n\n\
+             ## Problem\n\
+             What problem does this solve?\n\n\
+             ## Solution\n\
+             What is the proposed approach?\n\n\
+             ## Requirements\n\
+             - [ ] Requirement 1\n\
+             - [ ] Requirement 2\n\n\
+             ## Technical Design\n\
+             How will this be implemented?\n\n\
+             ## Acceptance Criteria\n\
+             - [ ] Criteria 1\n\
+             - [ ] Criteria 2\n\n\
+             ## Out of Scope\n\
+             What is explicitly NOT included?\n\
+             ```\n\n\
+             ---\n\n\
+             ## Source: {} (from `{}`)\n\n\
+             {}\n",
+            doc.front_matter.title,
+            params.source_path,
+            doc.content,
+        );
+
+        Ok(CallToolResult::success(vec![Content::text(output)]))
+    }
+
     #[tool(description = "Get all canonical (source-of-truth) documents for a project. Returns full content of docs marked canonical: true. Use this for quick access to critical project context.")]
     fn get_canonical_context(
         &self,
