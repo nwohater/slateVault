@@ -1,9 +1,19 @@
 "use client";
 
+import { useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useEditorStore } from "@/stores/editorStore";
 import { FrontMatterBar } from "./FrontMatterBar";
 import { EmptyState } from "../shared/EmptyState";
+
+const SECRET_PATTERNS = [
+  { pattern: /(?:api[_-]?key|apikey)\s*[:=]\s*['"]?[A-Za-z0-9_\-]{16,}/i, label: "API key" },
+  { pattern: /(?:secret|token|password|passwd|pwd)\s*[:=]\s*['"]?[A-Za-z0-9_\-]{8,}/i, label: "Secret/token" },
+  { pattern: /ghp_[A-Za-z0-9_]{36,}/, label: "GitHub PAT" },
+  { pattern: /sk-[A-Za-z0-9]{32,}/, label: "OpenAI/Anthropic key" },
+  { pattern: /AKIA[0-9A-Z]{16}/, label: "AWS access key" },
+  { pattern: /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----/, label: "Private key" },
+];
 
 const CodeMirrorEditor = dynamic(
   () =>
@@ -38,8 +48,28 @@ function RawFileBar() {
   );
 }
 
+function SecretWarning({ content }: { content: string }) {
+  const detected = useMemo(() => {
+    const found: string[] = [];
+    for (const { pattern, label } of SECRET_PATTERNS) {
+      if (pattern.test(content)) found.push(label);
+    }
+    return found;
+  }, [content]);
+
+  if (detected.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 bg-red-900/30 border-b border-red-800 text-[10px] text-red-300">
+      <span className="font-medium">Warning:</span>
+      <span>Possible {detected.join(", ")} detected. Avoid committing secrets to the vault.</span>
+    </div>
+  );
+}
+
 export function EditorPane() {
   const activePath = useEditorStore((s) => s.activePath);
+  const content = useEditorStore((s) => s.content);
   const rawFilePath = useEditorStore((s) => s.rawFilePath);
 
   if (!activePath) {
@@ -54,6 +84,7 @@ export function EditorPane() {
   return (
     <div className="flex flex-col h-full">
       {rawFilePath ? <RawFileBar /> : <FrontMatterBar />}
+      <SecretWarning content={content} />
       <div className="flex-1 min-h-0">
         <CodeMirrorEditor />
       </div>

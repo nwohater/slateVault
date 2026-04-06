@@ -103,10 +103,33 @@ pub fn write_document(
     content: String,
     tags: Option<Vec<String>>,
     ai_tool: Option<String>,
+    canonical: Option<bool>,
+    is_protected: Option<bool>,
     state: State<'_, VaultState>,
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
-        vault.write_document(&project, &path, &title, &content, tags.unwrap_or_default(), ai_tool)?;
+        let mut doc = vault.write_document(&project, &path, &title, &content, tags.unwrap_or_default(), ai_tool)?;
+        // Apply canonical/protected if provided
+        if canonical.is_some() || is_protected.is_some() {
+            let mut needs_rewrite = false;
+            if let Some(c) = canonical {
+                if doc.front_matter.canonical != c {
+                    doc.front_matter.canonical = c;
+                    needs_rewrite = true;
+                }
+            }
+            if let Some(p) = is_protected {
+                if doc.front_matter.protected != p {
+                    doc.front_matter.protected = p;
+                    needs_rewrite = true;
+                }
+            }
+            if needs_rewrite {
+                let project_obj = vault.open_project(&project)?;
+                let file_path = project_obj.docs_dir().join(&path);
+                std::fs::write(&file_path, doc.to_string()?)?;
+            }
+        }
         Ok(format!("Document written: {}/{}", project, path))
     })
 }

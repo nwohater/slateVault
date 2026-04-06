@@ -62,8 +62,33 @@ pub struct SearchDocumentsParams {
     pub query: String,
     #[schemars(description = "Scope search to a single project")]
     pub project: Option<String>,
+    #[schemars(description = "Filter by author: 'human', 'ai', or 'both'")]
+    pub author: Option<String>,
+    #[schemars(description = "Filter by status: 'draft', 'review', or 'final'")]
+    pub status: Option<String>,
+    #[schemars(description = "Only return canonical documents")]
+    pub canonical_only: Option<bool>,
     #[schemars(description = "Maximum results to return (default 20)")]
     pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Propose an update to a document by writing it on a new branch. The human reviews the diff and merges via PR. Use this instead of write_document for existing protected or canonical docs.")]
+pub struct ProposeDocUpdateParams {
+    #[schemars(description = "Project name")]
+    pub project: String,
+    #[schemars(description = "Path to the document to update")]
+    pub path: String,
+    #[schemars(description = "Updated document title")]
+    pub title: String,
+    #[schemars(description = "Full updated markdown body")]
+    pub content: String,
+    #[schemars(description = "Tags for the document")]
+    pub tags: Option<Vec<String>>,
+    #[schemars(description = "Name of the calling AI tool")]
+    pub ai_tool: Option<String>,
+    #[schemars(description = "Commit message for the proposal")]
+    pub message: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -97,6 +122,13 @@ pub struct DetectStaleDocsParams {
     pub project: Option<String>,
     #[schemars(description = "Number of days since last update to consider stale (default 30)")]
     pub days_threshold: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Get all canonical (source-of-truth) documents for a project — fast path for loading critical context")]
+pub struct GetCanonicalContextParams {
+    #[schemars(description = "Project name")]
+    pub project: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]

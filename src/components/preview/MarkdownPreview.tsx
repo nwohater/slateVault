@@ -18,6 +18,25 @@ export function MarkdownPreview() {
     return <EmptyState title="Preview" description="Open a document to preview" />;
   }
 
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyAsPrompt = () => {
+    // Strip frontmatter, format as agent-ready context
+    const lines = content.split("\n");
+    let body = content;
+    if (lines[0]?.trim() === "---") {
+      const endIdx = lines.findIndex((l, i) => i > 0 && l.trim() === "---");
+      if (endIdx > 0) {
+        body = lines.slice(endIdx + 1).join("\n").trim();
+      }
+    }
+
+    const prompt = `## ${frontMatter?.title || activePath}\n\n${body}`;
+    navigator.clipboard.writeText(prompt);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleExportPdf = async () => {
     if (!previewRef.current || exporting) return;
     setExporting(true);
@@ -185,17 +204,29 @@ export function MarkdownPreview() {
         <span className="text-[10px] text-neutral-500 truncate">
           {frontMatter?.title || activePath}
         </span>
-        <button
-          onClick={handleExportPdf}
-          disabled={exporting}
-          className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] text-neutral-400 hover:text-neutral-200 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 rounded transition-colors"
-          title="Export to PDF"
-        >
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-          </svg>
-          {exporting ? "Exporting..." : "Export PDF"}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={handleCopyAsPrompt}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] text-neutral-400 hover:text-neutral-200 bg-neutral-800 hover:bg-neutral-700 rounded transition-colors"
+            title="Copy as agent prompt"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+            </svg>
+            {copied ? "Copied!" : "Copy as Prompt"}
+          </button>
+          <button
+            onClick={handleExportPdf}
+            disabled={exporting}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] text-neutral-400 hover:text-neutral-200 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 rounded transition-colors"
+            title="Export to PDF"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            {exporting ? "Exporting..." : "Export PDF"}
+          </button>
+        </div>
       </div>
 
       {/* Preview content */}

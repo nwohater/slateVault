@@ -102,6 +102,9 @@ impl Vault {
                         &doc.front_matter.title,
                         &doc.content,
                         &doc.front_matter.tags,
+                        &format!("{:?}", doc.front_matter.author).to_lowercase(),
+                        &format!("{:?}", doc.front_matter.status).to_lowercase(),
+                        doc.front_matter.canonical,
                     )?;
                     count += 1;
                 }
@@ -212,8 +215,16 @@ impl Vault {
         std::fs::write(&file_path, doc.to_string()?)?;
 
         // Index for search
-        self.search
-            .index_document(project_name, path, title, content, &tags)?;
+        self.search.index_document(
+            project_name,
+            path,
+            title,
+            content,
+            &tags,
+            &format!("{:?}", doc.front_matter.author).to_lowercase(),
+            &format!("{:?}", doc.front_matter.status).to_lowercase(),
+            doc.front_matter.canonical,
+        )?;
 
         // Auto-stage if configured
         if self.config.mcp.auto_stage_ai_writes && doc.front_matter.ai_tool.is_some() {
@@ -296,6 +307,19 @@ impl Vault {
         limit: Option<usize>,
     ) -> Result<Vec<crate::search::SearchResult>> {
         self.search.search(query, project, limit.unwrap_or(20))
+    }
+
+    pub fn search_documents_filtered(
+        &self,
+        query: &str,
+        project: Option<&str>,
+        author: Option<&str>,
+        status: Option<&str>,
+        canonical_only: bool,
+        limit: Option<usize>,
+    ) -> Result<Vec<crate::search::SearchResult>> {
+        self.search
+            .search_filtered(query, project, author, status, canonical_only, limit.unwrap_or(20))
     }
 
     pub fn get_project_context(&self, project_name: &str) -> Result<Vec<(String, String)>> {
@@ -472,6 +496,125 @@ impl Vault {
         )?;
 
         Ok(oid)
+    }
+
+    // -- Propose doc update (branch-based safe edits) --
+
+    /// Propose a document update by writing it on a new branch.
+    /// Creates branch, writes doc, commits, switches back to original branch.
+    /// Returns the diff so the human can review before merging.
+    pub fn propose_doc_update(
+        &self,
+        project_name: &str,
+        path: &str,
+        title: &str,
+        content: &str,
+        tags: Vec<String>,
+        ai_tool: Option<String>,
+        proposal_message: Option<&str>,
+    ) -> Result<DocProposal> {
+        let original_branch = self.current_branch()?;
+
+        // Generate branch name from path
+        let slug = path
+            .replace('/', "-")
+            .replace(".md", "")
+            .replace(' ', "-")
+            .to_lowercase();
+        let branch_name = format!("proposal/{}", slug);
+
+        // Check if branch already exists, if so delete it first
+        if let Ok(mut existing) = self.repo.find_branch(&branch_name, git2::BranchType::Local) {
+            // Can only delete if not current
+            if self.current_branch()? != branch_name {
+                let _ = existing.delete();
+            }
+        }
+
+        // Create branch from current HEAD
+        let head = self.repo.head().map_err(|_| {
+            crate::CoreError::Branch("Cannot create proposal: no commits yet".to_string())
+        })?;
+        let head_commit = head.peel_to_commit()?;
+        self.repo.branch(&branch_name, &head_commit, true)?;
+
+        // Switch to proposal branch
+        let refname = format!("refs/heads/{}", branch_name);
+        self.repo.set_head(&refname)?;
+        let mut checkout = git2::build::CheckoutBuilder::new();
+        checkout.safe();
+        self.repo.checkout_head(Some(&mut checkout))?;
+
+        // Read the original doc content for diff (if exists)
+        let original_content = self
+            .read_document(project_name, path)
+            .ok()
+            .map(|d| d.content.clone());
+
+        // Write the proposed update
+        let _doc = self.write_document(
+            project_name,
+            path,
+            title,
+            content,
+            tags,
+            ai_tool,
+        )?;
+
+        // Stage and commit
+        let project_obj = self.open_project(project_name)?;
+        let file_path = project_obj.docs_dir().join(path);
+        self.stage_file(&file_path)?;
+
+        let default_msg = format!("Propose update: {}", title);
+        let commit_msg = proposal_message.unwrap_or(&default_msg);
+        self.commit(commit_msg)?;
+
+        // Get the diff between branches
+        let diff_result = self.diff_branches(&original_branch, &branch_name);
+
+        // Switch back to original branch
+        let orig_refname = format!("refs/heads/{}", original_branch);
+        self.repo.set_head(&orig_refname)?;
+        let mut checkout = git2::build::CheckoutBuilder::new();
+        checkout.force();
+        self.repo.checkout_head(Some(&mut checkout))?;
+
+        // Build diff summary
+        let diff_files = diff_result.unwrap_or_default();
+        let total_additions: usize = diff_files.iter().map(|f| f.stats.additions).sum();
+        let total_deletions: usize = diff_files.iter().map(|f| f.stats.deletions).sum();
+
+        // Build a readable diff string
+        let mut diff_text = String::new();
+        for file_diff in &diff_files {
+            diff_text.push_str(&format!("### {}\n", file_diff.path));
+            for hunk in &file_diff.hunks {
+                diff_text.push_str(&format!("{}\n", hunk.header));
+                for line in &hunk.lines {
+                    let prefix = match line.origin {
+                        '+' => "+",
+                        '-' => "-",
+                        _ => " ",
+                    };
+                    diff_text.push_str(&format!("{}{}\n", prefix, line.content));
+                }
+            }
+            diff_text.push('\n');
+        }
+
+        Ok(DocProposal {
+            branch: branch_name,
+            project: project_name.to_string(),
+            path: path.to_string(),
+            title: title.to_string(),
+            original_content,
+            proposed_content: content.to_string(),
+            diff_text,
+            files_changed: diff_files.len(),
+            additions: total_additions,
+            deletions: total_deletions,
+        })
     }
 
     // -- Context Bundling --
@@ -929,6 +1072,22 @@ pub struct DiffLine {
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct DiffFileStats {
+    pub additions: usize,
+    pub deletions: usize,
+}
+
+// -- Proposal types --
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DocProposal {
+    pub branch: String,
+    pub project: String,
+    pub path: String,
+    pub title: String,
+    pub original_content: Option<String>,
+    pub proposed_content: String,
+    pub diff_text: String,
+    pub files_changed: usize,
     pub additions: usize,
     pub deletions: usize,
 }

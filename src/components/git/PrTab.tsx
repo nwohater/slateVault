@@ -38,7 +38,7 @@ export function PrTab() {
     }
   }, [currentBranch]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load diff summary when branch changes
+  // Load diff summary and auto-generate description
   useEffect(() => {
     if (currentBranch && targetBranch && currentBranch !== targetBranch) {
       commands
@@ -47,12 +47,22 @@ export function PrTab() {
           const additions = diffs.reduce((a, d) => a + d.stats.additions, 0);
           const deletions = diffs.reduce((a, d) => a + d.stats.deletions, 0);
           setDiffSummary({ files: diffs.length, additions, deletions });
+
+          // Auto-generate description from diff
+          if (!description) {
+            const fileList = diffs
+              .map((d) => `- \`${d.path}\` (+${d.stats.additions} -${d.stats.deletions})`)
+              .join("\n");
+            setDescription(
+              `## Changes\n\n${diffs.length} file${diffs.length !== 1 ? "s" : ""} changed (+${additions} -${deletions})\n\n${fileList}`
+            );
+          }
         })
         .catch(() => setDiffSummary(null));
     } else {
       setDiffSummary(null);
     }
-  }, [currentBranch, targetBranch]);
+  }, [currentBranch, targetBranch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isOnDefault = currentBranch === targetBranch || currentBranch === "main";
 

@@ -49,6 +49,8 @@ pub struct McpConfig {
     pub port: u16,
     #[serde(default = "default_true")]
     pub auto_stage_ai_writes: bool,
+    #[serde(default)]
+    pub read_only: bool,
 }
 
 impl Default for McpConfig {
@@ -57,6 +59,7 @@ impl Default for McpConfig {
             enabled: true,
             port: default_mcp_port(),
             auto_stage_ai_writes: true,
+            read_only: false,
         }
     }
 }

@@ -40,6 +40,12 @@ impl SlateVaultMcpServer {
         Parameters(params): Parameters<CreateProjectParams>,
     ) -> Result<CallToolResult, McpError> {
         let vault = self.open_vault()?;
+        if vault.config.mcp.read_only {
+            return Err(McpError::internal_error(
+                "MCP server is in read-only mode. Write operations are disabled.".to_string(),
+                None,
+            ));
+        }
         vault
             .create_project(
                 &params.name,
@@ -120,6 +126,12 @@ impl SlateVaultMcpServer {
         Parameters(params): Parameters<WriteDocumentParams>,
     ) -> Result<CallToolResult, McpError> {
         let vault = self.open_vault()?;
+        if vault.config.mcp.read_only {
+            return Err(McpError::internal_error(
+                "MCP server is in read-only mode. Write operations are disabled.".to_string(),
+                None,
+            ));
+        }
         let doc = vault
             .write_document(
                 &params.project,
@@ -213,9 +225,26 @@ impl SlateVaultMcpServer {
         Parameters(params): Parameters<SearchDocumentsParams>,
     ) -> Result<CallToolResult, McpError> {
         let vault = self.open_vault()?;
-        let results = vault
-            .search_documents(&params.query, params.project.as_deref(), params.limit)
-            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+        let has_filters = params.author.is_some()
+            || params.status.is_some()
+            || params.canonical_only.unwrap_or(false);
+
+        let results = if has_filters {
+            vault
+                .search_documents_filtered(
+                    &params.query,
+                    params.project.as_deref(),
+                    params.author.as_deref(),
+                    params.status.as_deref(),
+                    params.canonical_only.unwrap_or(false),
+                    params.limit,
+                )
+                .map_err(|e| McpError::internal_error(format!("{}", e), None))?
+        } else {
+            vault
+                .search_documents(&params.query, params.project.as_deref(), params.limit)
+                .map_err(|e| McpError::internal_error(format!("{}", e), None))?
+        };
 
         if results.is_empty() {
             return Ok(CallToolResult::success(vec![Content::text(format!(
@@ -231,6 +260,53 @@ impl SlateVaultMcpServer {
                 r.title, r.project, r.path, r.snippet,
             ));
         }
+
+        Ok(CallToolResult::success(vec![Content::text(output)]))
+    }
+
+    #[tool(description = "Propose an update to a document by writing it on a new branch. Returns the diff for human review. The human merges via PR when ready. Use this for protected or canonical docs, or anytime you want human approval before changes take effect.")]
+    fn propose_doc_update(
+        &self,
+        Parameters(params): Parameters<ProposeDocUpdateParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        if vault.config.mcp.read_only {
+            return Err(McpError::internal_error(
+                "MCP server is in read-only mode. Write operations are disabled.".to_string(),
+                None,
+            ));
+        }
+        let proposal = vault
+            .propose_doc_update(
+                &params.project,
+                &params.path,
+                &params.title,
+                &params.content,
+                params.tags.unwrap_or_default(),
+                params.ai_tool,
+                params.message.as_deref(),
+            )
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        let output = format!(
+            "## Proposal Created\n\n\
+             - **Branch:** `{}`\n\
+             - **Document:** `{}/docs/{}`\n\
+             - **Files changed:** {} (+{} -{})\n\n\
+             The update is on branch `{}`. To apply it:\n\
+             1. Review the diff below\n\
+             2. Switch to the branch in the Git panel\n\
+             3. Create a PR or merge directly\n\n\
+             ### Diff\n\n```diff\n{}\n```",
+            proposal.branch,
+            proposal.project,
+            proposal.path,
+            proposal.files_changed,
+            proposal.additions,
+            proposal.deletions,
+            proposal.branch,
+            proposal.diff_text.trim(),
+        );
 
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
@@ -258,6 +334,12 @@ impl SlateVaultMcpServer {
         Parameters(params): Parameters<AppendToDocParams>,
     ) -> Result<CallToolResult, McpError> {
         let vault = self.open_vault()?;
+        if vault.config.mcp.read_only {
+            return Err(McpError::internal_error(
+                "MCP server is in read-only mode. Write operations are disabled.".to_string(),
+                None,
+            ));
+        }
         let doc = vault
             .append_to_document(
                 &params.project,
@@ -297,6 +379,47 @@ impl SlateVaultMcpServer {
             output.push_str(&format!(
                 "- **{}** (`{}/docs/{}`) — {} days since last update\n",
                 s.title, s.project, s.path, s.days_stale,
+            ));
+        }
+
+        Ok(CallToolResult::success(vec![Content::text(output)]))
+    }
+
+    #[tool(description = "Get all canonical (source-of-truth) documents for a project. Returns full content of docs marked canonical: true. Use this for quick access to critical project context.")]
+    fn get_canonical_context(
+        &self,
+        Parameters(params): Parameters<GetCanonicalContextParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        let docs = vault
+            .list_documents(&params.project, None)
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        let canonical: Vec<_> = docs
+            .iter()
+            .filter(|d| d.front_matter.canonical)
+            .collect();
+
+        if canonical.is_empty() {
+            return Ok(CallToolResult::success(vec![Content::text(format!(
+                "No canonical documents found in project '{}'. Mark docs as canonical by setting `canonical: true` in frontmatter.",
+                params.project
+            ))]));
+        }
+
+        let mut output = format!(
+            "# Canonical Documents — {}\n\n_{} canonical doc(s)_\n\n---\n\n",
+            params.project,
+            canonical.len()
+        );
+        for doc in &canonical {
+            output.push_str(&format!(
+                "## {} [{}]\n_Source: {}/docs/{}_\n\n{}\n\n---\n\n",
+                doc.front_matter.title,
+                format!("{:?}", doc.front_matter.status).to_lowercase(),
+                params.project,
+                doc.path,
+                doc.content,
             ));
         }
 
@@ -357,7 +480,9 @@ impl ServerHandler for SlateVaultMcpServer {
                  - Canonical docs are automatically prioritized in bundles\n\
                  - Use this at the start of complex tasks to gather project context\n\n\
                  ## Document safety\n\
-                 - Protected docs cannot be overwritten by AI tools — use append_to_doc instead\n\
+                 - For protected or canonical docs, use propose_doc_update instead of write_document\n\
+                 - propose_doc_update writes to a branch — the human reviews the diff and merges\n\
+                 - Protected docs cannot be overwritten by AI tools — use append_to_doc or propose_doc_update\n\
                  - Use append_to_doc to add content without replacing existing text\n\
                  - Check detect_stale_docs periodically to flag outdated documentation\n\n\
                  ## Best practices\n\
