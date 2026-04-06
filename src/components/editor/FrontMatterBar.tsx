@@ -29,6 +29,16 @@ export function FrontMatterBar() {
         <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
       )}
       <div className="flex-1" />
+      {fm.canonical && (
+        <span className="text-yellow-400 text-[10px] font-medium" title="Canonical document">
+          ★ canonical
+        </span>
+      )}
+      {fm.protected && (
+        <span className="text-red-400 text-[10px] font-medium" title="Protected from AI overwrites">
+          🔒 protected
+        </span>
+      )}
       <span
         className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[fm.status] || "bg-neutral-800 text-neutral-400"}`}
       >

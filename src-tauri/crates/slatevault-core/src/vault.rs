@@ -181,6 +181,21 @@ impl Vault {
         ai_tool: Option<String>,
     ) -> Result<Document> {
         let project = self.open_project(project_name)?;
+
+        // Check if existing doc is protected (only block AI overwrites)
+        if ai_tool.is_some() {
+            let file_path = project.docs_dir().join(path);
+            if file_path.exists() {
+                if let Ok(existing) = self.read_document(project_name, path) {
+                    if existing.front_matter.protected {
+                        return Err(crate::CoreError::Branch(
+                            "Document is protected. Use append_to_doc or remove protection first."
+                                .to_string(),
+                        ));
+                    }
+                }
+            }
+        }
         let doc = Document::new(
             title.to_string(),
             content.to_string(),
@@ -457,6 +472,184 @@ impl Vault {
         )?;
 
         Ok(oid)
+    }
+
+    // -- Context Bundling --
+
+    /// Build a context bundle by searching for relevant docs and concatenating them.
+    /// Returns a single markdown string optimized for AI agent consumption.
+    pub fn build_context_bundle(
+        &self,
+        query: &str,
+        project: Option<&str>,
+        max_docs: Option<usize>,
+    ) -> Result<ContextBundle> {
+        let limit = max_docs.unwrap_or(10);
+
+        // Search for relevant docs
+        let results = self.search.search(query, project, limit)?;
+
+        let mut docs = Vec::new();
+        let mut total_chars = 0usize;
+
+        for result in &results {
+            if let Ok(doc) = self.read_document(&result.project, &result.path) {
+                total_chars += doc.content.len();
+                docs.push(BundleDoc {
+                    project: result.project.clone(),
+                    path: result.path.clone(),
+                    title: doc.front_matter.title.clone(),
+                    content: doc.content.clone(),
+                    canonical: doc.front_matter.canonical,
+                    status: format!("{:?}", doc.front_matter.status).to_lowercase(),
+                    rank: result.rank,
+                });
+            }
+        }
+
+        // Sort: canonical docs first, then by search rank
+        docs.sort_by(|a, b| {
+            b.canonical
+                .cmp(&a.canonical)
+                .then(a.rank.partial_cmp(&b.rank).unwrap_or(std::cmp::Ordering::Equal))
+        });
+
+        // Build the bundle text
+        let mut output = format!("# Context Bundle: {}\n\n", query);
+        output.push_str(&format!(
+            "_{} documents, {} chars_\n\n---\n\n",
+            docs.len(),
+            total_chars
+        ));
+
+        for doc in &docs {
+            let markers = [
+                if doc.canonical { Some("[canonical]") } else { None },
+                Some(&format!("[{}]", doc.status) as &str),
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(" ");
+
+            output.push_str(&format!(
+                "## {} {}\n_Source: {}/docs/{}_\n\n{}\n\n---\n\n",
+                doc.title, markers, doc.project, doc.path, doc.content
+            ));
+        }
+
+        Ok(ContextBundle {
+            query: query.to_string(),
+            doc_count: docs.len(),
+            total_chars,
+            content: output,
+            docs,
+        })
+    }
+
+    // -- Append to document --
+
+    pub fn append_to_document(
+        &self,
+        project_name: &str,
+        path: &str,
+        content: &str,
+        ai_tool: Option<String>,
+    ) -> Result<Document> {
+        let doc = self.read_document(project_name, path)?;
+
+        if doc.front_matter.protected {
+            return Err(crate::CoreError::Branch(
+                "Document is protected. Use propose_doc_update or remove protection first."
+                    .to_string(),
+            ));
+        }
+
+        let new_content = format!("{}\n\n{}", doc.content.trim_end(), content);
+
+        self.write_document(
+            project_name,
+            path,
+            &doc.front_matter.title,
+            &new_content,
+            doc.front_matter.tags.clone(),
+            ai_tool,
+        )
+    }
+
+    // -- Staleness Detection --
+
+    pub fn detect_stale_docs(
+        &self,
+        project: Option<&str>,
+        days_threshold: Option<u32>,
+    ) -> Result<Vec<StaleDoc>> {
+        let threshold = days_threshold.unwrap_or(30);
+        let cutoff = chrono::Utc::now() - chrono::Duration::days(threshold as i64);
+        let mut stale = Vec::new();
+
+        let projects = if let Some(p) = project {
+            vec![self
+                .open_project(p)?
+                .config
+                .project
+                .name
+                .clone()]
+        } else {
+            self.list_projects()?
+                .into_iter()
+                .map(|p| p.project.name)
+                .collect()
+        };
+
+        for proj_name in &projects {
+            if let Ok(docs) = self.list_documents(proj_name, None) {
+                for doc in &docs {
+                    if doc.front_matter.modified < cutoff {
+                        let days_since = (chrono::Utc::now() - doc.front_matter.modified)
+                            .num_days();
+                        stale.push(StaleDoc {
+                            project: proj_name.clone(),
+                            path: doc.path.clone(),
+                            title: doc.front_matter.title.clone(),
+                            last_modified: doc.front_matter.modified.to_rfc3339(),
+                            days_stale: days_since as u32,
+                        });
+                    }
+                }
+            }
+        }
+
+        stale.sort_by(|a, b| b.days_stale.cmp(&a.days_stale));
+        Ok(stale)
+    }
+
+    // -- Branch diff summary --
+
+    pub fn summarize_branch_diff(&self, base: &str, head: &str) -> Result<BranchDiffSummary> {
+        let diffs = self.diff_branches(base, head)?;
+
+        let mut files_changed = Vec::new();
+        let mut total_additions = 0usize;
+        let mut total_deletions = 0usize;
+
+        for diff in &diffs {
+            total_additions += diff.stats.additions;
+            total_deletions += diff.stats.deletions;
+            files_changed.push(DiffFileSummary {
+                path: diff.path.clone(),
+                additions: diff.stats.additions,
+                deletions: diff.stats.deletions,
+            });
+        }
+
+        Ok(BranchDiffSummary {
+            base: base.to_string(),
+            head: head.to_string(),
+            files_changed,
+            total_additions,
+            total_deletions,
+        })
     }
 
     // -- Branch operations --
@@ -736,6 +929,57 @@ pub struct DiffLine {
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct DiffFileStats {
+    pub additions: usize,
+    pub deletions: usize,
+}
+
+// -- Context Bundling types --
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ContextBundle {
+    pub query: String,
+    pub doc_count: usize,
+    pub total_chars: usize,
+    pub content: String,
+    pub docs: Vec<BundleDoc>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BundleDoc {
+    pub project: String,
+    pub path: String,
+    pub title: String,
+    pub content: String,
+    pub canonical: bool,
+    pub status: String,
+    pub rank: f64,
+}
+
+// -- Staleness types --
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct StaleDoc {
+    pub project: String,
+    pub path: String,
+    pub title: String,
+    pub last_modified: String,
+    pub days_stale: u32,
+}
+
+// -- Branch diff summary types --
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BranchDiffSummary {
+    pub base: String,
+    pub head: String,
+    pub files_changed: Vec<DiffFileSummary>,
+    pub total_additions: usize,
+    pub total_deletions: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DiffFileSummary {
+    pub path: String,
     pub additions: usize,
     pub deletions: usize,
 }

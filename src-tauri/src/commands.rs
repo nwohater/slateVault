@@ -120,6 +120,8 @@ pub struct DocumentInfo {
     tags: Vec<String>,
     created: String,
     modified: String,
+    canonical: bool,
+    protected: bool,
 }
 
 #[tauri::command]
@@ -152,6 +154,8 @@ pub fn list_documents(
                 tags: d.front_matter.tags,
                 created: d.front_matter.created.to_rfc3339(),
                 modified: d.front_matter.modified.to_rfc3339(),
+                canonical: d.front_matter.canonical,
+                protected: d.front_matter.protected,
             })
             .collect())
     })

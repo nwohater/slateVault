@@ -17,6 +17,10 @@ pub struct FrontMatter {
     pub status: DocStatus,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ai_tool: Option<String>,
+    #[serde(default)]
+    pub canonical: bool,
+    #[serde(default)]
+    pub protected: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -83,6 +87,8 @@ impl Document {
                 project,
                 status: DocStatus::Draft,
                 ai_tool,
+                canonical: false,
+                protected: false,
             },
             content,
             path,

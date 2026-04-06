@@ -65,3 +65,45 @@ pub struct SearchDocumentsParams {
     #[schemars(description = "Maximum results to return (default 20)")]
     pub limit: Option<usize>,
 }
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Build a context bundle from relevant documents for AI agent consumption")]
+pub struct BuildContextBundleParams {
+    #[schemars(description = "Search query to find relevant documents")]
+    pub query: String,
+    #[schemars(description = "Scope to a single project")]
+    pub project: Option<String>,
+    #[schemars(description = "Maximum number of documents to include (default 10)")]
+    pub max_docs: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Append content to an existing document without overwriting")]
+pub struct AppendToDocParams {
+    #[schemars(description = "Project name")]
+    pub project: String,
+    #[schemars(description = "Path to the existing document")]
+    pub path: String,
+    #[schemars(description = "Markdown content to append")]
+    pub content: String,
+    #[schemars(description = "Name of the calling AI tool")]
+    pub ai_tool: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Detect stale documents that haven't been updated recently")]
+pub struct DetectStaleDocsParams {
+    #[schemars(description = "Scope to a single project")]
+    pub project: Option<String>,
+    #[schemars(description = "Number of days since last update to consider stale (default 30)")]
+    pub days_threshold: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Get a structured summary of changes between two branches")]
+pub struct SummarizeBranchDiffParams {
+    #[schemars(description = "Base branch name (e.g. 'main')")]
+    pub base: String,
+    #[schemars(description = "Head branch name (e.g. 'feature/new-docs')")]
+    pub head: String,
+}

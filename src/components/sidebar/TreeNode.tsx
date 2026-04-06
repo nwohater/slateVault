@@ -12,6 +12,7 @@ interface TreeNodeProps {
   onClick: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   depth: number;
+  canonical?: boolean;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragOver?: (e: React.DragEvent) => void;
@@ -30,6 +31,7 @@ export function TreeNode({
   isExpanded,
   isActive,
   author,
+  canonical,
   onClick,
   onContextMenu,
   depth,
@@ -88,6 +90,9 @@ export function TreeNode({
       {isFolder && <span className="w-3 flex-shrink-0">{chevron}</span>}
       <span className="flex-shrink-0">{icon}</span>
       <span className="truncate flex-1">{label}</span>
+      {canonical && (
+        <span className="text-yellow-400 flex-shrink-0 text-[10px]" title="Canonical">★</span>
+      )}
       {badge && (
         <span
           className={`px-1 rounded text-[9px] font-medium flex-shrink-0 ${badge.color}`}

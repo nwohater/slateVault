@@ -234,6 +234,103 @@ impl SlateVaultMcpServer {
 
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
+
+    #[tool(description = "Build a context bundle from relevant documents — searches, ranks, and concatenates docs into a single briefing optimized for AI agents. Canonical docs are prioritized.")]
+    fn build_context_bundle(
+        &self,
+        Parameters(params): Parameters<BuildContextBundleParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        let bundle = vault
+            .build_context_bundle(
+                &params.query,
+                params.project.as_deref(),
+                params.max_docs,
+            )
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(bundle.content)]))
+    }
+
+    #[tool(description = "Append content to an existing document without overwriting. Respects document protection — fails on protected docs.")]
+    fn append_to_doc(
+        &self,
+        Parameters(params): Parameters<AppendToDocParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        let doc = vault
+            .append_to_document(
+                &params.project,
+                &params.path,
+                &params.content,
+                params.ai_tool,
+            )
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(format!(
+            "Appended to {}/docs/{}\n- Title: {}\n- Updated: {}",
+            params.project,
+            params.path,
+            doc.front_matter.title,
+            doc.front_matter.modified.to_rfc3339(),
+        ))]))
+    }
+
+    #[tool(description = "Detect stale documents that haven't been updated recently")]
+    fn detect_stale_docs(
+        &self,
+        Parameters(params): Parameters<DetectStaleDocsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        let stale = vault
+            .detect_stale_docs(params.project.as_deref(), params.days_threshold)
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        if stale.is_empty() {
+            return Ok(CallToolResult::success(vec![Content::text(
+                "No stale documents found.",
+            )]));
+        }
+
+        let mut output = format!("Found {} stale document(s):\n\n", stale.len());
+        for s in &stale {
+            output.push_str(&format!(
+                "- **{}** (`{}/docs/{}`) — {} days since last update\n",
+                s.title, s.project, s.path, s.days_stale,
+            ));
+        }
+
+        Ok(CallToolResult::success(vec![Content::text(output)]))
+    }
+
+    #[tool(description = "Get a structured summary of changes between two branches — files changed, additions, deletions")]
+    fn summarize_branch_diff(
+        &self,
+        Parameters(params): Parameters<SummarizeBranchDiffParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        let summary = vault
+            .summarize_branch_diff(&params.base, &params.head)
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        let mut output = format!(
+            "## Branch Diff: {} → {}\n\n**{} files changed** (+{} -{})\n\n",
+            summary.base,
+            summary.head,
+            summary.files_changed.len(),
+            summary.total_additions,
+            summary.total_deletions,
+        );
+
+        for f in &summary.files_changed {
+            output.push_str(&format!(
+                "- `{}` (+{} -{})\n",
+                f.path, f.additions, f.deletions,
+            ));
+        }
+
+        Ok(CallToolResult::success(vec![Content::text(output)]))
+    }
 }
 
 #[tool_handler]
@@ -255,11 +352,20 @@ impl ServerHandler for SlateVaultMcpServer {
                  - Use search_documents before writing to check if a document on the topic already exists\n\
                  - Use read_document to load existing docs for context or updates\n\
                  - Use list_documents to see all docs in a project\n\n\
+                 ## Context bundling\n\
+                 - Use build_context_bundle to assemble relevant docs into a single briefing\n\
+                 - Canonical docs are automatically prioritized in bundles\n\
+                 - Use this at the start of complex tasks to gather project context\n\n\
+                 ## Document safety\n\
+                 - Protected docs cannot be overwritten by AI tools — use append_to_doc instead\n\
+                 - Use append_to_doc to add content without replacing existing text\n\
+                 - Check detect_stale_docs periodically to flag outdated documentation\n\n\
                  ## Best practices\n\
                  - Do NOT create projects without asking the user first\n\
                  - Organize docs by type: specs/, decisions/, guides/, notes/\n\
                  - Update existing documents rather than creating duplicates\n\
-                 - Use tags to categorize documents for easy filtering"
+                 - Use tags to categorize documents for easy filtering\n\
+                 - Mark critical docs as canonical and protected"
                     .to_string(),
             ),
             capabilities: ServerCapabilities::builder()

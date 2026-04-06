@@ -299,6 +299,7 @@ export function FileTree() {
                 activeProject === projectName && activePath === doc.path
               }
               author={doc.author}
+              canonical={doc.canonical}
               onClick={() => openDocument(projectName, doc.path)}
               onContextMenu={(e) =>
                 openContextMenu(e, "doc", projectName, doc.path, doc.title || doc.path)

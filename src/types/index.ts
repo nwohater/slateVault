@@ -29,6 +29,8 @@ export interface DocumentInfo {
   tags: string[];
   created: string;
   modified: string;
+  canonical: boolean;
+  protected: boolean;
 }
 
 export interface SearchResultInfo {
@@ -141,4 +143,6 @@ export interface FrontMatter {
   project: string;
   status: "draft" | "review" | "final";
   ai_tool?: string;
+  canonical?: boolean;
+  protected?: boolean;
 }
