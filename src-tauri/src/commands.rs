@@ -832,9 +832,9 @@ pub fn generate_project_brief(
             brief.push_str("\n");
         }
 
-        // 2. Key Documents (canonical — full content)
+        // 2. Key Documents (Read First) — canonical + high-signal docs
+        brief.push_str("---\n\n## Key Documents (Read First)\n\n");
         if !canonical.is_empty() {
-            brief.push_str("---\n\n## Key Documents (Read First)\n\n");
             brief.push_str("_These are canonical — they define the source of truth._\n\n");
             for doc in &canonical {
                 brief.push_str(&format!("### {}\n\n{}\n\n", doc.front_matter.title, doc.content));
@@ -847,10 +847,20 @@ pub fn generate_project_brief(
                 .filter(|(path, _)| !canonical.iter().any(|c| c.path == *path))
                 .collect();
             if !new_context.is_empty() {
-                brief.push_str("---\n\n## Pinned Context\n\n");
+                if canonical.is_empty() {
+                    brief.push_str("_No canonical docs yet. These pinned context files are the best starting point._\n\n");
+                }
                 for (path, content) in &new_context {
                     brief.push_str(&format!("### {}\n\n{}\n\n", path, content));
                 }
+            }
+        }
+
+        // If nothing to read first, say so
+        if canonical.is_empty() {
+            let context_count = vault.get_project_context(&project).map(|c| c.len()).unwrap_or(0);
+            if context_count == 0 {
+                brief.push_str("_No canonical or pinned context docs exist yet. Start by reading the document index below._\n\n");
             }
         }
 
@@ -884,21 +894,31 @@ pub fn generate_project_brief(
             brief.push_str("\n");
         }
 
-        // Known gaps
-        brief.push_str("## Known Gaps\n\n");
-        if canonical.is_empty() {
-            brief.push_str("- No canonical documents established yet\n");
+        // Known gaps with urgency
+        let gap_count = [canonical.is_empty(), draft_count > 0 && final_count == 0, protected_count == 0]
+            .iter().filter(|&&x| x).count();
+        if gap_count > 0 {
+            brief.push_str("## Known Gaps\n\n");
+            if canonical.is_empty() && draft_count > 0 {
+                brief.push_str(&format!(
+                    "**WARNING:** All {} documents are drafts and no canonical docs exist. This project has no established source of truth.\n\n",
+                    docs.len()
+                ));
+            }
+            if canonical.is_empty() {
+                brief.push_str("- No canonical documents established yet\n");
+            }
+            if draft_count > 0 {
+                brief.push_str(&format!("- {} document{} still in draft state\n", draft_count, if draft_count != 1 { "s" } else { "" }));
+            }
+            if final_count == 0 && docs.len() > 0 {
+                brief.push_str("- No documents marked as final\n");
+            }
+            if protected_count == 0 && docs.len() > 0 {
+                brief.push_str("- No documents are protected from AI overwrites\n");
+            }
+            brief.push_str("\n");
         }
-        if draft_count > 0 {
-            brief.push_str(&format!("- {} document{} still in draft state\n", draft_count, if draft_count != 1 { "s" } else { "" }));
-        }
-        if final_count == 0 {
-            brief.push_str("- No documents marked as final\n");
-        }
-        if protected_count == 0 {
-            brief.push_str("- No documents are protected from AI overwrites\n");
-        }
-        brief.push_str("\n");
 
         // 4. Constraints & Rules
         brief.push_str("---\n\n## Constraints & Rules\n\n");
