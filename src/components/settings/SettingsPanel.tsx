@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import * as commands from "@/lib/commands";
 import { useVaultStore } from "@/stores/vaultStore";
+import { useEditorStore } from "@/stores/editorStore";
 import { useUIStore } from "@/stores/uiStore";
 import type { Theme } from "@/stores/uiStore";
-import type { VaultSettings } from "@/types";
+import type { VaultSettings, CredentialsMasked } from "@/types";
 
 export function SettingsPanel() {
   const loadStats = useVaultStore((s) => s.loadStats);
+  const openVaultFile = useEditorStore((s) => s.openVaultFile);
   const theme = useUIStore((s) => s.theme);
   const setTheme = useUIStore((s) => s.setTheme);
   const [settings, setSettings] = useState<VaultSettings | null>(null);
@@ -20,8 +22,16 @@ export function SettingsPanel() {
   const [output, setOutput] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Credentials state
+  const [creds, setCreds] = useState<CredentialsMasked | null>(null);
+  const [githubPat, setGithubPat] = useState("");
+  const [adoPat, setAdoPat] = useState("");
+  const [adoOrg, setAdoOrg] = useState("");
+  const [adoProject, setAdoProject] = useState("");
+
   useEffect(() => {
     loadSettings();
+    loadCredentials();
   }, []);
 
   const loadSettings = async () => {
@@ -37,6 +47,35 @@ export function SettingsPanel() {
       setOutput(`Failed to load settings: ${e}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCredentials = async () => {
+    try {
+      const c = await commands.gitLoadCredentials();
+      setCreds(c);
+      setAdoOrg(c.ado_organization || "");
+      setAdoProject(c.ado_project || "");
+    } catch {
+      // No credentials yet
+    }
+  };
+
+  const handleSaveCredentials = async () => {
+    try {
+      await commands.gitSaveCredentials({
+        github_pat: githubPat || undefined,
+        ado_pat: adoPat || undefined,
+        ado_organization: adoOrg || undefined,
+        ado_project: adoProject || undefined,
+      });
+      setOutput("Credentials saved");
+      setGithubPat("");
+      setAdoPat("");
+      await loadCredentials();
+      setTimeout(() => setOutput(null), 2000);
+    } catch (e) {
+      setOutput(`Save credentials failed: ${e}`);
     }
   };
 
@@ -185,6 +224,92 @@ export function SettingsPanel() {
               </div>
             </>
           )}
+        </div>
+      </div>
+
+      {/* Credentials section */}
+      <div className="p-3 border-b border-neutral-800">
+        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
+          PR Credentials
+        </h3>
+        <div className="space-y-2">
+          <div>
+            <label className="block text-neutral-500 mb-1">
+              GitHub PAT
+              {creds?.github_pat && (
+                <span className="ml-1 text-green-500">({creds.github_pat})</span>
+              )}
+            </label>
+            <input
+              type="password"
+              value={githubPat}
+              onChange={(e) => setGithubPat(e.target.value)}
+              placeholder="ghp_..."
+              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
+            />
+          </div>
+          <div>
+            <label className="block text-neutral-500 mb-1">
+              Azure DevOps PAT
+              {creds?.ado_pat && (
+                <span className="ml-1 text-green-500">({creds.ado_pat})</span>
+              )}
+            </label>
+            <input
+              type="password"
+              value={adoPat}
+              onChange={(e) => setAdoPat(e.target.value)}
+              placeholder="PAT token..."
+              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
+            />
+          </div>
+          <div>
+            <label className="block text-neutral-500 mb-1">ADO Organization</label>
+            <input
+              type="text"
+              value={adoOrg}
+              onChange={(e) => setAdoOrg(e.target.value)}
+              placeholder="myorg"
+              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
+            />
+          </div>
+          <div>
+            <label className="block text-neutral-500 mb-1">ADO Project</label>
+            <input
+              type="text"
+              value={adoProject}
+              onChange={(e) => setAdoProject(e.target.value)}
+              placeholder="myproject"
+              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
+            />
+          </div>
+          <button
+            onClick={handleSaveCredentials}
+            className="w-full px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+          >
+            Save Credentials
+          </button>
+          <p className="text-neutral-600 text-[10px]">
+            Stored in ~/.slatevault/credentials.toml (not in your vault repo).
+          </p>
+        </div>
+      </div>
+
+      {/* Templates section */}
+      <div className="p-3 border-b border-neutral-800">
+        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
+          Project Templates
+        </h3>
+        <div className="space-y-2">
+          <button
+            onClick={() => openVaultFile("templates.json")}
+            className="w-full px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs"
+          >
+            Edit Project Templates
+          </button>
+          <p className="text-neutral-600 text-[10px]">
+            Opens templates.json in the editor. Customize folder structures and starter files for new projects.
+          </p>
         </div>
       </div>
 

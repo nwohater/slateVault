@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { FileStatus, CommitInfo, RemoteConfig } from "@/types";
+import type { FileStatus, CommitInfo, RemoteConfig, BranchInfo, FileDiff } from "@/types";
 import * as commands from "@/lib/commands";
 
 interface GitState {
@@ -9,6 +9,13 @@ interface GitState {
   commitMessage: string;
   loading: boolean;
   output: string | null;
+
+  // Branch state
+  branches: BranchInfo[];
+  currentBranch: string;
+
+  // Diff state
+  activeDiff: FileDiff | null;
 
   setCommitMessage: (msg: string) => void;
   loadStatus: () => Promise<void>;
@@ -20,6 +27,16 @@ interface GitState {
   loadRemoteConfig: () => Promise<void>;
   setRemoteConfig: (config: Partial<RemoteConfig>) => Promise<void>;
   clearOutput: () => void;
+
+  // Branch actions
+  loadBranches: () => Promise<void>;
+  createBranch: (name: string) => Promise<void>;
+  switchBranch: (name: string) => Promise<void>;
+  deleteBranch: (name: string) => Promise<void>;
+
+  // Diff actions
+  loadFileDiff: (path: string, staged: boolean) => Promise<void>;
+  clearDiff: () => void;
 }
 
 export const useGitStore = create<GitState>((set, get) => ({
@@ -29,9 +46,13 @@ export const useGitStore = create<GitState>((set, get) => ({
   commitMessage: "",
   loading: false,
   output: null,
+  branches: [],
+  currentBranch: "main",
+  activeDiff: null,
 
   setCommitMessage: (msg) => set({ commitMessage: msg }),
   clearOutput: () => set({ output: null }),
+  clearDiff: () => set({ activeDiff: null }),
 
   loadStatus: async () => {
     try {
@@ -102,5 +123,62 @@ export const useGitStore = create<GitState>((set, get) => ({
       push_on_close: config.push_on_close,
     });
     await get().loadRemoteConfig();
+  },
+
+  // Branch actions
+
+  loadBranches: async () => {
+    try {
+      const [branches, currentBranch] = await Promise.all([
+        commands.gitListBranches(),
+        commands.gitCurrentBranch(),
+      ]);
+      set({ branches, currentBranch });
+    } catch (e) {
+      console.error("load branches failed:", e);
+    }
+  },
+
+  createBranch: async (name) => {
+    try {
+      await commands.gitCreateBranch(name);
+      set({ output: `Branch '${name}' created` });
+      await get().loadBranches();
+    } catch (e) {
+      set({ output: `Create branch failed: ${e}` });
+    }
+  },
+
+  switchBranch: async (name) => {
+    try {
+      await commands.gitSwitchBranch(name);
+      set({ output: `Switched to '${name}'` });
+      await get().loadBranches();
+      await get().loadStatus();
+      await get().loadLog();
+    } catch (e) {
+      set({ output: `Switch branch failed: ${e}` });
+    }
+  },
+
+  deleteBranch: async (name) => {
+    try {
+      await commands.gitDeleteBranch(name);
+      set({ output: `Branch '${name}' deleted` });
+      await get().loadBranches();
+    } catch (e) {
+      set({ output: `Delete branch failed: ${e}` });
+    }
+  },
+
+  // Diff actions
+
+  loadFileDiff: async (path, staged) => {
+    try {
+      const diff = await commands.gitDiffFile(path, staged);
+      set({ activeDiff: diff });
+    } catch (e) {
+      console.error("diff failed:", e);
+    }
   },
 }));

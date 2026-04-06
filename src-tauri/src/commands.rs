@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use slatevault_core::Vault;
+use slatevault_core::credentials::{Credentials, CredentialsMasked};
+use slatevault_core::pr::{self, PrCreateRequest, PrCreateResponse};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::State;
@@ -55,10 +57,16 @@ pub fn create_project(
     name: String,
     description: Option<String>,
     tags: Option<Vec<String>>,
+    template: Option<String>,
     state: State<'_, VaultState>,
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
-        vault.create_project(&name, &description.unwrap_or_default(), tags.unwrap_or_default())?;
+        vault.create_project(
+            &name,
+            &description.unwrap_or_default(),
+            tags.unwrap_or_default(),
+            template.as_deref(),
+        )?;
         Ok(format!("Project '{}' created", name))
     })
 }
@@ -68,6 +76,7 @@ pub struct ProjectInfo {
     name: String,
     description: String,
     tags: Vec<String>,
+    folder_order: Vec<String>,
 }
 
 #[tauri::command]
@@ -80,6 +89,7 @@ pub fn list_projects(state: State<'_, VaultState>) -> CmdResult<Vec<ProjectInfo>
                 name: p.project.name,
                 description: p.project.description,
                 tags: p.project.tags,
+                folder_order: p.project.folder_order,
             })
             .collect())
     })
@@ -497,8 +507,18 @@ pub fn rename_document(
     with_vault(&state, |vault| {
         let project_obj = vault.open_project(&project)?;
         let docs_dir = project_obj.docs_dir();
-        std::fs::rename(docs_dir.join(&old_path), docs_dir.join(&new_path))?;
-        Ok(format!("Renamed: {}/{} -> {}", project, old_path, new_path))
+        let new_full = docs_dir.join(&new_path);
+        // Ensure target directory exists
+        if let Some(parent) = new_full.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::rename(docs_dir.join(&old_path), &new_full)?;
+        // Stage both old (delete) and new (add) paths for git
+        let old_repo_path = vault.projects_dir().join(&project).join("docs").join(&old_path);
+        let new_repo_path = vault.projects_dir().join(&project).join("docs").join(&new_path);
+        let _ = vault.stage_file(&old_repo_path);
+        let _ = vault.stage_file(&new_repo_path);
+        Ok(format!("Moved: {}/{} -> {}", project, old_path, new_path))
     })
 }
 
@@ -528,6 +548,456 @@ pub fn rename_project(
             }
         }
         Ok(format!("Renamed project '{}' to '{}'", old_name, new_name))
+    })
+}
+
+// -- Branch commands --
+
+#[tauri::command]
+pub fn git_current_branch(
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| vault.current_branch())
+}
+
+#[tauri::command]
+pub fn git_list_branches(
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<slatevault_core::BranchInfo>> {
+    with_vault(&state, |vault| vault.list_branches())
+}
+
+#[tauri::command]
+pub fn git_create_branch(
+    name: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        vault.create_branch(&name)?;
+        Ok(format!("Branch '{}' created", name))
+    })
+}
+
+#[tauri::command]
+pub fn git_switch_branch(
+    name: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        vault.switch_branch(&name)?;
+        Ok(format!("Switched to branch '{}'", name))
+    })
+}
+
+#[tauri::command]
+pub fn git_delete_branch(
+    name: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        vault.delete_branch(&name)?;
+        Ok(format!("Branch '{}' deleted", name))
+    })
+}
+
+// -- Diff commands --
+
+#[tauri::command]
+pub fn git_diff_file(
+    path: String,
+    staged: bool,
+    state: State<'_, VaultState>,
+) -> CmdResult<slatevault_core::FileDiff> {
+    with_vault(&state, |vault| vault.diff_file(&path, staged))
+}
+
+#[tauri::command]
+pub fn git_diff_branches(
+    base: String,
+    head: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<slatevault_core::FileDiff>> {
+    with_vault(&state, |vault| vault.diff_branches(&base, &head))
+}
+
+// -- PR commands --
+
+#[tauri::command]
+pub fn git_create_pr(
+    title: String,
+    description: String,
+    source_branch: String,
+    target_branch: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<PrCreateResponse> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+
+    let remote_url = vault
+        .config
+        .sync
+        .remote_url
+        .as_ref()
+        .ok_or("No remote URL configured")?;
+
+    let credentials = Credentials::load().map_err(|e| e.to_string())?;
+
+    let request = PrCreateRequest {
+        title,
+        description,
+        source_branch,
+        target_branch,
+    };
+
+    pr::create_pull_request(remote_url, &credentials, &request).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn git_detect_platform(
+    state: State<'_, VaultState>,
+) -> CmdResult<Option<String>> {
+    with_vault(&state, |vault| {
+        Ok(vault
+            .config
+            .sync
+            .remote_url
+            .as_ref()
+            .and_then(|url| pr::detect_platform(url)))
+    })
+}
+
+#[tauri::command]
+pub fn git_save_credentials(
+    github_pat: Option<String>,
+    ado_pat: Option<String>,
+    ado_organization: Option<String>,
+    ado_project: Option<String>,
+) -> CmdResult<String> {
+    let mut creds = Credentials::load().unwrap_or_default();
+    if let Some(pat) = github_pat {
+        creds.github_pat = if pat.is_empty() { None } else { Some(pat) };
+    }
+    if let Some(pat) = ado_pat {
+        creds.ado_pat = if pat.is_empty() { None } else { Some(pat) };
+    }
+    if let Some(org) = ado_organization {
+        creds.ado_organization = if org.is_empty() { None } else { Some(org) };
+    }
+    if let Some(proj) = ado_project {
+        creds.ado_project = if proj.is_empty() { None } else { Some(proj) };
+    }
+    creds.save().map_err(|e| e.to_string())?;
+    Ok("Credentials saved".to_string())
+}
+
+#[tauri::command]
+pub fn git_load_credentials() -> CmdResult<CredentialsMasked> {
+    let creds = Credentials::load().unwrap_or_default();
+    Ok(creds.masked())
+}
+
+// -- Push with branch parameter --
+
+#[tauri::command]
+pub fn git_push_branch(
+    branch: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let output = std::process::Command::new("git")
+        .args(["-C", &vault.root.to_string_lossy(), "push", "-u", "origin", &branch])
+        .output()
+        .map_err(|e| format!("Failed to run git: {}", e))?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        Ok(format!("{}{}", stdout, stderr).trim().to_string())
+    } else {
+        Err(format!("Push failed: {}", stderr.trim()))
+    }
+}
+
+// -- Export commands --
+
+#[derive(Serialize)]
+pub struct ExportDoc {
+    pub title: String,
+    pub path: String,
+    pub content: String,
+}
+
+#[derive(Serialize)]
+pub struct ExportSection {
+    pub folder: String,
+    pub docs: Vec<ExportDoc>,
+}
+
+#[derive(Serialize)]
+pub struct ProjectExport {
+    pub project_name: String,
+    pub sections: Vec<ExportSection>,
+}
+
+#[tauri::command]
+pub fn export_project_docs(
+    project: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<ProjectExport> {
+    with_vault(&state, |vault| {
+        let project_obj = vault.open_project(&project)?;
+        let folder_order = &project_obj.config.project.folder_order;
+        let docs = vault.list_documents(&project, None)?;
+
+        // Group docs by folder
+        let mut root_docs: Vec<ExportDoc> = Vec::new();
+        let mut folder_map: std::collections::HashMap<String, Vec<ExportDoc>> =
+            std::collections::HashMap::new();
+
+        for doc in &docs {
+            // Skip _about.md template files
+            if doc.path.ends_with("/_about.md") || doc.path == "_about.md" {
+                continue;
+            }
+
+            let parts: Vec<&str> = doc.path.split('/').collect();
+            let export_doc = ExportDoc {
+                title: doc.front_matter.title.clone(),
+                path: doc.path.clone(),
+                content: doc.content.clone(),
+            };
+
+            if parts.len() == 1 {
+                root_docs.push(export_doc);
+            } else {
+                let folder = parts[0].to_string();
+                folder_map.entry(folder).or_default().push(export_doc);
+            }
+        }
+
+        let mut sections = Vec::new();
+
+        // Root-level docs first as "General"
+        if !root_docs.is_empty() {
+            root_docs.sort_by(|a, b| a.title.cmp(&b.title));
+            sections.push(ExportSection {
+                folder: "General".to_string(),
+                docs: root_docs,
+            });
+        }
+
+        // Ordered folders first
+        for folder in folder_order {
+            if let Some(mut docs) = folder_map.remove(folder) {
+                docs.sort_by(|a, b| a.title.cmp(&b.title));
+                // Capitalize folder name for section header
+                let label = folder
+                    .chars()
+                    .next()
+                    .map(|c| c.to_uppercase().to_string() + &folder[1..])
+                    .unwrap_or_else(|| folder.clone());
+                sections.push(ExportSection {
+                    folder: label,
+                    docs,
+                });
+            }
+        }
+
+        // Remaining folders (not in folder_order) alphabetically
+        let mut remaining: Vec<(String, Vec<ExportDoc>)> = folder_map.into_iter().collect();
+        remaining.sort_by(|a, b| a.0.cmp(&b.0));
+        for (folder, mut docs) in remaining {
+            docs.sort_by(|a, b| a.title.cmp(&b.title));
+            let label = folder
+                .chars()
+                .next()
+                .map(|c| c.to_uppercase().to_string() + &folder[1..])
+                .unwrap_or_else(|| folder.clone());
+            sections.push(ExportSection {
+                folder: label,
+                docs,
+            });
+        }
+
+        Ok(ProjectExport {
+            project_name: project.clone(),
+            sections,
+        })
+    })
+}
+
+// -- Binary file write (for PDF export) --
+
+#[tauri::command]
+pub fn write_binary_file(path: String, data_base64: String) -> CmdResult<String> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&data_base64)
+        .map_err(|e| format!("Invalid base64: {}", e))?;
+    std::fs::write(&path, &bytes).map_err(|e| format!("Failed to write file: {}", e))?;
+    Ok(format!("Written to {}", path))
+}
+
+// -- Raw file commands (for vault-root files like templates.json) --
+
+#[tauri::command]
+pub fn read_vault_file(
+    path: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let full = vault.root.join(&path);
+        let content = std::fs::read_to_string(&full)?;
+        Ok(content)
+    })
+}
+
+#[tauri::command]
+pub fn write_vault_file(
+    path: String,
+    content: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let full = vault.root.join(&path);
+        std::fs::write(&full, &content)?;
+        Ok(format!("Saved {}", path))
+    })
+}
+
+// -- Template commands --
+
+#[tauri::command]
+pub fn list_templates(
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<slatevault_core::template::TemplateInfo>> {
+    with_vault(&state, |vault| {
+        let config = slatevault_core::template::TemplateConfig::load(&vault.root)?;
+        Ok(config.list())
+    })
+}
+
+#[tauri::command]
+pub fn get_templates_config(
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let path = vault.root.join("templates.json");
+        let content = std::fs::read_to_string(&path)?;
+        Ok(content)
+    })
+}
+
+#[tauri::command]
+pub fn save_templates_config(
+    json: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        // Validate JSON before saving
+        let _: slatevault_core::template::TemplateConfig =
+            serde_json::from_str(&json).map_err(|e| {
+                slatevault_core::CoreError::Io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Invalid template config: {}", e),
+                ))
+            })?;
+        std::fs::write(vault.root.join("templates.json"), &json)?;
+        Ok("Templates saved".to_string())
+    })
+}
+
+#[tauri::command]
+pub fn list_folders(
+    project: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<String>> {
+    with_vault(&state, |vault| {
+        let project_obj = vault.open_project(&project)?;
+        let docs_dir = project_obj.docs_dir();
+        let mut folders = Vec::new();
+        if docs_dir.exists() {
+            collect_folders(&docs_dir, &docs_dir, &mut folders)?;
+        }
+        folders.sort();
+        Ok(folders)
+    })
+}
+
+fn collect_folders(
+    base: &std::path::Path,
+    dir: &std::path::Path,
+    folders: &mut Vec<String>,
+) -> Result<(), slatevault_core::CoreError> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            let rel = path
+                .strip_prefix(base)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .replace('\\', "/");
+            folders.push(rel);
+            collect_folders(base, &path, folders)?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_folder(
+    project: String,
+    folder_path: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let project_obj = vault.open_project(&project)?;
+        let full_path = project_obj.docs_dir().join(&folder_path);
+        if !full_path.is_dir() {
+            return Err(slatevault_core::CoreError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Folder not found",
+            )));
+        }
+        // Check for user content (markdown files or subdirectories with content)
+        fn has_user_content(dir: &std::path::Path) -> std::io::Result<bool> {
+            for entry in std::fs::read_dir(dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                if path.is_dir() {
+                    if has_user_content(&path)? {
+                        return Ok(true);
+                    }
+                } else if path.extension().map_or(false, |e| e == "md") {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        if has_user_content(&full_path).unwrap_or(false) {
+            return Err(slatevault_core::CoreError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Folder contains documents. Move or delete them first.",
+            )));
+        }
+        // Use remove_dir_all to handle hidden system files (Thumbs.db, desktop.ini, etc.)
+        std::fs::remove_dir_all(&full_path)?;
+        Ok(format!("Folder deleted: {}/{}", project, folder_path))
+    })
+}
+
+#[tauri::command]
+pub fn create_folder(
+    project: String,
+    folder_path: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let project_obj = vault.open_project(&project)?;
+        let full_path = project_obj.docs_dir().join(&folder_path);
+        std::fs::create_dir_all(&full_path)?;
+        Ok(format!("Folder created: {}/{}", project, folder_path))
     })
 }
 

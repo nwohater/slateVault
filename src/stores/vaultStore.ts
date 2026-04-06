@@ -20,7 +20,8 @@ interface VaultState {
   createProject: (
     name: string,
     description?: string,
-    tags?: string[]
+    tags?: string[],
+    template?: string
   ) => Promise<void>;
   deleteDocument: (project: string, path: string) => Promise<void>;
   deleteProject: (name: string) => Promise<void>;
@@ -104,8 +105,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }
   },
 
-  createProject: async (name, description, tags) => {
-    await commands.createProject(name, description, tags);
+  createProject: async (name, description, tags, template) => {
+    await commands.createProject(name, description, tags, template);
     await get().loadProjects();
     await get().loadStats();
   },

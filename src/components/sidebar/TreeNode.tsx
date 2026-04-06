@@ -1,3 +1,8 @@
+"use client";
+
+import { useState } from "react";
+import { ChevronRight, ChevronDown, FileIcon, FolderIcon, FolderOpenIcon } from "@/components/icons/GitIcons";
+
 interface TreeNodeProps {
   label: string;
   isFolder: boolean;
@@ -7,6 +12,10 @@ interface TreeNodeProps {
   onClick: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   depth: number;
+  draggable?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
 }
 
 const authorBadge: Record<string, { label: string; color: string }> = {
@@ -24,23 +33,60 @@ export function TreeNode({
   onClick,
   onContextMenu,
   depth,
+  draggable,
+  onDragStart,
+  onDragOver,
+  onDrop,
 }: TreeNodeProps) {
   const badge = author ? authorBadge[author] : null;
+  const [dragOver, setDragOver] = useState(false);
+
+  const icon = isFolder
+    ? isExpanded
+      ? <FolderOpenIcon className="w-3.5 h-3.5 text-yellow-500" />
+      : <FolderIcon className="w-3.5 h-3.5 text-yellow-600" />
+    : <FileIcon className="w-3.5 h-3.5 text-neutral-500" />;
+
+  const chevron = isFolder
+    ? isExpanded
+      ? <ChevronDown className="w-3 h-3 text-neutral-500" />
+      : <ChevronRight className="w-3 h-3 text-neutral-500" />
+    : null;
 
   return (
     <button
       onClick={onClick}
       onContextMenu={onContextMenu}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={(e) => {
+        if (isFolder) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = "move";
+          setDragOver(true);
+          if (onDragOver) onDragOver(e);
+        }
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        if (isFolder) {
+          e.preventDefault();
+          e.stopPropagation();
+          setDragOver(false);
+          if (onDrop) onDrop(e);
+        }
+      }}
       className={`
-        w-full flex items-center gap-1.5 px-2 py-1 text-xs text-left
+        w-full flex items-center gap-1 px-2 py-1 text-xs text-left
         hover:bg-neutral-800 transition-colors
         ${isActive ? "bg-neutral-800 text-blue-400" : "text-neutral-300"}
+        ${dragOver ? "bg-blue-900/30 border-l-2 border-blue-500" : ""}
       `}
       style={{ paddingLeft: 8 + depth * 16 }}
     >
-      <span className="w-4 text-center text-neutral-500 flex-shrink-0">
-        {isFolder ? (isExpanded ? "v" : ">") : "#"}
-      </span>
+      {isFolder && <span className="w-3 flex-shrink-0">{chevron}</span>}
+      <span className="flex-shrink-0">{icon}</span>
       <span className="truncate flex-1">{label}</span>
       {badge && (
         <span

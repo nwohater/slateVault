@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useEditorStore } from "@/stores/editorStore";
+import { useGitStore } from "@/stores/gitStore";
 import * as commands from "@/lib/commands";
 import type { McpServerStatus } from "@/types";
+import { BranchIcon } from "@/components/icons/GitIcons";
 
 export function StatusBar() {
   const vaultName = useVaultStore((s) => s.vaultName);
@@ -13,6 +15,8 @@ export function StatusBar() {
   const activePath = useEditorStore((s) => s.activePath);
   const isDirty = useEditorStore((s) => s.isDirty);
   const frontMatter = useEditorStore((s) => s.frontMatter);
+  const currentBranch = useGitStore((s) => s.currentBranch);
+  const loadBranches = useGitStore((s) => s.loadBranches);
   const [mcpStatus, setMcpStatus] = useState<McpServerStatus | null>(null);
 
   useEffect(() => {
@@ -20,9 +24,10 @@ export function StatusBar() {
       commands.mcpServerStatus().then(setMcpStatus).catch(() => {});
     };
     check();
+    loadBranches();
     const interval = setInterval(check, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const mcpRunning = mcpStatus?.running ?? false;
   const mcpEnabled = stats?.mcp_enabled ?? false;
@@ -55,9 +60,10 @@ export function StatusBar() {
             />
             MCP :{stats.mcp_port}
           </span>
-          {stats.remote_url && (
-            <span>{stats.remote_branch}</span>
-          )}
+          <span className="flex items-center gap-1 text-neutral-400">
+            <BranchIcon className="w-3 h-3" />
+            {currentBranch}
+          </span>
         </>
       )}
 

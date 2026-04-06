@@ -23,6 +23,7 @@ impl Project {
                 description: description.to_string(),
                 tags,
                 ai_context_files: Vec::new(),
+                folder_order: Vec::new(),
             },
         };
 

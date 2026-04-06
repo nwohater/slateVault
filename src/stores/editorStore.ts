@@ -9,8 +9,11 @@ interface EditorState {
   content: string;
   frontMatter: FrontMatter | null;
   isDirty: boolean;
+  // Raw vault file mode (e.g. templates.json)
+  rawFilePath: string | null;
 
   openDocument: (project: string, path: string) => Promise<void>;
+  openVaultFile: (path: string) => Promise<void>;
   updateContent: (content: string) => void;
   saveDocument: () => Promise<void>;
   closeDocument: () => void;
@@ -22,11 +25,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   content: "",
   frontMatter: null,
   isDirty: false,
+  rawFilePath: null,
 
   openDocument: async (project: string, path: string) => {
     // Auto-save current document if dirty
     const state = get();
-    if (state.isDirty && state.activeProject && state.activePath) {
+    if (state.isDirty && (state.activeProject || state.rawFilePath)) {
       await state.saveDocument();
     }
 
@@ -38,20 +42,52 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       content: raw,
       frontMatter: data,
       isDirty: false,
+      rawFilePath: null,
+    });
+  },
+
+  openVaultFile: async (path: string) => {
+    const state = get();
+    if (state.isDirty && (state.activeProject || state.rawFilePath)) {
+      await state.saveDocument();
+    }
+
+    const content = await commands.readVaultFile(path);
+    set({
+      activeProject: null,
+      activePath: path,
+      content,
+      frontMatter: null,
+      isDirty: false,
+      rawFilePath: path,
     });
   },
 
   updateContent: (content: string) => {
-    try {
-      const { data } = parseFrontMatter(content);
-      set({ content, frontMatter: data, isDirty: true });
-    } catch {
+    const { rawFilePath } = get();
+    if (rawFilePath) {
+      // Raw file mode — no frontmatter parsing
       set({ content, isDirty: true });
+    } else {
+      try {
+        const { data } = parseFrontMatter(content);
+        set({ content, frontMatter: data, isDirty: true });
+      } catch {
+        set({ content, isDirty: true });
+      }
     }
   },
 
   saveDocument: async () => {
-    const { activeProject, activePath, content, frontMatter } = get();
+    const { activeProject, activePath, content, frontMatter, rawFilePath } = get();
+
+    if (rawFilePath) {
+      // Save raw vault file
+      await commands.writeVaultFile(rawFilePath, content);
+      set({ isDirty: false });
+      return;
+    }
+
     if (!activeProject || !activePath || !frontMatter) return;
 
     const { content: body } = parseFrontMatter(content);
@@ -72,6 +108,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       content: "",
       frontMatter: null,
       isDirty: false,
+      rawFilePath: null,
     });
   },
 }));

@@ -83,6 +83,74 @@ html[data-theme="deepblue"] ::-webkit-scrollbar-thumb:hover {
   background: #525252;
 }
 
+/* Print / Export to PDF */
+@page {
+  margin: 20mm;
+  margin-top: 15mm;
+  margin-bottom: 15mm;
+}
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #print-preview,
+  #print-preview * {
+    visibility: visible !important;
+  }
+  #print-preview {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+    padding: 40px !important;
+  }
+  #print-preview article {
+    color: #1a1a1a !important;
+    max-width: 700px !important;
+    margin: 0 auto !important;
+  }
+  #print-preview article h1,
+  #print-preview article h2,
+  #print-preview article h3,
+  #print-preview article h4 {
+    color: #111 !important;
+  }
+  #print-preview article p,
+  #print-preview article li,
+  #print-preview article td,
+  #print-preview article th {
+    color: #333 !important;
+  }
+  #print-preview article a {
+    color: #1a56db !important;
+  }
+  #print-preview article code {
+    background: #f3f4f6 !important;
+    color: #1a1a1a !important;
+  }
+  #print-preview article pre {
+    background: #f3f4f6 !important;
+    border: 1px solid #e5e7eb !important;
+  }
+  #print-preview article pre code {
+    color: #1a1a1a !important;
+  }
+  #print-preview article blockquote {
+    border-color: #d1d5db !important;
+    color: #555 !important;
+  }
+  #print-preview article table {
+    border-color: #d1d5db !important;
+  }
+  #print-preview article th,
+  #print-preview article td {
+    border-color: #e5e7eb !important;
+  }
+}
+
 /* CodeMirror overrides */
 .cm-editor {
   height: 100%;

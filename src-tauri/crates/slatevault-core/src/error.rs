@@ -37,6 +37,18 @@ pub enum CoreError {
 
     #[error("YAML error: {0}")]
     Yaml(#[from] serde_yaml::Error),
+
+    #[error("Branch error: {0}")]
+    Branch(String),
+
+    #[error("PR error: {0}")]
+    PullRequest(String),
+
+    #[error("HTTP error: {0}")]
+    Http(String),
+
+    #[error("Credentials not found: {0}")]
+    CredentialsNotFound(String),
 }
 
 pub type Result<T> = std::result::Result<T, CoreError>;

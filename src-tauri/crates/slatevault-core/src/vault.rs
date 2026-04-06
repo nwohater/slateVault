@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::config::{VaultConfig, VaultMeta, McpConfig, SyncConfig};
+use crate::template::TemplateConfig;
 use crate::document::Document;
 use crate::error::Result;
 use crate::project::Project;
@@ -41,6 +42,9 @@ impl Vault {
             "index.db\nindex.db-journal\n.DS_Store\n",
         )?;
 
+        // Write default templates.json
+        let _ = TemplateConfig::load(root);
+
         // Init git repo with 'main' as default branch
         let repo = git2::Repository::init(root)?;
         repo.config()?.set_str("init.defaultBranch", "main")?;
@@ -68,6 +72,9 @@ impl Vault {
         let config: VaultConfig = toml::from_str(&toml_str)?;
         let repo = git2::Repository::open(root)?;
         let search = SearchIndex::open(&root.join("index.db"))?;
+
+        // Ensure templates.json exists (migration for older vaults)
+        let _ = TemplateConfig::load(root);
 
         Ok(Self {
             root: root.to_path_buf(),
@@ -129,8 +136,29 @@ impl Vault {
         name: &str,
         description: &str,
         tags: Vec<String>,
+        template: Option<&str>,
     ) -> Result<Project> {
-        Project::create(&self.projects_dir(), name, description, tags)
+        let mut project = Project::create(&self.projects_dir(), name, description, tags)?;
+
+        // Apply template, pin created files as AI context, and set folder order
+        let template_config = TemplateConfig::load(&self.root)?;
+        if let Some(tmpl) = template_config.get(template) {
+            let created = crate::template::apply_template(&project.docs_dir(), tmpl)?;
+            if !created.is_empty() {
+                project.config.project.ai_context_files = created;
+            }
+            if !tmpl.folders.is_empty() {
+                project.config.project.folder_order = tmpl.folders.clone();
+            }
+            let toml_str = toml::to_string_pretty(&project.config)
+                .map_err(|e| crate::CoreError::TomlSerialize(e))?;
+            std::fs::write(
+                self.projects_dir().join(name).join("project.toml"),
+                toml_str,
+            )?;
+        }
+
+        Ok(project)
     }
 
     pub fn open_project(&self, name: &str) -> Result<Project> {
@@ -431,6 +459,208 @@ impl Vault {
         Ok(oid)
     }
 
+    // -- Branch operations --
+
+    pub fn current_branch(&self) -> Result<String> {
+        match self.repo.head() {
+            Ok(head) => Ok(head
+                .shorthand()
+                .unwrap_or("HEAD (detached)")
+                .to_string()),
+            Err(_) => Ok("main".to_string()), // No commits yet
+        }
+    }
+
+    pub fn list_branches(&self) -> Result<Vec<BranchInfo>> {
+        let mut branches = Vec::new();
+        let current = self.current_branch()?;
+
+        let repo_branches = self.repo.branches(Some(git2::BranchType::Local))?;
+        for branch in repo_branches {
+            let (branch, _) = branch?;
+            if let Some(name) = branch.name()? {
+                branches.push(BranchInfo {
+                    name: name.to_string(),
+                    is_current: name == current,
+                });
+            }
+        }
+
+        // If no branches yet (empty repo), show "main"
+        if branches.is_empty() {
+            branches.push(BranchInfo {
+                name: "main".to_string(),
+                is_current: true,
+            });
+        }
+
+        Ok(branches)
+    }
+
+    pub fn create_branch(&self, name: &str) -> Result<()> {
+        let head = self.repo.head().map_err(|_| {
+            crate::CoreError::Branch("Cannot create branch: no commits yet".to_string())
+        })?;
+        let commit = head.peel_to_commit()?;
+        self.repo.branch(name, &commit, false)?;
+        Ok(())
+    }
+
+    pub fn switch_branch(&self, name: &str) -> Result<()> {
+        // Refuse on dirty worktree
+        let status = self.status()?;
+        if !status.is_empty() {
+            return Err(crate::CoreError::Branch(
+                "Cannot switch branches with uncommitted changes. Commit or discard changes first."
+                    .to_string(),
+            ));
+        }
+
+        let refname = format!("refs/heads/{}", name);
+        self.repo.set_head(&refname)?;
+
+        let mut checkout = git2::build::CheckoutBuilder::new();
+        checkout.safe();
+        self.repo.checkout_head(Some(&mut checkout))?;
+
+        Ok(())
+    }
+
+    pub fn delete_branch(&self, name: &str) -> Result<()> {
+        let current = self.current_branch()?;
+        if name == current {
+            return Err(crate::CoreError::Branch(
+                "Cannot delete the current branch".to_string(),
+            ));
+        }
+
+        let mut branch = self
+            .repo
+            .find_branch(name, git2::BranchType::Local)?;
+        branch.delete()?;
+        Ok(())
+    }
+
+    // -- Diff operations --
+
+    pub fn diff_file(&self, path: &str, staged: bool) -> Result<FileDiff> {
+        let mut diff_opts = git2::DiffOptions::new();
+        diff_opts.pathspec(path);
+
+        let diff = if staged {
+            let head_tree = self
+                .repo
+                .head()
+                .ok()
+                .and_then(|h| h.peel_to_tree().ok());
+            self.repo.diff_tree_to_index(
+                head_tree.as_ref(),
+                None,
+                Some(&mut diff_opts),
+            )?
+        } else {
+            self.repo
+                .diff_index_to_workdir(None, Some(&mut diff_opts))?
+        };
+
+        Self::parse_diff_for_file(&diff, path)
+    }
+
+    pub fn diff_branches(&self, base: &str, head: &str) -> Result<Vec<FileDiff>> {
+        let base_branch = self.repo.find_branch(base, git2::BranchType::Local)?;
+        let head_branch = self.repo.find_branch(head, git2::BranchType::Local)?;
+
+        let base_tree = base_branch.get().peel_to_tree()?;
+        let head_tree = head_branch.get().peel_to_tree()?;
+
+        let diff = self
+            .repo
+            .diff_tree_to_tree(Some(&base_tree), Some(&head_tree), None)?;
+
+        Self::parse_diff_to_files(&diff)
+    }
+
+    fn parse_diff_to_files(diff: &git2::Diff) -> Result<Vec<FileDiff>> {
+        use std::collections::BTreeMap;
+
+        let mut file_map: BTreeMap<String, (Vec<DiffHunk>, usize, usize)> = BTreeMap::new();
+
+        // Process each delta (file) separately
+        for delta_idx in 0..diff.deltas().len() {
+            let delta = diff.get_delta(delta_idx).unwrap();
+            let path = delta
+                .new_file()
+                .path()
+                .or_else(|| delta.old_file().path())
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default();
+
+            if let Ok(patch) = git2::Patch::from_diff(diff, delta_idx) {
+                if let Some(patch) = patch {
+                    let mut hunks = Vec::new();
+                    let mut additions = 0usize;
+                    let mut deletions = 0usize;
+
+                    for hunk_idx in 0..patch.num_hunks() {
+                        let (hunk, _) = patch.hunk(hunk_idx).unwrap();
+                        let header = String::from_utf8_lossy(hunk.header()).trim().to_string();
+                        let mut lines = Vec::new();
+
+                        for line_idx in 0..patch.num_lines_in_hunk(hunk_idx).unwrap_or(0) {
+                            if let Ok(line) = patch.line_in_hunk(hunk_idx, line_idx) {
+                                let origin = line.origin();
+                                if origin == '+' {
+                                    additions += 1;
+                                } else if origin == '-' {
+                                    deletions += 1;
+                                }
+                                lines.push(DiffLine {
+                                    origin,
+                                    content: String::from_utf8_lossy(line.content())
+                                        .trim_end_matches('\n')
+                                        .to_string(),
+                                    old_lineno: line.old_lineno(),
+                                    new_lineno: line.new_lineno(),
+                                });
+                            }
+                        }
+
+                        hunks.push(DiffHunk { header, lines });
+                    }
+
+                    file_map.insert(path, (hunks, additions, deletions));
+                }
+            }
+        }
+
+        Ok(file_map
+            .into_iter()
+            .map(|(path, (hunks, additions, deletions))| FileDiff {
+                path,
+                hunks,
+                stats: DiffFileStats {
+                    additions,
+                    deletions,
+                },
+            })
+            .collect())
+    }
+
+    fn parse_diff_for_file(diff: &git2::Diff, path: &str) -> Result<FileDiff> {
+        let files = Self::parse_diff_to_files(diff)?;
+        Ok(files
+            .into_iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| FileDiff {
+                path: path.to_string(),
+                hunks: Vec::new(),
+                stats: DiffFileStats {
+                    additions: 0,
+                    deletions: 0,
+                },
+            }))
+    }
+
     // -- Config operations --
 
     pub fn save_config(&self) -> Result<()> {
@@ -475,4 +705,37 @@ pub struct VaultStats {
     pub mcp_port: u16,
     pub remote_branch: String,
     pub remote_url: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BranchInfo {
+    pub name: String,
+    pub is_current: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FileDiff {
+    pub path: String,
+    pub hunks: Vec<DiffHunk>,
+    pub stats: DiffFileStats,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DiffHunk {
+    pub header: String,
+    pub lines: Vec<DiffLine>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DiffLine {
+    pub origin: char,
+    pub content: String,
+    pub old_lineno: Option<u32>,
+    pub new_lineno: Option<u32>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DiffFileStats {
+    pub additions: usize,
+    pub deletions: usize,
 }

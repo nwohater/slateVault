@@ -9,6 +9,12 @@ import type {
   VaultSettings,
   VaultStatsInfo,
   McpServerStatus,
+  BranchInfo,
+  FileDiff,
+  PrCreateResponse,
+  CredentialsMasked,
+  TemplateInfo,
+  ProjectExport,
 } from "@/types";
 
 export async function createVault(
@@ -25,9 +31,39 @@ export async function openVault(path: string): Promise<string> {
 export async function createProject(
   name: string,
   description?: string,
-  tags?: string[]
+  tags?: string[],
+  template?: string
 ): Promise<string> {
-  return invoke("create_project", { name, description, tags });
+  return invoke("create_project", { name, description, tags, template });
+}
+
+export async function exportProjectDocs(
+  project: string
+): Promise<ProjectExport> {
+  return invoke("export_project_docs", { project });
+}
+
+export async function readVaultFile(path: string): Promise<string> {
+  return invoke("read_vault_file", { path });
+}
+
+export async function writeVaultFile(
+  path: string,
+  content: string
+): Promise<string> {
+  return invoke("write_vault_file", { path, content });
+}
+
+export async function listTemplates(): Promise<TemplateInfo[]> {
+  return invoke("list_templates");
+}
+
+export async function getTemplatesConfig(): Promise<string> {
+  return invoke("get_templates_config");
+}
+
+export async function saveTemplatesConfig(json: string): Promise<string> {
+  return invoke("save_templates_config", { json });
 }
 
 export async function listProjects(): Promise<ProjectInfo[]> {
@@ -158,6 +194,24 @@ export async function closeTerminal(): Promise<string> {
   return invoke("close_terminal");
 }
 
+export async function listFolders(project: string): Promise<string[]> {
+  return invoke("list_folders", { project });
+}
+
+export async function deleteFolder(
+  project: string,
+  folderPath: string
+): Promise<string> {
+  return invoke("delete_folder", { project, folderPath });
+}
+
+export async function createFolder(
+  project: string,
+  folderPath: string
+): Promise<string> {
+  return invoke("create_folder", { project, folderPath });
+}
+
 export async function showInFolder(
   project: string,
   path?: string
@@ -212,4 +266,84 @@ export async function stopMcpServer(): Promise<string> {
 
 export async function mcpServerStatus(): Promise<McpServerStatus> {
   return invoke("mcp_server_status");
+}
+
+// -- Branch commands --
+
+export async function gitCurrentBranch(): Promise<string> {
+  return invoke("git_current_branch");
+}
+
+export async function gitListBranches(): Promise<BranchInfo[]> {
+  return invoke("git_list_branches");
+}
+
+export async function gitCreateBranch(name: string): Promise<string> {
+  return invoke("git_create_branch", { name });
+}
+
+export async function gitSwitchBranch(name: string): Promise<string> {
+  return invoke("git_switch_branch", { name });
+}
+
+export async function gitDeleteBranch(name: string): Promise<string> {
+  return invoke("git_delete_branch", { name });
+}
+
+// -- Diff commands --
+
+export async function gitDiffFile(
+  path: string,
+  staged: boolean
+): Promise<FileDiff> {
+  return invoke("git_diff_file", { path, staged });
+}
+
+export async function gitDiffBranches(
+  base: string,
+  head: string
+): Promise<FileDiff[]> {
+  return invoke("git_diff_branches", { base, head });
+}
+
+// -- PR commands --
+
+export async function gitPushBranch(branch: string): Promise<string> {
+  return invoke("git_push_branch", { branch });
+}
+
+export async function gitCreatePr(
+  title: string,
+  description: string,
+  sourceBranch: string,
+  targetBranch: string
+): Promise<PrCreateResponse> {
+  return invoke("git_create_pr", {
+    title,
+    description,
+    sourceBranch,
+    targetBranch,
+  });
+}
+
+export async function gitDetectPlatform(): Promise<string | null> {
+  return invoke("git_detect_platform");
+}
+
+export async function gitSaveCredentials(creds: {
+  github_pat?: string;
+  ado_pat?: string;
+  ado_organization?: string;
+  ado_project?: string;
+}): Promise<string> {
+  return invoke("git_save_credentials", {
+    githubPat: creds.github_pat,
+    adoPat: creds.ado_pat,
+    adoOrganization: creds.ado_organization,
+    adoProject: creds.ado_project,
+  });
+}
+
+export async function gitLoadCredentials(): Promise<CredentialsMasked> {
+  return invoke("git_load_credentials");
 }

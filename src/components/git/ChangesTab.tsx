@@ -2,6 +2,16 @@
 
 import { useEffect } from "react";
 import { useGitStore } from "@/stores/gitStore";
+import { DiffViewer } from "./DiffViewer";
+import {
+  GitAddedIcon,
+  GitModifiedIcon,
+  GitDeletedIcon,
+  GitUntrackedIcon,
+  StageIcon,
+  UnstageIcon,
+  CloseIcon,
+} from "@/components/icons/GitIcons";
 
 export function ChangesTab() {
   const files = useGitStore((s) => s.files);
@@ -14,6 +24,9 @@ export function ChangesTab() {
   const loadStatus = useGitStore((s) => s.loadStatus);
   const output = useGitStore((s) => s.output);
   const clearOutput = useGitStore((s) => s.clearOutput);
+  const activeDiff = useGitStore((s) => s.activeDiff);
+  const loadFileDiff = useGitStore((s) => s.loadFileDiff);
+  const clearDiff = useGitStore((s) => s.clearDiff);
 
   useEffect(() => {
     loadStatus();
@@ -22,24 +35,30 @@ export function ChangesTab() {
   const staged = files.filter((f) => f.status.startsWith("staged_"));
   const unstaged = files.filter((f) => !f.status.startsWith("staged_"));
 
-  const statusLabel = (s: string) => {
+  const statusIcon = (s: string) => {
     switch (s) {
-      case "staged_new": return "A";
-      case "staged_modified": return "M";
-      case "staged_deleted": return "D";
-      case "new": return "?";
-      case "modified": return "M";
-      case "deleted": return "D";
-      default: return "?";
+      case "staged_new":
+      case "new":
+        return <GitAddedIcon className="w-3.5 h-3.5 text-green-400" />;
+      case "staged_modified":
+      case "modified":
+        return <GitModifiedIcon className="w-3.5 h-3.5 text-yellow-400" />;
+      case "staged_deleted":
+      case "deleted":
+        return <GitDeletedIcon className="w-3.5 h-3.5 text-red-400" />;
+      default:
+        return <GitUntrackedIcon className="w-3.5 h-3.5 text-neutral-400" />;
     }
   };
 
-  const statusColor = (s: string) => {
-    if (s.includes("new") || s === "staged_new") return "text-green-400";
-    if (s.includes("modified")) return "text-yellow-400";
-    if (s.includes("deleted")) return "text-red-400";
-    return "text-neutral-400";
+  const handleFileClick = (path: string, isStaged: boolean) => {
+    loadFileDiff(path, isStaged);
   };
+
+  // Show diff viewer if active
+  if (activeDiff) {
+    return <DiffViewer diff={activeDiff} onClose={clearDiff} />;
+  }
 
   return (
     <div className="flex flex-col h-full text-xs">
@@ -79,7 +98,7 @@ export function ChangesTab() {
       {output && (
         <div className="px-2 py-1 bg-neutral-800 border-b border-neutral-700 text-neutral-400 flex justify-between">
           <span className="truncate">{output}</span>
-          <button onClick={clearOutput} className="text-neutral-500 hover:text-neutral-300 ml-1">x</button>
+          <button onClick={clearOutput} className="text-neutral-500 hover:text-neutral-300 ml-1"><CloseIcon className="w-3 h-3" /></button>
         </div>
       )}
 
@@ -93,20 +112,24 @@ export function ChangesTab() {
             {staged.map((f) => (
               <div
                 key={f.path}
-                className="flex items-center px-2 py-0.5 hover:bg-neutral-800 group"
+                className="flex items-center gap-1 px-2 py-0.5 hover:bg-neutral-800 group cursor-pointer"
+                onClick={() => handleFileClick(f.path, true)}
               >
-                <span className={`w-4 ${statusColor(f.status)}`}>
-                  {statusLabel(f.status)}
+                <span className="w-4 flex-shrink-0 flex justify-center">
+                  {statusIcon(f.status)}
                 </span>
-                <span className="flex-1 truncate text-neutral-300 ml-1">
+                <span className="flex-1 truncate text-neutral-300">
                   {f.path}
                 </span>
                 <button
-                  onClick={() => unstage(f.path)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    unstage(f.path);
+                  }}
                   className="text-neutral-500 hover:text-neutral-200 opacity-0 group-hover:opacity-100"
                   title="Unstage"
                 >
-                  -
+                  <UnstageIcon className="w-3.5 h-3.5" />
                 </button>
               </div>
             ))}
@@ -121,20 +144,24 @@ export function ChangesTab() {
             {unstaged.map((f) => (
               <div
                 key={f.path}
-                className="flex items-center px-2 py-0.5 hover:bg-neutral-800 group"
+                className="flex items-center gap-1 px-2 py-0.5 hover:bg-neutral-800 group cursor-pointer"
+                onClick={() => handleFileClick(f.path, false)}
               >
-                <span className={`w-4 ${statusColor(f.status)}`}>
-                  {statusLabel(f.status)}
+                <span className="w-4 flex-shrink-0 flex justify-center">
+                  {statusIcon(f.status)}
                 </span>
-                <span className="flex-1 truncate text-neutral-300 ml-1">
+                <span className="flex-1 truncate text-neutral-300">
                   {f.path}
                 </span>
                 <button
-                  onClick={() => stage(f.path)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    stage(f.path);
+                  }}
                   className="text-neutral-500 hover:text-neutral-200 opacity-0 group-hover:opacity-100"
                   title="Stage"
                 >
-                  +
+                  <StageIcon className="w-3.5 h-3.5" />
                 </button>
               </div>
             ))}

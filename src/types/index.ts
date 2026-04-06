@@ -2,6 +2,23 @@ export interface ProjectInfo {
   name: string;
   description: string;
   tags: string[];
+  folder_order: string[];
+}
+
+export interface ExportDoc {
+  title: string;
+  path: string;
+  content: string;
+}
+
+export interface ExportSection {
+  folder: string;
+  docs: ExportDoc[];
+}
+
+export interface ProjectExport {
+  project_name: string;
+  sections: ExportSection[];
 }
 
 export interface DocumentInfo {
@@ -65,6 +82,53 @@ export interface McpServerStatus {
   vault_path: string | null;
   port: number | null;
   binary_found: boolean;
+}
+
+export interface BranchInfo {
+  name: string;
+  is_current: boolean;
+}
+
+export interface DiffLine {
+  origin: string;
+  content: string;
+  old_lineno: number | null;
+  new_lineno: number | null;
+}
+
+export interface DiffHunk {
+  header: string;
+  lines: DiffLine[];
+}
+
+export interface DiffFileStats {
+  additions: number;
+  deletions: number;
+}
+
+export interface FileDiff {
+  path: string;
+  hunks: DiffHunk[];
+  stats: DiffFileStats;
+}
+
+export interface PrCreateResponse {
+  url: string;
+  number: number;
+  platform: string;
+}
+
+export interface CredentialsMasked {
+  github_pat: string | null;
+  ado_pat: string | null;
+  ado_organization: string | null;
+  ado_project: string | null;
+}
+
+export interface TemplateInfo {
+  name: string;
+  label: string;
+  is_default: boolean;
 }
 
 export interface FrontMatter {

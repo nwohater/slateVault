@@ -16,6 +16,7 @@ pub fn run() {
         .manage(McpProcessState::new())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -49,7 +50,19 @@ pub fn run() {
             commands::git_set_remote_config,
             commands::git_clone,
             commands::git_push,
+            commands::git_push_branch,
             commands::git_pull,
+            commands::git_current_branch,
+            commands::git_list_branches,
+            commands::git_create_branch,
+            commands::git_switch_branch,
+            commands::git_delete_branch,
+            commands::git_diff_file,
+            commands::git_diff_branches,
+            commands::git_create_pr,
+            commands::git_detect_platform,
+            commands::git_save_credentials,
+            commands::git_load_credentials,
             commands::get_vault_config,
             commands::set_vault_config,
             commands::show_in_folder,
@@ -57,6 +70,16 @@ pub fn run() {
             commands::delete_project,
             commands::rename_document,
             commands::rename_project,
+            commands::export_project_docs,
+            commands::write_binary_file,
+            commands::read_vault_file,
+            commands::write_vault_file,
+            commands::list_templates,
+            commands::get_templates_config,
+            commands::save_templates_config,
+            commands::list_folders,
+            commands::create_folder,
+            commands::delete_folder,
             commands::rebuild_index,
             commands::vault_stats,
             terminal::spawn_terminal,

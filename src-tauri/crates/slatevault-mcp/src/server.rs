@@ -45,6 +45,7 @@ impl SlateVaultMcpServer {
                 &params.name,
                 &params.description.unwrap_or_default(),
                 params.tags.unwrap_or_default(),
+                None,
             )
             .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
 

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import { FileTree } from "./FileTree";
 import { SearchBar } from "./SearchBar";
 import { GitPanel } from "../git/GitPanel";
 import { SettingsPanel } from "../settings/SettingsPanel";
+import * as commands from "@/lib/commands";
+import type { TemplateInfo } from "@/types";
 
 type SidebarView = "files" | "git" | "settings";
 
@@ -15,8 +17,18 @@ export function Sidebar() {
   const createProject = useVaultStore((s) => s.createProject);
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+  const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   const loadProjects = useVaultStore((s) => s.loadProjects);
   const [view, setView] = useState<SidebarView>("files");
+
+  useEffect(() => {
+    commands.listTemplates().then((t) => {
+      setTemplates(t);
+      const def = t.find((x) => x.is_default);
+      if (def) setSelectedTemplate(def.name);
+    }).catch(() => {});
+  }, []);
 
   const switchView = (v: SidebarView) => {
     setView(v);
@@ -27,7 +39,12 @@ export function Sidebar() {
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
-    await createProject(newProjectName.trim());
+    await createProject(
+      newProjectName.trim(),
+      undefined,
+      undefined,
+      selectedTemplate || undefined
+    );
     setNewProjectName("");
     setShowNewProject(false);
   };
@@ -95,6 +112,19 @@ export function Sidebar() {
                 className="w-full px-2 py-1 text-xs bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:border-blue-600"
                 autoFocus
               />
+              {templates.length > 0 && (
+                <select
+                  value={selectedTemplate}
+                  onChange={(e) => setSelectedTemplate(e.target.value)}
+                  className="w-full px-2 py-1 text-xs bg-neutral-800 border border-neutral-700 rounded text-neutral-200 outline-none focus:border-blue-600"
+                >
+                  {templates.map((t) => (
+                    <option key={t.name} value={t.name}>
+                      {t.label}{t.is_default ? " (default)" : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
               <div className="flex gap-1">
                 <button
                   onClick={handleCreateProject}

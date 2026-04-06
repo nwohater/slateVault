@@ -3,17 +3,71 @@
 import { useEffect, useState } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useEditorStore } from "@/stores/editorStore";
+import { useGitStore } from "@/stores/gitStore";
 import * as commands from "@/lib/commands";
 import { parseFrontMatter } from "@/lib/frontmatter";
 import { TreeNode } from "./TreeNode";
+import { ProjectPdfExport } from "../preview/ProjectPdfExport";
+
+import type { DocumentInfo } from "@/types";
+
+interface FolderNode {
+  name: string;
+  path: string; // full relative path like "specs" or "specs/api"
+  children: FolderNode[];
+  docs: DocumentInfo[];
+}
+
+function buildFolderTree(docs: DocumentInfo[], folderPaths: string[]): FolderNode {
+  const root: FolderNode = { name: "", path: "", children: [], docs: [] };
+
+  // Ensure all known folders exist in the tree (including empty ones)
+  for (const fp of folderPaths) {
+    const parts = fp.split("/");
+    let current = root;
+    for (let i = 0; i < parts.length; i++) {
+      const folderName = parts[i];
+      const folderPath = parts.slice(0, i + 1).join("/");
+      let child = current.children.find((c) => c.name === folderName);
+      if (!child) {
+        child = { name: folderName, path: folderPath, children: [], docs: [] };
+        current.children.push(child);
+      }
+      current = child;
+    }
+  }
+
+  // Place docs into the correct folder nodes
+  for (const doc of docs) {
+    const parts = doc.path.split("/");
+    if (parts.length === 1) {
+      root.docs.push(doc);
+    } else {
+      let current = root;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const folderName = parts[i];
+        const folderPath = parts.slice(0, i + 1).join("/");
+        let child = current.children.find((c) => c.name === folderName);
+        if (!child) {
+          child = { name: folderName, path: folderPath, children: [], docs: [] };
+          current.children.push(child);
+        }
+        current = child;
+      }
+      current.docs.push(doc);
+    }
+  }
+
+  return root;
+}
 
 type ContextMenu = {
-  type: "project" | "doc";
+  type: "project" | "doc" | "folder";
   project: string;
   path?: string;
   x: number;
   y: number;
-  action: "menu" | "confirm-delete" | "rename";
+  action: "menu" | "confirm-delete" | "rename" | "new-folder";
   renameValue: string;
 } | null;
 
@@ -38,12 +92,25 @@ export function FileTree() {
   const [newDocName, setNewDocName] = useState("");
   const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
   const [menuError, setMenuError] = useState<string | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [dragItem, setDragItem] = useState<{ project: string; path: string } | null>(null);
+  const [projectFolders, setProjectFolders] = useState<Record<string, string[]>>({});
+  const [exportingProject, setExportingProject] = useState<string | null>(null);
 
   useEffect(() => {
     loadProjects();
     const interval = setInterval(loadProjects, 5000);
     return () => clearInterval(interval);
   }, [loadProjects]);
+
+  // Load folders for expanded projects
+  useEffect(() => {
+    for (const name of expandedProjects) {
+      commands.listFolders(name).then((folders) => {
+        setProjectFolders((prev) => ({ ...prev, [name]: folders }));
+      }).catch(() => {});
+    }
+  }, [expandedProjects, documents]);
 
   const handleCreateDoc = async (projectName: string) => {
     if (!newDocName.trim()) return;
@@ -61,7 +128,7 @@ export function FileTree() {
 
   const openContextMenu = (
     e: React.MouseEvent,
-    type: "project" | "doc",
+    type: "project" | "doc" | "folder",
     project: string,
     path?: string,
     label?: string
@@ -83,7 +150,11 @@ export function FileTree() {
   const handleDelete = async () => {
     if (!contextMenu) return;
     try {
-      if (contextMenu.type === "project") {
+      if (contextMenu.type === "folder" && contextMenu.path) {
+        await commands.deleteFolder(contextMenu.project, contextMenu.path);
+        const folders = await commands.listFolders(contextMenu.project);
+        setProjectFolders((prev) => ({ ...prev, [contextMenu.project]: folders }));
+      } else if (contextMenu.type === "project") {
         await deleteProject(contextMenu.project);
         if (activeProject === contextMenu.project) closeDocument();
       } else if (contextMenu.path) {
@@ -134,6 +205,117 @@ export function FileTree() {
     }
   };
 
+  const toggleFolder = (key: string) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const loadGitStatus = useGitStore((s) => s.loadStatus);
+
+  const handleDrop = async (project: string, targetFolder: string) => {
+    if (!dragItem || dragItem.project !== project) return;
+    const oldPath = dragItem.path;
+    const filename = oldPath.split("/").pop() || oldPath;
+    const newPath = targetFolder ? `${targetFolder}/${filename}` : filename;
+    if (oldPath === newPath) return;
+
+    try {
+      await renameDocument(project, oldPath, newPath);
+      await loadDocuments(project);
+      await loadGitStatus();
+      // If this doc is currently open, reopen at new path
+      if (activeProject === project && activePath === oldPath) {
+        await openDocument(project, newPath);
+      }
+    } catch (e) {
+      console.error("Move failed:", e);
+    }
+    setDragItem(null);
+  };
+
+  const renderFolderTree = (
+    node: FolderNode,
+    projectName: string,
+    baseDepth: number
+  ): React.ReactNode => {
+    const folderKey = `${projectName}/${node.path}`;
+    const isFolderExpanded = expandedFolders.has(folderKey);
+
+    // Sort folders by project's folder_order, then alphabetical for unlisted
+    const project = projects.find((p) => p.name === projectName);
+    const order = project?.folder_order || [];
+    const sortedChildren = [...node.children].sort((a, b) => {
+      const ai = order.indexOf(a.name);
+      const bi = order.indexOf(b.name);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    return (
+      <div key={node.path || "root"}>
+        {/* Render sub-folders */}
+        {sortedChildren
+          .map((child) => (
+            <div key={child.path}>
+              <TreeNode
+                label={child.name}
+                isFolder
+                isExpanded={expandedFolders.has(`${projectName}/${child.path}`)}
+                onClick={() => toggleFolder(`${projectName}/${child.path}`)}
+                onContextMenu={(e) =>
+                  openContextMenu(e, "folder", projectName, child.path, child.name)
+                }
+                depth={baseDepth}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleDrop(projectName, child.path);
+                }}
+              />
+              {expandedFolders.has(`${projectName}/${child.path}`) &&
+                renderFolderTree(child, projectName, baseDepth + 1)}
+            </div>
+          ))}
+
+        {/* Render docs at this level */}
+        {node.docs
+          .sort((a, b) => (a.title || a.path).localeCompare(b.title || b.path))
+          .map((doc) => (
+            <TreeNode
+              key={doc.path}
+              label={doc.title || doc.path.split("/").pop() || doc.path}
+              isFolder={false}
+              isActive={
+                activeProject === projectName && activePath === doc.path
+              }
+              author={doc.author}
+              onClick={() => openDocument(projectName, doc.path)}
+              onContextMenu={(e) =>
+                openContextMenu(e, "doc", projectName, doc.path, doc.title || doc.path)
+              }
+              depth={baseDepth}
+              draggable
+              onDragStart={(e) => {
+                setDragItem({ project: projectName, path: doc.path });
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", doc.path);
+              }}
+            />
+          ))}
+      </div>
+    );
+  };
+
   if (projects.length === 0) {
     return (
       <div className="px-3 py-4 text-xs text-neutral-500 text-center">
@@ -160,6 +342,15 @@ export function FileTree() {
                       openContextMenu(e, "project", project.name)
                     }
                     depth={0}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDrop(project.name, "");
+                    }}
                   />
                 </div>
                 {isExpanded && (
@@ -209,23 +400,14 @@ export function FileTree() {
               )}
 
               {isExpanded &&
-                (documents[project.name] || []).map((doc) => (
-                  <TreeNode
-                    key={doc.path}
-                    label={doc.title || doc.path}
-                    isFolder={false}
-                    isActive={
-                      activeProject === project.name &&
-                      activePath === doc.path
-                    }
-                    author={doc.author}
-                    onClick={() => openDocument(project.name, doc.path)}
-                    onContextMenu={(e) =>
-                      openContextMenu(e, "doc", project.name, doc.path, doc.title || doc.path)
-                    }
-                    depth={1}
-                  />
-                ))}
+                renderFolderTree(
+                  buildFolderTree(
+                    documents[project.name] || [],
+                    projectFolders[project.name] || []
+                  ),
+                  project.name,
+                  1
+                )}
             </div>
           );
         })}
@@ -247,14 +429,37 @@ export function FileTree() {
           >
             {contextMenu.action === "menu" && (
               <>
-                <button
-                  onClick={() =>
-                    setContextMenu({ ...contextMenu, action: "rename" })
-                  }
-                  className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
-                >
-                  Rename
-                </button>
+                {(contextMenu.type === "project" || contextMenu.type === "folder") && (
+                  <button
+                    onClick={() =>
+                      setContextMenu({ ...contextMenu, action: "new-folder", renameValue: "" })
+                    }
+                    className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                  >
+                    New Folder
+                  </button>
+                )}
+                {contextMenu.type === "project" && (
+                  <button
+                    onClick={() => {
+                      setExportingProject(contextMenu.project);
+                      setContextMenu(null);
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                  >
+                    Export to PDF
+                  </button>
+                )}
+                {contextMenu.type !== "folder" && (
+                  <button
+                    onClick={() =>
+                      setContextMenu({ ...contextMenu, action: "rename" })
+                    }
+                    className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                  >
+                    Rename
+                  </button>
+                )}
                 <button
                   onClick={async () => {
                     await commands.showInFolder(
@@ -316,6 +521,84 @@ export function FileTree() {
               </div>
             )}
 
+            {contextMenu.action === "new-folder" && (
+              <div className="px-3 py-2">
+                <p className="text-neutral-400 mb-1.5">New folder in <span className="text-neutral-200">{contextMenu.type === "folder" && contextMenu.path ? `${contextMenu.project}/${contextMenu.path}` : contextMenu.project}</span></p>
+                <input
+                  autoFocus
+                  type="text"
+                  value={contextMenu.renameValue}
+                  onChange={(e) =>
+                    setContextMenu({
+                      ...contextMenu,
+                      renameValue: e.target.value,
+                    })
+                  }
+                  onKeyDown={async (e) => {
+                    if (e.key === "Enter" && contextMenu.renameValue.trim()) {
+                      try {
+                        const parentPath = contextMenu.type === "folder" && contextMenu.path ? contextMenu.path : "";
+                        const fullFolderPath = parentPath ? `${parentPath}/${contextMenu.renameValue.trim()}` : contextMenu.renameValue.trim();
+                        await commands.createFolder(contextMenu.project, fullFolderPath);
+                        const folders = await commands.listFolders(contextMenu.project);
+                        setProjectFolders((prev) => ({ ...prev, [contextMenu.project]: folders }));
+                        setExpandedFolders((prev) => {
+                          const next = new Set(prev);
+                          next.add(`${contextMenu.project}/${fullFolderPath}`);
+                          if (parentPath) next.add(`${contextMenu.project}/${parentPath}`);
+                          return next;
+                        });
+                        await loadDocuments(contextMenu.project);
+                        setContextMenu(null);
+                      } catch (err) {
+                        setMenuError(String(err));
+                      }
+                    }
+                    if (e.key === "Escape") setContextMenu(null);
+                  }}
+                  placeholder="folder-name"
+                  className="w-full px-2 py-1 bg-neutral-700 border border-neutral-600 rounded text-neutral-200 outline-none focus:border-blue-500 mb-2"
+                />
+                {menuError && (
+                  <p className="text-red-400 mb-2 text-[10px]">{menuError}</p>
+                )}
+                <div className="flex gap-1">
+                  <button
+                    onClick={async () => {
+                      if (!contextMenu.renameValue.trim()) return;
+                      try {
+                        const parentPath = contextMenu.type === "folder" && contextMenu.path ? contextMenu.path : "";
+                        const fullFolderPath = parentPath ? `${parentPath}/${contextMenu.renameValue.trim()}` : contextMenu.renameValue.trim();
+                        await commands.createFolder(contextMenu.project, fullFolderPath);
+                        const folders = await commands.listFolders(contextMenu.project);
+                        setProjectFolders((prev) => ({ ...prev, [contextMenu.project]: folders }));
+                        setExpandedFolders((prev) => {
+                          const next = new Set(prev);
+                          next.add(`${contextMenu.project}/${fullFolderPath}`);
+                          if (parentPath) next.add(`${contextMenu.project}/${parentPath}`);
+                          return next;
+                        });
+                        await loadDocuments(contextMenu.project);
+                        setContextMenu(null);
+                      } catch (err) {
+                        setMenuError(String(err));
+                      }
+                    }}
+                    disabled={!contextMenu.renameValue.trim()}
+                    className="flex-1 px-2 py-1 bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-700 disabled:text-neutral-500 text-white rounded"
+                  >
+                    Create
+                  </button>
+                  <button
+                    onClick={() => setContextMenu(null)}
+                    className="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-neutral-300 rounded"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             {contextMenu.action === "rename" && (
               <div className="px-3 py-2">
                 <input
@@ -356,6 +639,13 @@ export function FileTree() {
             )}
           </div>
         </>
+      )}
+
+      {exportingProject && (
+        <ProjectPdfExport
+          project={exportingProject}
+          onClose={() => setExportingProject(null)}
+        />
       )}
     </>
   );
