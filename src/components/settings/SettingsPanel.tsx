@@ -346,6 +346,69 @@ export function SettingsPanel() {
         </div>
       </div>
 
+      {/* Backup & Restore */}
+      <div className="p-3 border-b border-neutral-800">
+        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
+          Backup &amp; Restore
+        </h3>
+        <div className="space-y-2">
+          <button
+            onClick={async () => {
+              try {
+                const { save } = await import("@tauri-apps/plugin-dialog");
+                const path = await save({
+                  defaultPath: `slatevault-backup-${new Date().toISOString().slice(0, 10)}.zip`,
+                  filters: [{ name: "ZIP", extensions: ["zip"] }],
+                });
+                if (path) {
+                  const result = await commands.backupVault(path);
+                  setOutput(result);
+                  setTimeout(() => setOutput(null), 3000);
+                }
+              } catch (e) {
+                setOutput(`Backup failed: ${e}`);
+              }
+            }}
+            className="w-full px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs"
+          >
+            Backup Vault to ZIP
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                const { open, ask } = await import("@tauri-apps/plugin-dialog");
+                const zipPath = await open({
+                  filters: [{ name: "ZIP", extensions: ["zip"] }],
+                  title: "Select vault backup ZIP",
+                });
+                if (!zipPath) return;
+                const destPath = await open({
+                  directory: true,
+                  title: "Select destination folder for restore",
+                });
+                if (!destPath) return;
+                const confirmed = await ask(
+                  "This will extract the backup to the selected folder. Existing files may be overwritten. Continue?",
+                  { title: "Restore Vault", kind: "warning" }
+                );
+                if (confirmed) {
+                  const result = await commands.restoreVault(zipPath as string, destPath as string);
+                  setOutput(result);
+                }
+              } catch (e) {
+                setOutput(`Restore failed: ${e}`);
+              }
+            }}
+            className="w-full px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs"
+          >
+            Restore Vault from ZIP
+          </button>
+          <p className="text-neutral-600 text-[10px]">
+            Backup includes all projects, documents, and config. Excludes search index and .git history.
+          </p>
+        </div>
+      </div>
+
       {/* Save */}
       <div className="p-3">
         <button

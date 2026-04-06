@@ -40,6 +40,24 @@ export async function createProject(
   return invoke("create_project", { name, description, tags, template });
 }
 
+export async function backupVault(destPath: string): Promise<string> {
+  return invoke("backup_vault", { destPath });
+}
+
+export async function restoreVault(
+  zipPath: string,
+  destPath: string
+): Promise<string> {
+  return invoke("restore_vault", { zipPath, destPath });
+}
+
+export async function importMarkdownFolder(
+  project: string,
+  sourcePath: string
+): Promise<string> {
+  return invoke("import_markdown_folder", { project, sourcePath });
+}
+
 export async function getBacklinks(
   project: string,
   path: string

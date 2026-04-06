@@ -18,6 +18,11 @@ pub struct SearchResult {
 impl SearchIndex {
     pub fn open(db_path: &std::path::Path) -> Result<Self> {
         let conn = Connection::open(db_path)?;
+
+        // Enable WAL mode for concurrent access (app + external MCP server)
+        let _ = conn.execute_batch("PRAGMA journal_mode=WAL;");
+        let _ = conn.execute_batch("PRAGMA busy_timeout=5000;");
+
         // Check if the table has the new columns, drop and recreate if not
         let has_author = conn
             .prepare("SELECT author FROM documents_fts LIMIT 0")

@@ -52,3 +52,6 @@ portable-pty = "0.9.0"
 dirs = "6"
 tauri-plugin-fs = "2.5.0"
 base64 = "0.22.1"
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+zip = "8.5.0"

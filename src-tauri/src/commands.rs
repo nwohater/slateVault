@@ -1189,6 +1189,164 @@ pub fn export_project_docs(
     })
 }
 
+// -- Backup / Restore / Import --
+
+#[tauri::command]
+pub fn backup_vault(
+    dest_path: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let vault_root = &vault.root;
+
+    let file = std::fs::File::create(&dest_path).map_err(|e| format!("Failed to create zip: {}", e))?;
+    let mut zip = zip::ZipWriter::new(file);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    fn add_dir(
+        zip: &mut zip::ZipWriter<std::fs::File>,
+        base: &std::path::Path,
+        dir: &std::path::Path,
+        options: zip::write::SimpleFileOptions,
+    ) -> Result<usize, String> {
+        let mut count = 0;
+        for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let path = entry.path();
+            let rel = path.strip_prefix(base).unwrap_or(&path).to_string_lossy().replace('\\', "/");
+
+            // Skip index.db, .git, and target directories
+            if rel.starts_with(".git") || rel.starts_with("index.db") || rel.starts_with("target") {
+                continue;
+            }
+
+            if path.is_dir() {
+                zip.add_directory(&format!("{}/", rel), options).map_err(|e| e.to_string())?;
+                count += add_dir(zip, base, &path, options)?;
+            } else {
+                zip.start_file(&rel, options).map_err(|e| e.to_string())?;
+                let data = std::fs::read(&path).map_err(|e| e.to_string())?;
+                std::io::Write::write_all(zip, &data).map_err(|e| e.to_string())?;
+                count += 1;
+            }
+        }
+        Ok(count)
+    }
+
+    let count = add_dir(&mut zip, vault_root, vault_root, options)?;
+    zip.finish().map_err(|e| format!("Failed to finalize zip: {}", e))?;
+
+    Ok(format!("Backup complete: {} files archived", count))
+}
+
+#[tauri::command]
+pub fn restore_vault(
+    zip_path: String,
+    dest_path: String,
+) -> CmdResult<String> {
+    let file = std::fs::File::open(&zip_path).map_err(|e| format!("Failed to open zip: {}", e))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Invalid zip: {}", e))?;
+
+    let dest = std::path::PathBuf::from(&dest_path);
+    std::fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
+
+    let mut count = 0;
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
+        let out_path = dest.join(entry.name().replace('\\', "/"));
+
+        if entry.is_dir() {
+            std::fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            let mut out_file = std::fs::File::create(&out_path).map_err(|e| e.to_string())?;
+            std::io::copy(&mut entry, &mut out_file).map_err(|e| e.to_string())?;
+            count += 1;
+        }
+    }
+
+    Ok(format!("Restored {} files to {}", count, dest_path))
+}
+
+#[tauri::command]
+pub fn import_markdown_folder(
+    project: String,
+    source_path: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let project_obj = vault.open_project(&project)?;
+        let docs_dir = project_obj.docs_dir();
+        let source = std::path::PathBuf::from(&source_path);
+
+        if !source.is_dir() {
+            return Err(slatevault_core::CoreError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Source folder not found",
+            )));
+        }
+
+        let mut count = 0;
+
+        fn import_dir(
+            src: &std::path::Path,
+            src_base: &std::path::Path,
+            dest_base: &std::path::Path,
+            count: &mut usize,
+        ) -> Result<(), slatevault_core::CoreError> {
+            for entry in std::fs::read_dir(src)? {
+                let entry = entry?;
+                let path = entry.path();
+                let rel = path.strip_prefix(src_base).unwrap_or(&path);
+                let dest = dest_base.join(rel);
+
+                if path.is_dir() {
+                    std::fs::create_dir_all(&dest)?;
+                    import_dir(&path, src_base, dest_base, count)?;
+                } else if path.extension().map_or(false, |e| e == "md" || e == "markdown") {
+                    if let Some(parent) = dest.parent() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+
+                    let content = std::fs::read_to_string(&path)?;
+
+                    // Check if file already has frontmatter
+                    if content.trim_start().starts_with("---") {
+                        // Has frontmatter, copy as-is
+                        std::fs::write(&dest, &content)?;
+                    } else {
+                        // Add frontmatter
+                        let filename = path.file_stem()
+                            .map(|s| s.to_string_lossy().to_string())
+                            .unwrap_or_default();
+                        let title = filename.replace(['-', '_'], " ");
+                        let now = chrono::Utc::now().to_rfc3339();
+                        let fm = format!(
+                            "---\nid: {}\ntitle: \"{}\"\nauthor: human\nstatus: draft\ntags: [imported]\ncreated: \"{}\"\nmodified: \"{}\"\nproject: \"\"\ncanonical: false\nprotected: false\n---\n\n{}",
+                            uuid::Uuid::new_v4(), title, now, now, content
+                        );
+                        std::fs::write(&dest, fm)?;
+                    }
+
+                    *count += 1;
+                }
+            }
+            Ok(())
+        }
+
+        import_dir(&source, &source, &docs_dir, &mut count)?;
+
+        // Rebuild index to pick up imported docs
+        let _ = vault.rebuild_index();
+
+        Ok(format!("Imported {} markdown files into project '{}'", count, project))
+    })
+}
+
 // -- Binary file write (for PDF export) --
 
 #[tauri::command]
