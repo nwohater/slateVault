@@ -818,6 +818,7 @@ pub fn generate_project_brief(
         if !desc.is_empty() {
             brief.push_str(&format!("{}\n\n", desc));
         }
+        brief.push_str("_This brief serves as an initialization context for AI agents entering this project. Read key documents first, respect constraints, and follow suggested actions._\n\n");
         brief.push_str(&format!(
             "- **Total documents:** {}\n- **Canonical (source of truth):** {}\n- **Protected:** {}\n- **AI-authored:** {}\n- **Drafts:** {} | **Final:** {}\n\n",
             docs.len(), canonical.len(), protected_count, ai_count, draft_count, final_count
@@ -856,11 +857,30 @@ pub fn generate_project_brief(
             }
         }
 
-        // If nothing to read first, say so
+        // If nothing to read first, suggest best starting docs
         if canonical.is_empty() {
             let context_count = vault.get_project_context(&project).map(|c| c.len()).unwrap_or(0);
             if context_count == 0 {
-                brief.push_str("_No canonical or pinned context docs exist yet. Start by reading the document index below._\n\n");
+                // Auto-detect best starting docs
+                let starters: Vec<_> = docs.iter()
+                    .filter(|d| {
+                        let p = d.path.to_lowercase();
+                        let t = d.front_matter.title.to_lowercase();
+                        p.contains("overview") || p.contains("architecture") || p.contains("readme")
+                            || t.contains("overview") || t.contains("architecture")
+                    })
+                    .take(3)
+                    .collect();
+
+                if !starters.is_empty() {
+                    brief.push_str("_No canonical or pinned context docs exist yet. Start by reviewing:_\n\n");
+                    for doc in &starters {
+                        brief.push_str(&format!("- **{}** (`{}`)\n", doc.front_matter.title, doc.path));
+                    }
+                    brief.push_str("\n");
+                } else {
+                    brief.push_str("_No canonical or pinned context docs exist yet. Start by reading the document index below._\n\n");
+                }
             }
         }
 
