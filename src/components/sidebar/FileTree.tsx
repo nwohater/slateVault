@@ -300,6 +300,7 @@ export function FileTree() {
               }
               author={doc.author}
               canonical={doc.canonical}
+              isProtected={doc.protected}
               onClick={() => openDocument(projectName, doc.path)}
               onContextMenu={(e) =>
                 openContextMenu(e, "doc", projectName, doc.path, doc.title || doc.path)
@@ -461,6 +462,59 @@ export function FileTree() {
                     Rename
                   </button>
                 )}
+                {contextMenu.type === "doc" && contextMenu.path && (() => {
+                  const doc = (documents[contextMenu.project] || []).find(
+                    (d) => d.path === contextMenu.path
+                  );
+                  if (!doc) return null;
+                  return (
+                    <>
+                      <div className="my-1 border-t border-neutral-700" />
+                      <button
+                        onClick={async () => {
+                          const raw = await commands.readDocument(contextMenu.project, contextMenu.path!);
+                          const { content: body } = parseFrontMatter(raw);
+                          await commands.writeDocument(
+                            contextMenu.project,
+                            contextMenu.path!,
+                            doc.title,
+                            body,
+                            doc.tags,
+                            undefined,
+                            !doc.canonical,
+                            doc.protected
+                          );
+                          await loadDocuments(contextMenu.project);
+                          setContextMenu(null);
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                      >
+                        {doc.canonical ? "Remove Canonical ★" : "Mark as Canonical ★"}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const raw = await commands.readDocument(contextMenu.project, contextMenu.path!);
+                          const { content: body } = parseFrontMatter(raw);
+                          await commands.writeDocument(
+                            contextMenu.project,
+                            contextMenu.path!,
+                            doc.title,
+                            body,
+                            doc.tags,
+                            undefined,
+                            doc.canonical,
+                            !doc.protected
+                          );
+                          await loadDocuments(contextMenu.project);
+                          setContextMenu(null);
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                      >
+                        {doc.protected ? "Remove Protection 🔒" : "Protect Document 🔒"}
+                      </button>
+                    </>
+                  );
+                })()}
                 <button
                   onClick={async () => {
                     await commands.showInFolder(

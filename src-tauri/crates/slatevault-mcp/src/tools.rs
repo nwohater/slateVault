@@ -125,7 +125,6 @@ pub struct DetectStaleDocsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[derive(Debug, Deserialize, JsonSchema)]
 #[schemars(description = "Generate a structured agent brief for a project or topic. Assembles canonical docs, recent changes, key constraints, and relevant context into a single prompt-ready briefing.")]
 pub struct GenerateAgentBriefParams {
     #[schemars(description = "Project name")]
@@ -154,6 +153,7 @@ pub struct ConvertToSpecParams {
     pub source_path: String,
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
 #[schemars(description = "Get all canonical (source-of-truth) documents for a project — fast path for loading critical context")]
 pub struct GetCanonicalContextParams {
     #[schemars(description = "Project name")]

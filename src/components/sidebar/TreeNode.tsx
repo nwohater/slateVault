@@ -13,6 +13,7 @@ interface TreeNodeProps {
   onContextMenu?: (e: React.MouseEvent) => void;
   depth: number;
   canonical?: boolean;
+  isProtected?: boolean;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragOver?: (e: React.DragEvent) => void;
@@ -32,6 +33,7 @@ export function TreeNode({
   isActive,
   author,
   canonical,
+  isProtected,
   onClick,
   onContextMenu,
   depth,
@@ -92,6 +94,9 @@ export function TreeNode({
       <span className="truncate flex-1">{label}</span>
       {canonical && (
         <span className="text-yellow-400 flex-shrink-0 text-[10px]" title="Canonical">★</span>
+      )}
+      {isProtected && (
+        <span className="text-red-400 flex-shrink-0 text-[10px]" title="Protected">🔒</span>
       )}
       {badge && (
         <span
