@@ -870,21 +870,56 @@ pub fn generate_project_brief(
             brief.push_str("\n");
         }
 
+        // Canonical strategy
+        brief.push_str("---\n\n## Canonical Strategy\n\n");
+        if canonical.is_empty() {
+            brief.push_str("No documents are currently marked as canonical. ");
+            brief.push_str("Establishing canonical documents (architecture, key specs, core decisions) should be prioritized. ");
+            brief.push_str("Mark docs as canonical by adding `canonical: true` to their frontmatter.\n\n");
+        } else {
+            brief.push_str(&format!("{} canonical document{} established:\n", canonical.len(), if canonical.len() != 1 { "s" } else { "" }));
+            for doc in &canonical {
+                brief.push_str(&format!("- **{}** (`{}`)\n", doc.front_matter.title, doc.path));
+            }
+            brief.push_str("\n");
+        }
+
+        // Known gaps
+        brief.push_str("## Known Gaps\n\n");
+        if canonical.is_empty() {
+            brief.push_str("- No canonical documents established yet\n");
+        }
+        if draft_count > 0 {
+            brief.push_str(&format!("- {} document{} still in draft state\n", draft_count, if draft_count != 1 { "s" } else { "" }));
+        }
+        if final_count == 0 {
+            brief.push_str("- No documents marked as final\n");
+        }
+        if protected_count == 0 {
+            brief.push_str("- No documents are protected from AI overwrites\n");
+        }
+        brief.push_str("\n");
+
         // 4. Constraints & Rules
         brief.push_str("---\n\n## Constraints & Rules\n\n");
         brief.push_str("- Do NOT overwrite protected documents — use `propose_doc_update` or `append_to_doc`\n");
         brief.push_str("- Canonical docs are the source of truth — prioritize over drafts\n");
         brief.push_str("- AI-authored docs are tagged `author: ai` and auto-staged for git\n");
         brief.push_str("- Use `convert_to_spec` to structure messy notes into clean specs\n");
-        brief.push_str("- Use `build_context_bundle` to gather focused context for complex tasks\n\n");
+        brief.push_str("- Use `build_context_bundle` to gather focused context before major changes\n\n");
 
-        // 5. Suggested Actions
+        // 5. Suggested Actions (context-aware)
         brief.push_str("## Suggested Actions\n\n");
-        brief.push_str("- Review and update any draft documents\n");
-        brief.push_str("- Propose improvements to canonical docs via `propose_doc_update`\n");
-        brief.push_str("- Search for related context with `build_context_bundle`\n");
+        if canonical.is_empty() {
+            brief.push_str("- **Identify and promote key documents to canonical status** (architecture, specs, decisions)\n");
+        }
+        if draft_count > 0 {
+            brief.push_str(&format!("- Review and finalize {} draft document{}\n", draft_count, if draft_count != 1 { "s" } else { "" }));
+        }
+        brief.push_str("- Propose structural improvements via `propose_doc_update`\n");
+        brief.push_str("- Generate implementation specs from feature docs with `convert_to_spec`\n");
+        brief.push_str("- Use `build_context_bundle` for focused analysis before major changes\n");
         brief.push_str("- Check for stale docs with `detect_stale_docs`\n");
-        brief.push_str("- Generate specs from notes with `convert_to_spec`\n");
 
         // All docs index
         let non_canonical: Vec<_> = docs.iter().filter(|d| !d.front_matter.canonical).collect();

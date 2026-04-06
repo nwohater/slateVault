@@ -484,23 +484,53 @@ impl SlateVaultMcpServer {
         }
         output.push_str("\n");
 
+        // Canonical strategy
+        output.push_str("---\n\n## Canonical Strategy\n\n");
+        if canonical.is_empty() {
+            output.push_str("No documents are currently marked as canonical. ");
+            output.push_str("Establishing canonical documents (architecture, key specs, core decisions) should be prioritized. ");
+            output.push_str("Mark docs as canonical by adding `canonical: true` to their frontmatter.\n\n");
+        } else {
+            output.push_str(&format!("{} canonical document{} established:\n", canonical.len(), if canonical.len() != 1 { "s" } else { "" }));
+            for doc in &canonical {
+                output.push_str(&format!("- **{}** (`{}`)\n", doc.front_matter.title, doc.path));
+            }
+            output.push_str("\n");
+        }
+
+        // Known gaps
+        output.push_str("## Known Gaps\n\n");
+        if canonical.is_empty() {
+            output.push_str("- No canonical documents established yet\n");
+        }
+        if draft_count > 0 {
+            output.push_str(&format!("- {} document{} still in draft state\n", draft_count, if draft_count != 1 { "s" } else { "" }));
+        }
+        if protected_count == 0 {
+            output.push_str("- No documents are protected from AI overwrites\n");
+        }
+        output.push_str("\n");
+
         // 4. Constraints & Rules
         output.push_str("---\n\n## Constraints & Rules\n\n");
         output.push_str("- Do NOT overwrite protected documents — use `propose_doc_update` or `append_to_doc`\n");
         output.push_str("- Canonical docs are the source of truth — prioritize over drafts\n");
         output.push_str("- AI-authored docs are tagged `author: ai` and auto-staged for git\n");
         output.push_str("- Use `convert_to_spec` to structure messy notes\n");
-        output.push_str("- Use `build_context_bundle` for focused context on specific topics\n\n");
+        output.push_str("- Use `build_context_bundle` for focused context before major changes\n\n");
 
-        // 5. Suggested Actions
+        // 5. Suggested Actions (context-aware)
         output.push_str("## Suggested Actions\n\n");
-        output.push_str("You can:\n");
-        output.push_str("- Analyze architecture and propose improvements\n");
-        output.push_str("- Generate implementation plans or feature specs\n");
-        output.push_str("- Update documentation via `propose_doc_update` (creates PR)\n");
-        output.push_str("- Check for stale docs with `detect_stale_docs`\n");
-        output.push_str("- Convert rough notes to specs with `convert_to_spec`\n");
-        output.push_str("- Search for related context with `build_context_bundle`\n\n");
+        if canonical.is_empty() {
+            output.push_str("- **Identify and promote key documents to canonical status** (architecture, specs, decisions)\n");
+        }
+        if draft_count > 0 {
+            output.push_str(&format!("- Review and finalize {} draft document{}\n", draft_count, if draft_count != 1 { "s" } else { "" }));
+        }
+        output.push_str("- Propose structural improvements via `propose_doc_update`\n");
+        output.push_str("- Generate implementation specs from feature docs with `convert_to_spec`\n");
+        output.push_str("- Use `build_context_bundle` for focused analysis before major changes\n");
+        output.push_str("- Check for stale docs with `detect_stale_docs`\n\n");
 
         // Document index
         let non_canonical: Vec<_> = docs.iter().filter(|d| !d.front_matter.canonical).collect();
