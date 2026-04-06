@@ -133,6 +133,20 @@ export interface TemplateInfo {
   is_default: boolean;
 }
 
+export interface BacklinkInfo {
+  project: string;
+  path: string;
+  title: string;
+}
+
+export interface RecentChange {
+  project: string;
+  path: string;
+  title: string;
+  modified: string;
+  author: string;
+}
+
 export interface RelatedDocInfo {
   project: string;
   path: string;

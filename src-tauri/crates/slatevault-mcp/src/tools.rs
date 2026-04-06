@@ -126,6 +126,26 @@ pub struct DetectStaleDocsParams {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Generate a structured agent brief for a project or topic. Assembles canonical docs, recent changes, key constraints, and relevant context into a single prompt-ready briefing.")]
+pub struct GenerateAgentBriefParams {
+    #[schemars(description = "Project name")]
+    pub project: String,
+    #[schemars(description = "Optional focus query to scope the brief (e.g. 'authentication', 'API design')")]
+    pub focus: Option<String>,
+    #[schemars(description = "Maximum number of docs to include (default 10)")]
+    pub max_docs: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Get a summary of recent changes in the vault — what docs were modified, added, or updated. Useful for session resumption and understanding what happened since last visit.")]
+pub struct GetRecentChangesParams {
+    #[schemars(description = "Scope to a single project")]
+    pub project: Option<String>,
+    #[schemars(description = "Number of recent git commits to scan (default 20)")]
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 #[schemars(description = "Read a scratchpad/note and return its content with a structured spec template. Use write_document to save the structured output.")]
 pub struct ConvertToSpecParams {
     #[schemars(description = "Project name")]

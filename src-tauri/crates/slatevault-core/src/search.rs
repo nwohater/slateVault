@@ -18,6 +18,15 @@ pub struct SearchResult {
 impl SearchIndex {
     pub fn open(db_path: &std::path::Path) -> Result<Self> {
         let conn = Connection::open(db_path)?;
+        // Check if the table has the new columns, drop and recreate if not
+        let has_author = conn
+            .prepare("SELECT author FROM documents_fts LIMIT 0")
+            .is_ok();
+
+        if !has_author {
+            let _ = conn.execute_batch("DROP TABLE IF EXISTS documents_fts;");
+        }
+
         conn.execute_batch(
             "CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
                 project,

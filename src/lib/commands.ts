@@ -16,6 +16,8 @@ import type {
   TemplateInfo,
   ProjectExport,
   RelatedDocInfo,
+  BacklinkInfo,
+  RecentChange,
 } from "@/types";
 
 export async function createVault(
@@ -36,6 +38,25 @@ export async function createProject(
   template?: string
 ): Promise<string> {
   return invoke("create_project", { name, description, tags, template });
+}
+
+export async function getBacklinks(
+  project: string,
+  path: string
+): Promise<BacklinkInfo[]> {
+  return invoke("get_backlinks", { project, path });
+}
+
+export async function getRecentChanges(
+  limit?: number
+): Promise<RecentChange[]> {
+  return invoke("get_recent_changes", { limit });
+}
+
+export async function generateProjectBrief(
+  project: string
+): Promise<string> {
+  return invoke("generate_project_brief", { project });
 }
 
 export async function getRelatedDocs(

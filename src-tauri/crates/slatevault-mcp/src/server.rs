@@ -385,6 +385,176 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
+    #[tool(description = "Generate a structured agent brief for a project. Assembles canonical docs, focused context, and project structure into a single prompt-ready briefing. Use this at the start of any complex task.")]
+    fn generate_agent_brief(
+        &self,
+        Parameters(params): Parameters<GenerateAgentBriefParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+
+        let mut output = format!("# Agent Brief: {}\n\n", params.project);
+
+        // 1. Project structure
+        let docs = vault
+            .list_documents(&params.project, None)
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        let doc_count = docs.len();
+        let canonical_count = docs.iter().filter(|d| d.front_matter.canonical).count();
+        let protected_count = docs.iter().filter(|d| d.front_matter.protected).count();
+
+        output.push_str(&format!(
+            "## Project Overview\n- **Documents:** {}\n- **Canonical:** {}\n- **Protected:** {}\n\n",
+            doc_count, canonical_count, protected_count
+        ));
+
+        // List folders
+        let mut folders: Vec<String> = docs
+            .iter()
+            .filter_map(|d| {
+                let parts: Vec<&str> = d.path.split('/').collect();
+                if parts.len() > 1 { Some(parts[0].to_string()) } else { None }
+            })
+            .collect();
+        folders.sort();
+        folders.dedup();
+        if !folders.is_empty() {
+            output.push_str("**Folders:** ");
+            output.push_str(&folders.join(", "));
+            output.push_str("\n\n");
+        }
+
+        // 2. Canonical docs (full content)
+        let canonical: Vec<_> = docs.iter().filter(|d| d.front_matter.canonical).collect();
+        if !canonical.is_empty() {
+            output.push_str("---\n\n## Canonical Documents (Source of Truth)\n\n");
+            for doc in &canonical {
+                output.push_str(&format!(
+                    "### {} [{}]\n\n{}\n\n",
+                    doc.front_matter.title,
+                    format!("{:?}", doc.front_matter.status).to_lowercase(),
+                    doc.content,
+                ));
+            }
+        }
+
+        // 3. AI context files
+        if let Ok(context) = vault.get_project_context(&params.project) {
+            if !context.is_empty() {
+                output.push_str("---\n\n## Pinned Context Files\n\n");
+                for (path, content) in &context {
+                    // Skip if already included as canonical
+                    if canonical.iter().any(|c| c.path == *path) {
+                        continue;
+                    }
+                    output.push_str(&format!("### {}\n\n{}\n\n", path, content));
+                }
+            }
+        }
+
+        // 4. Focused context (if query provided)
+        if let Some(ref focus) = params.focus {
+            let max = params.max_docs.unwrap_or(10);
+            if let Ok(bundle) = vault.build_context_bundle(focus, Some(&params.project), Some(max)) {
+                if !bundle.docs.is_empty() {
+                    output.push_str(&format!(
+                        "---\n\n## Focused Context: \"{}\"\n\n_{} relevant docs_\n\n",
+                        focus,
+                        bundle.docs.len()
+                    ));
+                    for doc in &bundle.docs {
+                        // Skip if already included above
+                        if canonical.iter().any(|c| c.path == doc.path) {
+                            continue;
+                        }
+                        output.push_str(&format!(
+                            "### {}\n\n{}\n\n",
+                            doc.title, doc.content,
+                        ));
+                    }
+                }
+            }
+        }
+
+        // 5. Constraints
+        output.push_str("---\n\n## Constraints\n\n");
+        output.push_str(&format!(
+            "- Protected docs cannot be overwritten — use `propose_doc_update` or `append_to_doc`\n\
+             - Canonical docs are the source of truth — prioritize them over drafts\n\
+             - Documents written by AI are tagged with `author: ai` and auto-staged for git\n\
+             - Use `convert_to_spec` to structure messy notes into clean specs\n"
+        ));
+
+        Ok(CallToolResult::success(vec![Content::text(output)]))
+    }
+
+    #[tool(description = "Get a summary of recent changes — what docs were modified, added, or updated. Useful for session resumption ('what happened since last time?').")]
+    fn get_recent_changes(
+        &self,
+        Parameters(params): Parameters<GetRecentChangesParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        let limit = params.limit.unwrap_or(20);
+        let commits = vault
+            .log(limit)
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        if commits.is_empty() {
+            return Ok(CallToolResult::success(vec![Content::text(
+                "No recent changes found.",
+            )]));
+        }
+
+        let mut output = format!("# Recent Changes\n\n_{} recent commits_\n\n", commits.len());
+
+        for commit in &commits {
+            output.push_str(&format!(
+                "- **{}** `{}` — {}\n",
+                commit.message, commit.oid, commit.date,
+            ));
+        }
+
+        // Also show recently modified docs
+        let projects = vault
+            .list_projects()
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        let mut recent_docs: Vec<(String, String, String, String)> = Vec::new();
+
+        for p in &projects {
+            if let Some(ref scope) = params.project {
+                if p.project.name != *scope {
+                    continue;
+                }
+            }
+            if let Ok(docs) = vault.list_documents(&p.project.name, None) {
+                for doc in &docs {
+                    recent_docs.push((
+                        p.project.name.clone(),
+                        doc.path.clone(),
+                        doc.front_matter.title.clone(),
+                        doc.front_matter.modified.to_rfc3339(),
+                    ));
+                }
+            }
+        }
+
+        recent_docs.sort_by(|a, b| b.3.cmp(&a.3));
+        let top_docs: Vec<_> = recent_docs.into_iter().take(10).collect();
+
+        if !top_docs.is_empty() {
+            output.push_str("\n## Recently Modified Documents\n\n");
+            for (proj, path, title, modified) in &top_docs {
+                output.push_str(&format!(
+                    "- **{}** (`{}/docs/{}`) — {}\n",
+                    title, proj, path, modified,
+                ));
+            }
+        }
+
+        Ok(CallToolResult::success(vec![Content::text(output)]))
+    }
+
     #[tool(description = "Read a scratchpad/note and return its content alongside a structured spec template. The agent should use this to transform messy notes into clean specs, then write the result with write_document.")]
     fn convert_to_spec(
         &self,

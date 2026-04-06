@@ -7,7 +7,7 @@ import remarkFrontmatter from "remark-frontmatter";
 import { useEditorStore } from "@/stores/editorStore";
 import { EmptyState } from "../shared/EmptyState";
 import * as commands from "@/lib/commands";
-import type { RelatedDocInfo } from "@/types";
+import type { RelatedDocInfo, BacklinkInfo } from "@/types";
 
 export function MarkdownPreview() {
   const content = useEditorStore((s) => s.content);
@@ -18,6 +18,9 @@ export function MarkdownPreview() {
   const previewRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
   const [relatedDocs, setRelatedDocs] = useState<RelatedDocInfo[]>([]);
+  const [backlinks, setBacklinks] = useState<BacklinkInfo[]>([]);
+  const [copied, setCopied] = useState(false);
+  const [briefCopied, setBriefCopied] = useState(false);
 
   useEffect(() => {
     if (activeProject && activePath) {
@@ -25,16 +28,19 @@ export function MarkdownPreview() {
         .getRelatedDocs(activeProject, activePath)
         .then(setRelatedDocs)
         .catch(() => setRelatedDocs([]));
+      commands
+        .getBacklinks(activeProject, activePath)
+        .then(setBacklinks)
+        .catch(() => setBacklinks([]));
     } else {
       setRelatedDocs([]);
+      setBacklinks([]);
     }
   }, [activeProject, activePath]);
 
   if (!activePath) {
     return <EmptyState title="Preview" description="Open a document to preview" />;
   }
-
-  const [copied, setCopied] = useState(false);
 
   const handleCopyAsPrompt = () => {
     // Strip frontmatter, format as agent-ready context
@@ -51,6 +57,18 @@ export function MarkdownPreview() {
     navigator.clipboard.writeText(prompt);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleGenerateBrief = async () => {
+    if (!activeProject) return;
+    try {
+      const brief = await commands.generateProjectBrief(activeProject);
+      navigator.clipboard.writeText(brief);
+      setBriefCopied(true);
+      setTimeout(() => setBriefCopied(false), 2000);
+    } catch (e) {
+      console.error("Generate brief failed:", e);
+    }
   };
 
   const handleExportPdf = async () => {
@@ -232,6 +250,16 @@ export function MarkdownPreview() {
             {copied ? "Copied!" : "Copy as Prompt"}
           </button>
           <button
+            onClick={handleGenerateBrief}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] text-neutral-400 hover:text-neutral-200 bg-neutral-800 hover:bg-neutral-700 rounded transition-colors"
+            title="Generate project brief and copy to clipboard"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+            </svg>
+            {briefCopied ? "Brief Copied!" : "Agent Brief"}
+          </button>
+          <button
             onClick={handleExportPdf}
             disabled={exporting}
             className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] text-neutral-400 hover:text-neutral-200 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 rounded transition-colors"
@@ -255,35 +283,63 @@ export function MarkdownPreview() {
           </ReactMarkdown>
         </article>
 
-        {/* Related docs */}
-        {relatedDocs.length > 0 && (
+        {/* Related docs & backlinks */}
+        {(relatedDocs.length > 0 || backlinks.length > 0) && (
           <div className="mt-6 pt-4 border-t border-neutral-800">
-            <h4 className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">
-              Related Documents
-            </h4>
-            <div className="space-y-1">
-              {relatedDocs.map((rd) => (
-                <button
-                  key={rd.path}
-                  onClick={() => openDocument(rd.project, rd.path)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-neutral-800 text-left transition-colors"
-                >
-                  <span className="text-xs text-neutral-300 truncate flex-1">
-                    {rd.title}
-                  </span>
-                  <div className="flex gap-1 flex-shrink-0">
-                    {rd.shared_tags.slice(0, 2).map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-1 rounded bg-neutral-800 text-neutral-500 text-[9px]"
-                      >
-                        {tag}
+            {backlinks.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">
+                  Linked From
+                </h4>
+                <div className="space-y-1">
+                  {backlinks.map((bl) => (
+                    <button
+                      key={bl.path}
+                      onClick={() => openDocument(bl.project, bl.path)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-neutral-800 text-left transition-colors"
+                    >
+                      <svg className="w-3 h-3 text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-2.04a4.5 4.5 0 0 0-1.242-7.244l4.5-4.5a4.5 4.5 0 1 1 6.364 6.364l-1.757 1.757" />
+                      </svg>
+                      <span className="text-xs text-neutral-300 truncate flex-1">
+                        {bl.title}
                       </span>
-                    ))}
-                  </div>
-                </button>
-              ))}
-            </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {relatedDocs.length > 0 && (
+              <div>
+                <h4 className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">
+                  Related Documents
+                </h4>
+                <div className="space-y-1">
+                  {relatedDocs.map((rd) => (
+                    <button
+                      key={rd.path}
+                      onClick={() => openDocument(rd.project, rd.path)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-neutral-800 text-left transition-colors"
+                    >
+                      <span className="text-xs text-neutral-300 truncate flex-1">
+                        {rd.title}
+                      </span>
+                      <div className="flex gap-1 flex-shrink-0">
+                        {rd.shared_tags.slice(0, 2).map((tag) => (
+                          <span
+                            key={tag}
+                            className="px-1 rounded bg-neutral-800 text-neutral-500 text-[9px]"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

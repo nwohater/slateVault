@@ -745,6 +745,156 @@ pub fn git_push_branch(
     }
 }
 
+// -- Recent changes command (session continuity) --
+
+#[derive(Serialize)]
+pub struct RecentChange {
+    pub project: String,
+    pub path: String,
+    pub title: String,
+    pub modified: String,
+    pub author: String,
+}
+
+#[tauri::command]
+pub fn get_recent_changes(
+    limit: Option<usize>,
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<RecentChange>> {
+    with_vault(&state, |vault| {
+        let max = limit.unwrap_or(20);
+        let projects = vault.list_projects()?;
+        let mut changes: Vec<RecentChange> = Vec::new();
+
+        for p in &projects {
+            if let Ok(docs) = vault.list_documents(&p.project.name, None) {
+                for doc in &docs {
+                    changes.push(RecentChange {
+                        project: p.project.name.clone(),
+                        path: doc.path.clone(),
+                        title: doc.front_matter.title.clone(),
+                        modified: doc.front_matter.modified.to_rfc3339(),
+                        author: format!("{:?}", doc.front_matter.author).to_lowercase(),
+                    });
+                }
+            }
+        }
+
+        changes.sort_by(|a, b| b.modified.cmp(&a.modified));
+        Ok(changes.into_iter().take(max).collect())
+    })
+}
+
+// -- Agent brief command --
+
+#[tauri::command]
+pub fn generate_project_brief(
+    project: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let docs = vault.list_documents(&project, None)?;
+        let doc_count = docs.len();
+        let canonical: Vec<_> = docs.iter().filter(|d| d.front_matter.canonical).collect();
+
+        let mut brief = format!("# Project Brief: {}\n\n", project);
+        brief.push_str(&format!("{} documents", doc_count));
+        if !canonical.is_empty() {
+            brief.push_str(&format!(", {} canonical", canonical.len()));
+        }
+        brief.push_str("\n\n");
+
+        // Canonical docs first
+        if !canonical.is_empty() {
+            brief.push_str("## Source of Truth\n\n");
+            for doc in &canonical {
+                brief.push_str(&format!("### {}\n\n{}\n\n", doc.front_matter.title, doc.content));
+            }
+            brief.push_str("---\n\n");
+        }
+
+        // Context files
+        if let Ok(context) = vault.get_project_context(&project) {
+            if !context.is_empty() {
+                brief.push_str("## Context\n\n");
+                for (path, content) in &context {
+                    if canonical.iter().any(|c| c.path == *path) {
+                        continue;
+                    }
+                    brief.push_str(&format!("### {}\n\n{}\n\n", path, content));
+                }
+                brief.push_str("---\n\n");
+            }
+        }
+
+        // All other docs (titles only for overview)
+        let non_canonical: Vec<_> = docs.iter().filter(|d| !d.front_matter.canonical).collect();
+        if !non_canonical.is_empty() {
+            brief.push_str("## All Documents\n\n");
+            for doc in &non_canonical {
+                let status = format!("{:?}", doc.front_matter.status).to_lowercase();
+                brief.push_str(&format!(
+                    "- **{}** (`{}`) [{}]\n",
+                    doc.front_matter.title, doc.path, status
+                ));
+            }
+        }
+
+        Ok(brief)
+    })
+}
+
+// -- Backlinks command --
+
+#[derive(Serialize)]
+pub struct BacklinkInfo {
+    pub project: String,
+    pub path: String,
+    pub title: String,
+}
+
+#[tauri::command]
+pub fn get_backlinks(
+    project: String,
+    path: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<BacklinkInfo>> {
+    with_vault(&state, |vault| {
+        let all_docs = vault.list_documents(&project, None)?;
+        let mut backlinks = Vec::new();
+
+        // Patterns to search for: the path itself, the filename, and [[title]]
+        let target_doc = vault.read_document(&project, &path).ok();
+        let filename = path.split('/').last().unwrap_or(&path);
+        let filename_no_ext = filename.trim_end_matches(".md");
+        let title = target_doc
+            .as_ref()
+            .map(|d| d.front_matter.title.as_str())
+            .unwrap_or("");
+
+        for doc in &all_docs {
+            if doc.path == path {
+                continue;
+            }
+            let content = &doc.content;
+            let has_ref = content.contains(&path)
+                || content.contains(&format!("[[{}]]", filename_no_ext))
+                || content.contains(&format!("[[{}]]", title))
+                || content.contains(&format!("`{}`", path));
+
+            if has_ref {
+                backlinks.push(BacklinkInfo {
+                    project: project.clone(),
+                    path: doc.path.clone(),
+                    title: doc.front_matter.title.clone(),
+                });
+            }
+        }
+
+        Ok(backlinks)
+    })
+}
+
 // -- Related docs command --
 
 #[derive(Serialize)]
