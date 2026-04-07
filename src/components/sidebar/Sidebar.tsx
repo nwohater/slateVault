@@ -6,10 +6,11 @@ import { FileTree } from "./FileTree";
 import { SearchBar } from "./SearchBar";
 import { GitPanel } from "../git/GitPanel";
 import { SettingsPanel } from "../settings/SettingsPanel";
+import { TemplatesPanel } from "../settings/TemplatesPanel";
 import * as commands from "@/lib/commands";
 import type { TemplateInfo } from "@/types";
 
-type SidebarView = "files" | "git" | "settings";
+type SidebarView = "files" | "git" | "templates" | "settings";
 
 const viewIcons: Record<SidebarView, React.ReactNode> = {
   files: (
@@ -20,6 +21,11 @@ const viewIcons: Record<SidebarView, React.ReactNode> = {
   git: (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0-3-3m3 3a3 3 0 0 1-3-3m0 0V3" />
+    </svg>
+  ),
+  templates: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
     </svg>
   ),
   settings: (
@@ -72,11 +78,11 @@ export function Sidebar() {
     <div className="flex h-full">
       {/* Activity Bar */}
       <div className="flex flex-col items-center w-12 bg-neutral-950 border-r border-neutral-800/50 py-2 gap-1 flex-shrink-0">
-        {(["files", "git"] as SidebarView[]).map((v) => (
+        {(["files", "git", "templates"] as SidebarView[]).map((v) => (
           <button
             key={v}
             onClick={() => switchView(v)}
-            title={v === "files" ? "Explorer" : "Source Control"}
+            title={v === "files" ? "Explorer" : v === "git" ? "Source Control" : "Templates"}
             className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors relative ${
               view === v && view !== "settings"
                 ? "text-white bg-neutral-800"
@@ -127,7 +133,7 @@ export function Sidebar() {
             </button>
           ) : (
             <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-              {view === "git" ? "Source Control" : "Settings"}
+              {view === "git" ? "Source Control" : view === "templates" ? "Project Templates" : "Settings"}
             </span>
           )}
           <div className="flex items-center gap-1">
@@ -201,6 +207,12 @@ export function Sidebar() {
         {view === "git" && (
           <div className="flex-1 min-h-0">
             <GitPanel />
+          </div>
+        )}
+
+        {view === "templates" && (
+          <div className="flex-1 min-h-0">
+            <TemplatesPanel />
           </div>
         )}
 
