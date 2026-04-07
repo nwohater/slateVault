@@ -1,5 +1,6 @@
 pub mod config;
 pub mod credentials;
+pub mod playbook;
 pub mod document;
 pub mod error;
 pub mod pr;

@@ -133,6 +133,12 @@ export interface TemplateInfo {
   is_default: boolean;
 }
 
+export interface PlaybookInfo {
+  id: string;
+  label: string;
+  description: string;
+}
+
 export interface BacklinkInfo {
   project: string;
   path: string;

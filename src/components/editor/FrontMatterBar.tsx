@@ -21,7 +21,7 @@ export function FrontMatterBar() {
   if (!fm) return null;
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-900 border-b border-neutral-800 text-xs">
+    <div className="flex items-center gap-2 px-4 py-2 bg-neutral-900/80 border-b border-neutral-800/50 text-xs backdrop-blur-sm">
       <span className="font-semibold text-neutral-200 truncate">
         {fm.title}
       </span>

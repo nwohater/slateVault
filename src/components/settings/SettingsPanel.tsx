@@ -295,24 +295,6 @@ export function SettingsPanel() {
         </div>
       </div>
 
-      {/* Templates section */}
-      <div className="p-3 border-b border-neutral-800">
-        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
-          Project Templates
-        </h3>
-        <div className="space-y-2">
-          <button
-            onClick={() => openVaultFile("templates.json")}
-            className="w-full px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs"
-          >
-            Edit Project Templates
-          </button>
-          <p className="text-neutral-600 text-[10px]">
-            Opens templates.json in the editor. Customize folder structures and starter files for new projects.
-          </p>
-        </div>
-      </div>
-
       {/* Theme section */}
       <div className="p-3 border-b border-neutral-800">
         <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">

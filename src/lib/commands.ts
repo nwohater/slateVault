@@ -18,6 +18,7 @@ import type {
   RelatedDocInfo,
   BacklinkInfo,
   RecentChange,
+  PlaybookInfo,
 } from "@/types";
 
 export async function createVault(
@@ -38,6 +39,17 @@ export async function createProject(
   template?: string
 ): Promise<string> {
   return invoke("create_project", { name, description, tags, template });
+}
+
+export async function listPlaybooks(): Promise<PlaybookInfo[]> {
+  return invoke("list_playbooks");
+}
+
+export async function getPlaybookPrompt(
+  playbookId: string,
+  project: string
+): Promise<string> {
+  return invoke("get_playbook_prompt", { playbookId, project });
 }
 
 export async function backupVault(destPath: string): Promise<string> {
