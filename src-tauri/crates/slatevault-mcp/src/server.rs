@@ -785,36 +785,9 @@ impl SlateVaultMcpServer {
 impl ServerHandler for SlateVaultMcpServer {
     fn get_info(&self) -> ServerInfo {
         let mut instructions = String::from(
-            "slateVault is a local-first markdown document vault for persisting AI-generated documentation.\n\n\
-             ## Startup workflow\n\
-             1. Call list_projects to see what projects exist\n\
-             2. If a relevant project exists, call get_project_context to load its pinned AI context files\n\
-             3. If no relevant project exists, ask the user which project to use or whether to create one\n\n\
-             ## Writing documents\n\
-             - Use write_document to save any documentation, specs, decisions, or notes you generate\n\
-             - Choose a descriptive path like 'architecture.md' or 'decisions/001-use-tauri.md'\n\
-             - Always set ai_tool to your tool name (e.g. 'claude-code') so authorship is tracked\n\
-             - Documents are auto-staged for git commit when ai_tool is set\n\n\
-             ## Reading and searching\n\
-             - Use search_documents before writing to check if a document on the topic already exists\n\
-             - Use read_document to load existing docs for context or updates\n\
-             - Use list_documents to see all docs in a project\n\n\
-             ## Context bundling\n\
-             - Use build_context_bundle to assemble relevant docs into a single briefing\n\
-             - Canonical docs are automatically prioritized in bundles\n\
-             - Use this at the start of complex tasks to gather project context\n\n\
-             ## Document safety\n\
-             - For protected or canonical docs, use propose_doc_update instead of write_document\n\
-             - propose_doc_update writes to a branch — the human reviews the diff and merges\n\
-             - Protected docs cannot be overwritten by AI tools — use append_to_doc or propose_doc_update\n\
-             - Use append_to_doc to add content without replacing existing text\n\
-             - Check detect_stale_docs periodically to flag outdated documentation\n\n\
-             ## Best practices\n\
-             - Do NOT create projects without asking the user first\n\
-             - Organize docs by type: specs/, decisions/, guides/, notes/\n\
-             - Update existing documents rather than creating duplicates\n\
-             - Use tags to categorize documents for easy filtering\n\
-             - Mark critical docs as canonical and protected",
+            "slateVault: local-first AI doc vault. Start: list_projects → get_project_context. \
+             Always set ai_tool when writing. search_documents before creating to avoid duplicates. \
+             Use propose_doc_update for protected/canonical docs. Do NOT create projects without asking user.",
         );
 
         // Check if compression is enabled by reading vault.toml directly (avoid full Vault::open lock)
