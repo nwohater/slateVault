@@ -7,10 +7,11 @@ import { SearchBar } from "./SearchBar";
 import { GitPanel } from "../git/GitPanel";
 import { SettingsPanel } from "../settings/SettingsPanel";
 import { TemplatesPanel } from "../settings/TemplatesPanel";
+import { PlaybooksPanel } from "../settings/PlaybooksPanel";
 import * as commands from "@/lib/commands";
 import type { TemplateInfo } from "@/types";
 
-type SidebarView = "files" | "git" | "templates" | "settings";
+type SidebarView = "files" | "git" | "templates" | "playbooks" | "settings";
 
 const viewIcons: Record<SidebarView, React.ReactNode> = {
   files: (
@@ -21,6 +22,11 @@ const viewIcons: Record<SidebarView, React.ReactNode> = {
   git: (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v12m0 0a3 3 0 1 0 3 3m-3-3a3 3 0 0 1 3 3m0 0h6a3 3 0 0 0 3-3V9m0 0a3 3 0 1 0-3-3m3 3a3 3 0 0 1-3-3m0 0V3" />
+    </svg>
+  ),
+  playbooks: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
     </svg>
   ),
   templates: (
@@ -78,11 +84,11 @@ export function Sidebar() {
     <div className="flex h-full">
       {/* Activity Bar */}
       <div className="flex flex-col items-center w-12 bg-neutral-950 border-r border-neutral-800/50 py-2 gap-1 flex-shrink-0">
-        {(["files", "git", "templates"] as SidebarView[]).map((v) => (
+        {(["files", "git", "playbooks", "templates"] as SidebarView[]).map((v) => (
           <button
             key={v}
             onClick={() => switchView(v)}
-            title={v === "files" ? "Explorer" : v === "git" ? "Source Control" : "Templates"}
+            title={v === "files" ? "Explorer" : v === "git" ? "Source Control" : v === "playbooks" ? "Playbooks" : "Templates"}
             className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors relative ${
               view === v && view !== "settings"
                 ? "text-white bg-neutral-800"
@@ -133,7 +139,7 @@ export function Sidebar() {
             </button>
           ) : (
             <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-              {view === "git" ? "Source Control" : view === "templates" ? "Project Templates" : "Settings"}
+              {view === "git" ? "Source Control" : view === "playbooks" ? "Agent Playbooks" : view === "templates" ? "Project Templates" : "Settings"}
             </span>
           )}
           <div className="flex items-center gap-1">
@@ -207,6 +213,12 @@ export function Sidebar() {
         {view === "git" && (
           <div className="flex-1 min-h-0">
             <GitPanel />
+          </div>
+        )}
+
+        {view === "playbooks" && (
+          <div className="flex-1 min-h-0">
+            <PlaybooksPanel />
           </div>
         )}
 

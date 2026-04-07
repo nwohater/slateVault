@@ -745,6 +745,81 @@ pub fn git_push_branch(
     }
 }
 
+// -- Playbook commands --
+
+#[derive(Serialize)]
+pub struct PlaybookInfo {
+    pub id: String,
+    pub label: String,
+    pub description: String,
+}
+
+#[tauri::command]
+pub fn list_playbooks(
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<PlaybookInfo>> {
+    with_vault(&state, |vault| {
+        let config = slatevault_core::playbook::PlaybookConfig::load(&vault.root)?;
+        Ok(config
+            .playbooks
+            .iter()
+            .map(|p| PlaybookInfo {
+                id: p.id.clone(),
+                label: p.label.clone(),
+                description: p.description.clone(),
+            })
+            .collect())
+    })
+}
+
+#[tauri::command]
+pub fn get_playbook_prompt(
+    playbook_id: String,
+    project: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let config = slatevault_core::playbook::PlaybookConfig::load(&vault.root)?;
+        let playbook = config
+            .playbooks
+            .iter()
+            .find(|p| p.id == playbook_id)
+            .ok_or_else(|| {
+                slatevault_core::CoreError::Io(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("Playbook '{}' not found", playbook_id),
+                ))
+            })?;
+
+        // Gather project context
+        let docs = vault.list_documents(&project, None)?;
+        let doc_count = docs.len();
+        let canonical_count = docs.iter().filter(|d| d.front_matter.canonical).count();
+
+        let mut folders: Vec<String> = docs
+            .iter()
+            .filter_map(|d| {
+                let parts: Vec<&str> = d.path.split('/').collect();
+                if parts.len() > 1 {
+                    Some(parts[0].to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        folders.sort();
+        folders.dedup();
+
+        Ok(slatevault_core::playbook::render_prompt(
+            playbook,
+            &project,
+            &folders,
+            doc_count,
+            canonical_count,
+        ))
+    })
+}
+
 // -- Recent changes command (session continuity) --
 
 #[derive(Serialize)]

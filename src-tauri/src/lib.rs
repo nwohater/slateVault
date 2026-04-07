@@ -70,6 +70,8 @@ pub fn run() {
             commands::delete_project,
             commands::rename_document,
             commands::rename_project,
+            commands::list_playbooks,
+            commands::get_playbook_prompt,
             commands::get_backlinks,
             commands::get_recent_changes,
             commands::generate_project_brief,
