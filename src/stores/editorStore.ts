@@ -96,7 +96,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       activePath,
       frontMatter.title,
       body,
-      frontMatter.tags
+      frontMatter.tags,
+      undefined,
+      frontMatter.canonical,
+      frontMatter.protected
     );
     set({ isDirty: false });
   },

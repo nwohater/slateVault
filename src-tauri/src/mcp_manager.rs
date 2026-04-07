@@ -32,24 +32,44 @@ impl Drop for McpProcess {
 }
 
 /// Find the slatevault-mcp binary. Checks:
-/// 1. Next to the current executable
-/// 2. In the cargo target/debug directory (dev mode)
-/// 3. On PATH
+/// 1. Next to the current executable (installed via bundle)
+/// 2. Tauri sidecar naming convention (slatevault-mcp-{target})
+/// 3. In the cargo target directories (dev mode)
+/// 4. On PATH
 fn find_mcp_binary() -> Option<String> {
-    // Next to current exe
     if let Ok(exe) = std::env::current_exe() {
         let dir = exe.parent()?;
-        let mcp = dir.join("slatevault-mcp.exe");
-        if mcp.exists() {
-            return Some(mcp.to_string_lossy().to_string());
+
+        // Check exact name next to exe (bundled)
+        for name in &["slatevault-mcp.exe", "slatevault-mcp"] {
+            let mcp = dir.join(name);
+            if mcp.exists() {
+                return Some(mcp.to_string_lossy().to_string());
+            }
         }
-        let mcp = dir.join("slatevault-mcp");
-        if mcp.exists() {
-            return Some(mcp.to_string_lossy().to_string());
+
+        // Check Tauri sidecar naming: slatevault-mcp-{target-triple}
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.starts_with("slatevault-mcp-") && (name.ends_with(".exe") || !name.contains('.')) {
+                    return Some(entry.path().to_string_lossy().to_string());
+                }
+            }
+        }
+
+        // Dev mode: check cargo target/debug
+        let debug = dir.join("../debug/slatevault-mcp.exe");
+        if debug.exists() {
+            return Some(debug.to_string_lossy().to_string());
+        }
+        let debug = dir.join("../debug/slatevault-mcp");
+        if debug.exists() {
+            return Some(debug.to_string_lossy().to_string());
         }
     }
 
-    // Check if `slatevault-mcp` is on PATH
+    // Check PATH
     if let Ok(output) = Command::new("slatevault-mcp").arg("--help").output() {
         if output.status.success() || output.status.code() == Some(1) {
             return Some("slatevault-mcp".to_string());
