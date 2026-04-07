@@ -557,6 +557,21 @@ impl SlateVaultMcpServer {
         output.push_str("- Use `convert_to_spec` to structure messy notes\n");
         output.push_str("- Use `build_context_bundle` for focused context before major changes\n\n");
 
+        // Compression instructions
+        if vault.config.mcp.compress_context {
+            output.push_str("## Compression Mode (Active)\n\n");
+            output.push_str("When writing session summaries, changelogs, and notes, use compressed shorthand to maximize context density:\n");
+            output.push_str("- Drop articles (a, the, an) and filler words\n");
+            output.push_str("- Abbreviate: config, impl, auth, func, param, req, res, db, repo, deps, env, init, msg, err, ctx\n");
+            output.push_str("- Symbols: → (leads to), + (added), - (removed), = (set to), ~ (approx), @ (regarding)\n");
+            output.push_str("- Shorthand paths: `specs/auth.md` not `the auth specification document`\n");
+            output.push_str("- Skip obvious context — don't restate project summary\n");
+            output.push_str("- Code refs: `fn:handleAuth` not `the handleAuth function`\n");
+            output.push_str("- Dates: `04-06` not `April 6th, 2026`\n\n");
+            output.push_str("Example compressed entry:\n");
+            output.push_str("```\n+ auth flow spec → specs/auth.md (draft)\n+ ADR-003 JWT over sessions → decisions/003-jwt.md\n~ refactored db schema docs\n- removed deprecated api-v1 refs\nnext: impl rate limiting spec, review stale docs\n```\n\n");
+        }
+
         // 5. Suggested Actions (context-aware)
         output.push_str("## Suggested Actions\n\n");
         if canonical.is_empty() {

@@ -166,6 +166,22 @@ export function SettingsPanel() {
             />
             Auto-stage AI writes
           </label>
+          <label className="flex items-center gap-2 text-neutral-400">
+            <input
+              type="checkbox"
+              checked={settings?.compress_context ?? false}
+              onChange={async (e) => {
+                try {
+                  await commands.setVaultConfig({ compress_context: e.target.checked } as any);
+                  await loadSettings();
+                  setOutput(e.target.checked ? "Compression enabled" : "Compression disabled");
+                  setTimeout(() => setOutput(null), 2000);
+                } catch {}
+              }}
+              className="rounded"
+            />
+            Compress context (AI shorthand)
+          </label>
           <div className="pt-1">
             <label className="block text-neutral-500 mb-1">Claude Code Setup</label>
             <div className="flex gap-1">

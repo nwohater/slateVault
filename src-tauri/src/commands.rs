@@ -398,6 +398,7 @@ pub struct VaultSettings {
     pub mcp_enabled: bool,
     pub mcp_port: u16,
     pub auto_stage_ai_writes: bool,
+    pub compress_context: bool,
     pub ssh_key_path: Option<String>,
     pub remote_url: Option<String>,
     pub remote_branch: String,
@@ -414,6 +415,7 @@ pub fn get_vault_config(
             mcp_enabled: vault.config.mcp.enabled,
             mcp_port: vault.config.mcp.port,
             auto_stage_ai_writes: vault.config.mcp.auto_stage_ai_writes,
+            compress_context: vault.config.mcp.compress_context,
             ssh_key_path: vault.config.sync.ssh_key_path.clone(),
             remote_url: vault.config.sync.remote_url.clone(),
             remote_branch: vault.config.sync.remote_branch.clone(),
@@ -427,6 +429,7 @@ pub struct SetVaultConfigArgs {
     pub mcp_enabled: Option<bool>,
     pub mcp_port: Option<u16>,
     pub auto_stage_ai_writes: Option<bool>,
+    pub compress_context: Option<bool>,
     pub ssh_key_path: Option<String>,
 }
 
@@ -448,6 +451,9 @@ pub fn set_vault_config(
     }
     if let Some(v) = args.auto_stage_ai_writes {
         vault.config.mcp.auto_stage_ai_writes = v;
+    }
+    if let Some(v) = args.compress_context {
+        vault.config.mcp.compress_context = v;
     }
     // Empty string clears the path, Some(path) sets it
     if let Some(path) = args.ssh_key_path {
@@ -1022,6 +1028,21 @@ pub fn generate_project_brief(
         brief.push_str("- AI-authored docs are tagged `author: ai` and auto-staged for git\n");
         brief.push_str("- Use `convert_to_spec` to structure messy notes into clean specs\n");
         brief.push_str("- Use `build_context_bundle` to gather focused context before major changes\n\n");
+
+        // Compression instructions
+        if vault.config.mcp.compress_context {
+            brief.push_str("## Compression Mode (Active)\n\n");
+            brief.push_str("When writing session summaries, changelogs, and notes, use compressed shorthand to maximize context density:\n");
+            brief.push_str("- Drop articles (a, the, an) and filler words\n");
+            brief.push_str("- Abbreviate common terms: config, impl, auth, func, param, req, res, db, repo, deps, env, init, msg, err, ctx\n");
+            brief.push_str("- Use symbols: → (leads to), + (added), - (removed), = (equals/set to), ~ (approximately), @ (at/regarding)\n");
+            brief.push_str("- Use shorthand paths: `specs/auth.md` not `the auth specification document`\n");
+            brief.push_str("- Skip obvious context — don't restate what's in the project summary\n");
+            brief.push_str("- For code refs: `fn:handleAuth` not `the handleAuth function`\n");
+            brief.push_str("- Dates: `04-06` not `April 6th, 2026`\n\n");
+            brief.push_str("Example compressed changelog:\n");
+            brief.push_str("```\n+ auth flow spec → specs/auth.md (draft)\n+ ADR-003 JWT over sessions → decisions/003-jwt.md\n~ refactored db schema docs, updated er diagram\n- removed deprecated api-v1 refs from guides/\nnext: impl rate limiting spec, review stale docs\n```\n\n");
+        }
 
         // 5. Suggested Actions (context-aware)
         brief.push_str("## Suggested Actions\n\n");

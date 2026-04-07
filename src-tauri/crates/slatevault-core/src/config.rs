@@ -51,6 +51,8 @@ pub struct McpConfig {
     pub auto_stage_ai_writes: bool,
     #[serde(default)]
     pub read_only: bool,
+    #[serde(default)]
+    pub compress_context: bool,
 }
 
 impl Default for McpConfig {
@@ -60,6 +62,7 @@ impl Default for McpConfig {
             port: default_mcp_port(),
             auto_stage_ai_writes: true,
             read_only: false,
+            compress_context: false,
         }
     }
 }
