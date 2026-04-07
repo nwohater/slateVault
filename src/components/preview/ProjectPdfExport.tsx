@@ -292,13 +292,18 @@ export function ProjectPdfExport({ project, onClose }: ProjectPdfExportProps) {
             width: 700,
             background: "white",
             padding: 40,
+            color: "#333",
+            fontFamily: "system-ui, -apple-system, sans-serif",
+            fontSize: "14px",
+            lineHeight: "1.6",
           }}
+          className="no-transition"
         >
           {/* Title block */}
           <div data-doc-block>
             <h1
               data-project-title
-              className="text-3xl font-extrabold text-neutral-100 mb-6"
+              style={{ fontSize: "28px", fontWeight: 800, color: "#111", marginBottom: "24px" }}
             >
               {data.project_name}
             </h1>
@@ -313,12 +318,12 @@ export function ProjectPdfExport({ project, onClose }: ProjectPdfExportProps) {
                   {section.docs[0] === doc && (
                     <h2
                       data-section-header
-                      className="text-xl font-bold text-neutral-200 border-b-2 border-blue-500 pb-1.5 mb-4"
+                      style={{ fontSize: "20px", fontWeight: 700, color: "#111", borderBottom: "2px solid #2563eb", paddingBottom: "6px", marginBottom: "16px" }}
                     >
                       {section.folder}
                     </h2>
                   )}
-                  <article className="prose prose-invert prose-sm max-w-none">
+                  <article className="no-transition" style={{ color: "#333", fontSize: "14px", lineHeight: "1.6" }}>
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {doc.content}
                     </ReactMarkdown>
