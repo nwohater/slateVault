@@ -825,25 +825,9 @@ impl ServerHandler for SlateVaultMcpServer {
             .unwrap_or(false);
 
         if compress_enabled {
-                instructions.push_str("\n\n\
-                    ## COMPRESSION MODE (ACTIVE)\n\
-                    When writing session summaries, changelogs, notes, and any non-spec documentation, use compressed shorthand:\n\
-                    - Drop articles (a, the, an) and filler words\n\
-                    - Abbreviate: config, impl, auth, func, param, req, res, db, repo, deps, env, init, msg, err, ctx\n\
-                    - Symbols: → (leads to), + (added), - (removed), = (set to), ~ (approx/changed), @ (regarding)\n\
-                    - Shorthand paths: `specs/auth.md` not `the auth specification document`\n\
-                    - Code refs: `fn:handleAuth` not `the handleAuth function`\n\
-                    - Dates: `04-06` not `April 6th, 2026`\n\
-                    - Skip obvious context\n\n\
-                    Example compressed changelog entry:\n\
-                    ```\n\
-                    + auth flow spec → specs/auth.md (draft)\n\
-                    + ADR-003 JWT over sessions → decisions/003-jwt.md\n\
-                    ~ refactored db schema docs, updated ER diagram\n\
-                    - removed deprecated api-v1 refs from guides/\n\
-                    next: impl rate limiting spec, review stale docs\n\
-                    ```\n\
-                    IMPORTANT: Always use this compressed format for changelogs and session summaries.");
+                instructions.push_str("\n\n## COMPRESSION (ON)\n\
+                    For changelogs/summaries/notes use shorthand: drop articles, abbrev common words (config,impl,auth,func,db,ctx,req,res), use symbols (+added -removed →leads ~changed @regarding), short paths, skip obvious context.\n\
+                    Format: `+ auth spec → specs/auth.md | ~ db docs | - old api refs | next: rate limiting`");
         }
 
         ServerInfo {
