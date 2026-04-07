@@ -817,9 +817,14 @@ impl ServerHandler for SlateVaultMcpServer {
              - Mark critical docs as canonical and protected",
         );
 
-        // Check if compression is enabled and inject instructions
-        if let Ok(vault) = Vault::open(&self.vault_path) {
-            if vault.config.mcp.compress_context {
+        // Check if compression is enabled by reading vault.toml directly (avoid full Vault::open lock)
+        let compress_enabled = std::fs::read_to_string(self.vault_path.join("vault.toml"))
+            .ok()
+            .and_then(|s| toml::from_str::<slatevault_core::config::VaultConfig>(&s).ok())
+            .map(|c| c.mcp.compress_context)
+            .unwrap_or(false);
+
+        if compress_enabled {
                 instructions.push_str("\n\n\
                     ## COMPRESSION MODE (ACTIVE)\n\
                     When writing session summaries, changelogs, notes, and any non-spec documentation, use compressed shorthand:\n\
@@ -839,7 +844,6 @@ impl ServerHandler for SlateVaultMcpServer {
                     next: impl rate limiting spec, review stale docs\n\
                     ```\n\
                     IMPORTANT: Always use this compressed format for changelogs and session summaries.");
-            }
         }
 
         ServerInfo {

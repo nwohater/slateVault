@@ -19,3 +19,4 @@ rmcp = { version = "0.16", features = ["server", "transport-io"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
 dirs = "6"
+toml.workspace = true
