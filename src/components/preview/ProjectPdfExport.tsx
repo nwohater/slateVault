@@ -64,6 +64,38 @@ export function ProjectPdfExport({ project, onClose }: ProjectPdfExportProps) {
       const pageHeight = 277;
       let isFirstPage = true;
 
+      // Inject a style tag that overrides ALL colors to hex — prevents oklch from reaching html2canvas
+      const overrideStyle = document.createElement("style");
+      overrideStyle.textContent = `
+        [data-pdf-export] *, [data-pdf-export] *::before, [data-pdf-export] *::after {
+          color: #333 !important;
+          background-color: transparent !important;
+          border-color: #e5e7eb !important;
+          text-decoration-color: #333 !important;
+          outline-color: #333 !important;
+          caret-color: #333 !important;
+          column-rule-color: #333 !important;
+          fill: #333 !important;
+          stroke: #333 !important;
+          accent-color: auto !important;
+        }
+        [data-pdf-export] h1, [data-pdf-export] h2, [data-pdf-export] h3,
+        [data-pdf-export] h4, [data-pdf-export] h5, [data-pdf-export] h6 { color: #111 !important; }
+        [data-pdf-export] a { color: #1a56db !important; }
+        [data-pdf-export] code { background-color: #f3f4f6 !important; color: #c7254e !important; }
+        [data-pdf-export] pre { background-color: #f3f4f6 !important; color: #1a1a1a !important; border: 1px solid #e5e7eb !important; }
+        [data-pdf-export] pre code { color: #1a1a1a !important; background-color: transparent !important; }
+        [data-pdf-export] blockquote { border-left-color: #d1d5db !important; color: #555 !important; }
+        [data-pdf-export] th { background-color: #f9fafb !important; color: #111 !important; }
+        [data-pdf-export] strong, [data-pdf-export] b { color: #111 !important; }
+        [data-pdf-export] [data-section-header] { color: #111 !important; border-bottom-color: #2563eb !important; }
+        [data-pdf-export] [data-project-title] { color: #111 !important; }
+      `;
+      document.head.appendChild(overrideStyle);
+
+      // Mark container for the override styles
+      containerRef.current.setAttribute("data-pdf-export", "");
+
       // Render each doc-block separately to avoid cutting content mid-line
       const blocks = containerRef.current.querySelectorAll("[data-doc-block]");
       const totalBlocks = blocks.length;
@@ -206,6 +238,10 @@ export function ProjectPdfExport({ project, onClose }: ProjectPdfExportProps) {
           }
         }
       }
+
+      // Clean up override styles
+      overrideStyle.remove();
+      containerRef.current?.removeAttribute("data-pdf-export");
 
       setStatus("Saving PDF...");
       setProgress(85);
