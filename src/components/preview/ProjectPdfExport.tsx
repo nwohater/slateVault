@@ -77,16 +77,25 @@ export function ProjectPdfExport({ project, onClose }: ProjectPdfExportProps) {
         // Clone and style for print
         const clone = block.cloneNode(true) as HTMLElement;
         clone.style.cssText = `
+          all: initial;
           position: absolute; left: -9999px; top: 0;
           width: 700px; height: auto; overflow: visible;
           background: #ffffff; padding: 24px 40px; color: #1a1a1a;
           font-family: system-ui, -apple-system, sans-serif;
+          font-size: 14px; line-height: 1.6;
         `;
 
         const allElements = clone.querySelectorAll("*");
         allElements.forEach((el) => {
           const htmlEl = el as HTMLElement;
           const tag = htmlEl.tagName.toLowerCase();
+          // Strip all Tailwind classes to prevent oklch color resolution
+          htmlEl.className = "";
+          htmlEl.style.all = "initial";
+          htmlEl.style.display = tag === "div" || tag === "article" || tag === "section" || tag === "ul" || tag === "ol" ? "block" : tag === "li" ? "list-item" : tag === "span" || tag === "code" || tag === "strong" || tag === "em" || tag === "a" ? "inline" : "block";
+          htmlEl.style.fontFamily = "inherit";
+          htmlEl.style.fontSize = "inherit";
+          htmlEl.style.lineHeight = "inherit";
           htmlEl.style.backgroundColor = "transparent";
           htmlEl.style.borderColor = "#e5e7eb";
           htmlEl.style.color = "#333";
