@@ -96,6 +96,16 @@ export function ProjectPdfExport({ project, onClose }: ProjectPdfExportProps) {
       // Mark container for the override styles
       containerRef.current.setAttribute("data-pdf-export", "");
 
+      // Temporarily disable ALL stylesheets to prevent oklch parsing by html2canvas
+      const disabledSheets: { sheet: StyleSheet; disabled: boolean }[] = [];
+      for (let i = 0; i < document.styleSheets.length; i++) {
+        const sheet = document.styleSheets[i];
+        if (sheet !== overrideStyle.sheet) {
+          disabledSheets.push({ sheet, disabled: sheet.disabled });
+          sheet.disabled = true;
+        }
+      }
+
       // Render each doc-block separately to avoid cutting content mid-line
       const blocks = containerRef.current.querySelectorAll("[data-doc-block]");
       const totalBlocks = blocks.length;
@@ -237,6 +247,11 @@ export function ProjectPdfExport({ project, onClose }: ProjectPdfExportProps) {
             heightLeft -= pageHeight;
           }
         }
+      }
+
+      // Re-enable all stylesheets
+      for (const { sheet, disabled } of disabledSheets) {
+        sheet.disabled = disabled;
       }
 
       // Clean up override styles
