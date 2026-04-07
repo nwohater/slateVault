@@ -1,6 +1,41 @@
 use rmcp::schemars;
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
+
+/// Deserialize tags that might come as an array or a JSON-encoded string
+fn deserialize_flexible_tags<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de;
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum FlexTags {
+        Array(Vec<String>),
+        JsonString(String),
+        Null,
+    }
+
+    match Option::<FlexTags>::deserialize(deserializer)? {
+        Some(FlexTags::Array(v)) => Ok(Some(v)),
+        Some(FlexTags::JsonString(s)) => {
+            // Try to parse as JSON array
+            if let Ok(parsed) = serde_json::from_str::<Vec<String>>(&s) {
+                Ok(Some(parsed))
+            } else {
+                // Treat as comma-separated
+                Ok(Some(
+                    s.split(',')
+                        .map(|t| t.trim().trim_matches('"').to_string())
+                        .filter(|t| !t.is_empty())
+                        .collect(),
+                ))
+            }
+        }
+        Some(FlexTags::Null) | None => Ok(None),
+    }
+}
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[schemars(description = "Create a new project in the vault")]
@@ -32,6 +67,7 @@ pub struct WriteDocumentParams {
     #[schemars(description = "Full markdown body (no front matter — server adds it)")]
     pub content: String,
     #[schemars(description = "Tags to apply to the document")]
+    #[serde(default, deserialize_with = "deserialize_flexible_tags")]
     pub tags: Option<Vec<String>>,
     #[schemars(description = "Name of the calling AI tool, e.g. 'claude-code'")]
     pub ai_tool: Option<String>,
