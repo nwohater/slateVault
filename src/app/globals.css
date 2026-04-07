@@ -64,6 +64,78 @@ html[data-theme="deepblue"] ::-webkit-scrollbar-thumb:hover {
   background: #2e4060;
 }
 
+/* ── UI Polish ──────────────────────────────────────── */
+
+/* Smooth transitions globally */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, opacity;
+  transition-duration: 120ms;
+  transition-timing-function: ease-out;
+}
+
+/* Override for elements that shouldn't transition */
+.cm-editor *, .cm-editor *::before, .cm-editor *::after,
+pre *, code *, [data-doc-block] *, .no-transition * {
+  transition: none !important;
+}
+
+/* Glassmorphism panels */
+.glass-panel {
+  background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+  backdrop-filter: blur(8px);
+}
+
+/* Subtle glow on focus */
+input:focus, textarea:focus, select:focus {
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5), 0 0 8px rgba(59, 130, 246, 0.15);
+}
+
+/* Better button hover */
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* Toolbar button style */
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.toolbar-btn-default {
+  background: rgba(255,255,255,0.04);
+  color: #a1a1aa;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.toolbar-btn-default:hover {
+  background: rgba(255,255,255,0.08);
+  color: #e4e4e7;
+  border-color: rgba(255,255,255,0.1);
+}
+
+.toolbar-btn-active {
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* Accent border glow */
+.accent-border-b {
+  border-bottom: 2px solid transparent;
+  background-image: linear-gradient(var(--color-neutral-900), var(--color-neutral-900)),
+    linear-gradient(90deg, #3b82f6, #22d3ee);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

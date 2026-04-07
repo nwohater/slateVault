@@ -33,7 +33,7 @@ export function StatusBar() {
   const mcpEnabled = stats?.mcp_enabled ?? false;
 
   return (
-    <div className="flex items-center gap-3 px-3 py-0.5 bg-neutral-900 border-t border-neutral-800 text-[10px] text-neutral-500 flex-shrink-0">
+    <div className="flex items-center gap-3 px-3 py-1 bg-neutral-900/80 border-t border-neutral-800/50 text-[10px] text-neutral-500 flex-shrink-0 backdrop-blur-sm">
       {vaultName && (
         <span className="text-neutral-400">{vaultName}</span>
       )}

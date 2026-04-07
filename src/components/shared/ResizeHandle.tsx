@@ -44,11 +44,11 @@ export function ResizeHandle({ direction, onResize }: ResizeHandleProps) {
     <div
       onPointerDown={onPointerDown}
       className={`
-        flex-shrink-0 bg-neutral-800 hover:bg-blue-600 transition-colors
+        flex-shrink-0 transition-colors group
         ${
           direction === "vertical"
-            ? "w-1 cursor-col-resize"
-            : "h-1.5 cursor-row-resize"
+            ? "w-1 cursor-col-resize bg-neutral-800/50 hover:bg-cyan-500/40"
+            : "h-1 cursor-row-resize bg-neutral-800/50 hover:bg-cyan-500/40"
         }
       `}
     />

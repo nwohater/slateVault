@@ -88,63 +88,69 @@ export function AppShell() {
       {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Toolbar */}
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-900 border-b border-neutral-800 text-xs">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900/80 border-b border-neutral-800/50 backdrop-blur-sm">
           <button
             onClick={() =>
               setActiveView(activeView === "search" ? "editor" : "search")
             }
-            className={`px-2 py-0.5 rounded transition-colors ${
-              activeView === "search"
-                ? "bg-blue-700 text-white"
-                : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+            className={`toolbar-btn ${
+              activeView === "search" ? "toolbar-btn-active" : "toolbar-btn-default"
             }`}
           >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
             Search
           </button>
           {activeView === "editor" && (
             <>
               <button
                 onClick={toggleEditor}
-                className={`px-2 py-0.5 rounded transition-colors ${
-                  showEditor
-                    ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-                    : "bg-neutral-700 text-neutral-400"
-                }`}
+                className={`toolbar-btn ${showEditor ? "toolbar-btn-default" : "toolbar-btn-default opacity-50"}`}
               >
-                {showEditor ? "Hide Editor" : "Show Editor"}
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+                </svg>
+                Editor
               </button>
               <button
                 onClick={togglePreview}
-                className={`px-2 py-0.5 rounded transition-colors ${
-                  showPreview
-                    ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-                    : "bg-neutral-700 text-neutral-400"
-                }`}
+                className={`toolbar-btn ${showPreview ? "toolbar-btn-default" : "toolbar-btn-default opacity-50"}`}
               >
-                {showPreview ? "Hide Preview" : "Show Preview"}
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                </svg>
+                Preview
               </button>
             </>
           )}
+
+          <div className="w-px h-4 bg-neutral-800 mx-1" />
+
           <button
             onClick={toggleTerminal}
-            className={`px-2 py-0.5 rounded transition-colors ${
-              showTerminal
-                ? "bg-blue-700 text-white"
-                : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-            }`}
+            className={`toolbar-btn ${showTerminal ? "toolbar-btn-active" : "toolbar-btn-default"}`}
           >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
+            </svg>
             Terminal
           </button>
+
           {isDirty && (
-            <button
-              onClick={saveDocument}
-              className="px-2 py-0.5 rounded bg-blue-700 hover:bg-blue-600 text-white"
-            >
-              Save
-            </button>
+            <>
+              <div className="w-px h-4 bg-neutral-800 mx-1" />
+              <button
+                onClick={saveDocument}
+                className="toolbar-btn toolbar-btn-active"
+              >
+                Save
+              </button>
+            </>
           )}
           <div className="flex-1" />
-          <kbd className="text-neutral-500">Ctrl+T terminal</kbd>
+          <span className="text-[10px] text-neutral-600 font-mono">Ctrl+T terminal</span>
         </div>
 
         {/* Content + Terminal + StatusBar */}

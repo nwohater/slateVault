@@ -56,21 +56,22 @@ export function Sidebar() {
   ];
 
   return (
-    <div className="flex flex-col h-full bg-neutral-900 border-r border-neutral-800">
+    <div className="flex flex-col h-full bg-neutral-900/95 border-r border-neutral-800/50">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800">
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-neutral-800/50 bg-neutral-900/50">
         <button
           onClick={closeVault}
-          className="text-sm font-semibold text-neutral-200 truncate hover:text-blue-400 transition-colors"
+          className="text-sm font-semibold text-neutral-200 truncate hover:text-cyan-400 transition-colors flex items-center gap-2"
           title="Switch vault"
         >
+          <span className="w-2 h-2 rounded-full bg-cyan-500/80 flex-shrink-0" />
           {vaultName || "slateVault"}
         </button>
         <div className="flex items-center gap-1">
           {view === "files" && (
             <button
               onClick={() => setShowNewProject(!showNewProject)}
-              className="text-neutral-400 hover:text-neutral-200 text-lg leading-none"
+              className="w-6 h-6 flex items-center justify-center rounded-md text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 text-sm"
               title="New project"
             >
               +
@@ -80,18 +81,21 @@ export function Sidebar() {
       </div>
 
       {/* View tabs */}
-      <div className="flex border-b border-neutral-800 text-xs">
+      <div className="flex border-b border-neutral-800/50 text-[11px] font-medium">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => switchView(t.id)}
-            className={`flex-1 py-1.5 transition-colors ${
+            className={`flex-1 py-2 transition-colors relative ${
               view === t.id
-                ? "text-neutral-100 border-b border-blue-500"
+                ? "text-cyan-400"
                 : "text-neutral-500 hover:text-neutral-300"
             }`}
           >
             {t.label}
+            {view === t.id && (
+              <span className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full" />
+            )}
           </button>
         ))}
       </div>
