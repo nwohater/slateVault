@@ -77,19 +77,35 @@ export function ChangesTab() {
           className="w-full px-2 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:border-blue-600 resize-none"
         />
         <div className="flex gap-1 mt-1.5">
-          <button
-            onClick={commit}
-            disabled={!commitMessage.trim() || staged.length === 0}
-            className="flex-1 px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white"
-          >
-            Commit ({staged.length})
-          </button>
-          {unstaged.length > 0 && (
+          {unstaged.length > 0 && staged.length === 0 ? (
+            /* Nothing staged — primary action is stage all + commit */
+            <button
+              onClick={async () => {
+                await stageAll();
+                if (commitMessage.trim()) {
+                  await commit();
+                }
+              }}
+              disabled={!commitMessage.trim()}
+              className="flex-1 px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white"
+            >
+              Commit All ({unstaged.length})
+            </button>
+          ) : (
+            <button
+              onClick={commit}
+              disabled={!commitMessage.trim() || staged.length === 0}
+              className="flex-1 px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white"
+            >
+              Commit ({staged.length})
+            </button>
+          )}
+          {unstaged.length > 0 && staged.length > 0 && (
             <button
               onClick={stageAll}
               className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
             >
-              Stage All
+              + All
             </button>
           )}
         </div>
