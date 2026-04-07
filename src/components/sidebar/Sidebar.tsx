@@ -113,20 +113,36 @@ export function Sidebar() {
       <div className="flex flex-col flex-1 min-w-0 bg-neutral-900">
         {/* Panel header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800/50">
-          <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-            {view === "files" ? "Explorer" : view === "git" ? "Source Control" : "Settings"}
-          </span>
-          {view === "files" && (
+          {view === "files" ? (
             <button
-              onClick={() => setShowNewProject(!showNewProject)}
-              className="w-5 h-5 flex items-center justify-center rounded text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800"
-              title="New project"
+              onClick={closeVault}
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-300 hover:text-cyan-400 truncate group"
+              title="Click to switch vault"
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 flex-shrink-0" />
+              <span className="truncate">{vaultName || "slateVault"}</span>
+              <svg className="w-3 h-3 text-neutral-600 group-hover:text-cyan-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
               </svg>
             </button>
+          ) : (
+            <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
+              {view === "git" ? "Source Control" : "Settings"}
+            </span>
           )}
+          <div className="flex items-center gap-1">
+            {view === "files" && (
+              <button
+                onClick={() => setShowNewProject(!showNewProject)}
+                className="w-5 h-5 flex items-center justify-center rounded text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800"
+                title="New project"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
         {view === "files" && (
