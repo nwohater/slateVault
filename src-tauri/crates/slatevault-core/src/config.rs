@@ -122,7 +122,7 @@ fn default_mcp_port() -> u16 {
 }
 
 fn default_ai_endpoint() -> String {
-    "http://localhost:11434/v1".to_string()
+    "http://localhost:11434".to_string()
 }
 
 fn default_true() -> bool {

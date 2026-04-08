@@ -76,7 +76,16 @@ pub fn chat_completion(
     model: &str,
     messages: Vec<ChatMessage>,
 ) -> Result<AiChatResult> {
-    let url = format!("{}/chat/completions", endpoint_url.trim_end_matches('/'));
+    let base = endpoint_url.trim_end_matches('/');
+    // Support both OpenAI-compatible (/v1/chat/completions) and Ollama native (/api/chat)
+    let url = if base.ends_with("/v1") {
+        format!("{}/chat/completions", base)
+    } else if base.contains("/v1") {
+        format!("{}/chat/completions", base)
+    } else {
+        // Assume Ollama native endpoint
+        format!("{}/v1/chat/completions", base)
+    };
 
     let request = ChatRequest {
         model: model.to_string(),
@@ -136,7 +145,12 @@ pub fn chat_completion(
 }
 
 pub fn list_models(endpoint_url: &str, api_key: Option<&str>) -> Result<Vec<String>> {
-    let url = format!("{}/models", endpoint_url.trim_end_matches('/'));
+    let base = endpoint_url.trim_end_matches('/');
+    let url = if base.ends_with("/v1") {
+        format!("{}/models", base)
+    } else {
+        format!("{}/v1/models", base)
+    };
 
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
