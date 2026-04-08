@@ -25,11 +25,19 @@ export function AiMessageBubble({ message, project }: Props) {
   };
 
   const handleStartSave = () => {
-    // Auto-suggest path and title from content
+    // Try to detect a doc path referenced in the content (e.g. prd/product-requirements.md)
+    const pathMatch = message.content.match(/(?:^|\s)([\w-]+\/[\w.-]+\.md)/m);
     const firstLine = message.content.split("\n")[0]?.replace(/^#+\s*/, "").trim() || "AI Response";
-    const slug = firstLine.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
-    setSaveTitle(firstLine.slice(0, 80));
-    setSavePath(`notes/${slug}.md`);
+
+    if (pathMatch) {
+      // Found a path reference — suggest updating that doc
+      setSavePath(pathMatch[1]);
+      setSaveTitle(firstLine.slice(0, 80));
+    } else {
+      const slug = firstLine.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
+      setSaveTitle(firstLine.slice(0, 80));
+      setSavePath(`notes/${slug}.md`);
+    }
     setShowSaveDialog(true);
   };
 
