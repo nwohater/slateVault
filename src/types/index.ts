@@ -69,6 +69,9 @@ export interface VaultSettings {
   ssh_key_path: string | null;
   remote_url: string | null;
   remote_branch: string;
+  ai_enabled: boolean;
+  ai_endpoint_url: string;
+  ai_model: string;
 }
 
 export interface VaultStatsInfo {
@@ -126,12 +129,24 @@ export interface CredentialsMasked {
   ado_pat: string | null;
   ado_organization: string | null;
   ado_project: string | null;
+  ai_api_key: string | null;
 }
 
 export interface TemplateInfo {
   name: string;
   label: string;
   is_default: boolean;
+}
+
+export interface AiChatMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
+export interface AiChatResult {
+  content: string;
+  model: string;
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
 }
 
 export interface PlaybookInfo {

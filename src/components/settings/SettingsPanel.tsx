@@ -130,6 +130,108 @@ export function SettingsPanel() {
         </div>
       </div>
 
+      {/* AI Assistant section */}
+      <div className="p-3 border-b border-neutral-800">
+        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
+          AI Assistant
+        </h3>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-neutral-400">
+            <input
+              type="checkbox"
+              checked={settings?.ai_enabled ?? false}
+              onChange={async (e) => {
+                try {
+                  await commands.setVaultConfig({ ai_enabled: e.target.checked } as any);
+                  await loadSettings();
+                } catch {}
+              }}
+              className="rounded"
+            />
+            Enabled
+          </label>
+          <div>
+            <label className="block text-neutral-500 mb-1">Endpoint URL</label>
+            <input
+              type="text"
+              value={settings?.ai_endpoint_url ?? "http://localhost:11434/v1"}
+              onChange={async (e) => {
+                try {
+                  await commands.setVaultConfig({ ai_endpoint_url: e.target.value } as any);
+                  await loadSettings();
+                } catch {}
+              }}
+              onBlur={loadSettings}
+              placeholder="http://localhost:11434/v1"
+              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
+            />
+          </div>
+          <div>
+            <label className="block text-neutral-500 mb-1">Model</label>
+            <div className="flex gap-1">
+              <input
+                type="text"
+                value={settings?.ai_model ?? ""}
+                onChange={async (e) => {
+                  try {
+                    await commands.setVaultConfig({ ai_model: e.target.value } as any);
+                    await loadSettings();
+                  } catch {}
+                }}
+                onBlur={loadSettings}
+                placeholder="e.g. llama3, gpt-4o, claude-sonnet-4-20250514"
+                className="flex-1 px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
+              />
+              <button
+                onClick={async () => {
+                  try {
+                    const models = await commands.aiListModels();
+                    if (models.length > 0) {
+                      setOutput(`Found ${models.length} models: ${models.slice(0, 5).join(", ")}${models.length > 5 ? "..." : ""}`);
+                    } else {
+                      setOutput("No models found at endpoint");
+                    }
+                    setTimeout(() => setOutput(null), 3000);
+                  } catch (e) {
+                    setOutput(`Connection failed: ${e}`);
+                  }
+                }}
+                className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-neutral-400 text-[10px] flex-shrink-0"
+              >
+                Test
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-neutral-500 mb-1">
+              API Key
+              {creds?.ai_api_key && (
+                <span className="ml-1 text-green-500">({creds.ai_api_key})</span>
+              )}
+            </label>
+            <input
+              type="password"
+              value=""
+              onChange={async (e) => {
+                if (e.target.value) {
+                  try {
+                    await commands.gitSaveCredentials({ ai_api_key: e.target.value });
+                    await loadCredentials();
+                    setOutput("AI API key saved");
+                    setTimeout(() => setOutput(null), 2000);
+                  } catch {}
+                }
+              }}
+              placeholder="Optional — not needed for Ollama"
+              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
+            />
+          </div>
+          <p className="text-neutral-600 text-[10px]">
+            Works with Ollama, LM Studio, OpenAI, Anthropic, or any OpenAI-compatible endpoint.
+          </p>
+        </div>
+      </div>
+
       {/* MCP section */}
       <div className="p-3 border-b border-neutral-800">
         <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">

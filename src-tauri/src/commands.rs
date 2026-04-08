@@ -402,6 +402,9 @@ pub struct VaultSettings {
     pub ssh_key_path: Option<String>,
     pub remote_url: Option<String>,
     pub remote_branch: String,
+    pub ai_enabled: bool,
+    pub ai_endpoint_url: String,
+    pub ai_model: String,
 }
 
 #[tauri::command]
@@ -416,6 +419,9 @@ pub fn get_vault_config(
             mcp_port: vault.config.mcp.port,
             auto_stage_ai_writes: vault.config.mcp.auto_stage_ai_writes,
             compress_context: vault.config.mcp.compress_context,
+            ai_enabled: vault.config.ai.enabled,
+            ai_endpoint_url: vault.config.ai.endpoint_url.clone(),
+            ai_model: vault.config.ai.model.clone(),
             ssh_key_path: vault.config.sync.ssh_key_path.clone(),
             remote_url: vault.config.sync.remote_url.clone(),
             remote_branch: vault.config.sync.remote_branch.clone(),
@@ -431,6 +437,9 @@ pub struct SetVaultConfigArgs {
     pub auto_stage_ai_writes: Option<bool>,
     pub compress_context: Option<bool>,
     pub ssh_key_path: Option<String>,
+    pub ai_enabled: Option<bool>,
+    pub ai_endpoint_url: Option<String>,
+    pub ai_model: Option<String>,
 }
 
 #[tauri::command]
@@ -454,6 +463,15 @@ pub fn set_vault_config(
     }
     if let Some(v) = args.compress_context {
         vault.config.mcp.compress_context = v;
+    }
+    if let Some(v) = args.ai_enabled {
+        vault.config.ai.enabled = v;
+    }
+    if let Some(url) = args.ai_endpoint_url {
+        vault.config.ai.endpoint_url = url;
+    }
+    if let Some(model) = args.ai_model {
+        vault.config.ai.model = model;
     }
     // Empty string clears the path, Some(path) sets it
     if let Some(path) = args.ssh_key_path {
@@ -705,6 +723,7 @@ pub fn git_save_credentials(
     ado_pat: Option<String>,
     ado_organization: Option<String>,
     ado_project: Option<String>,
+    ai_api_key: Option<String>,
 ) -> CmdResult<String> {
     let mut creds = Credentials::load().unwrap_or_default();
     if let Some(pat) = github_pat {
@@ -718,6 +737,9 @@ pub fn git_save_credentials(
     }
     if let Some(proj) = ado_project {
         creds.ado_project = if proj.is_empty() { None } else { Some(proj) };
+    }
+    if let Some(key) = ai_api_key {
+        creds.ai_api_key = if key.is_empty() { None } else { Some(key) };
     }
     creds.save().map_err(|e| e.to_string())?;
     Ok("Credentials saved".to_string())
@@ -749,6 +771,134 @@ pub fn git_push_branch(
     } else {
         Err(format!("Push failed: {}", stderr.trim()))
     }
+}
+
+// -- AI commands --
+
+#[derive(Deserialize)]
+pub struct AiChatArgs {
+    pub message: String,
+    pub project: String,
+    pub include_context: bool,
+    pub include_source: bool,
+    pub history: Vec<slatevault_core::ai::ChatMessage>,
+}
+
+#[tauri::command]
+pub fn ai_chat(
+    args: AiChatArgs,
+    state: State<'_, VaultState>,
+) -> CmdResult<slatevault_core::ai::AiChatResult> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+
+    if !vault.config.ai.enabled {
+        return Err("AI is not enabled. Configure in Settings > AI Assistant.".to_string());
+    }
+    if vault.config.ai.model.is_empty() {
+        return Err("No AI model configured. Set a model in Settings > AI Assistant.".to_string());
+    }
+
+    let credentials = slatevault_core::credentials::Credentials::load().unwrap_or_default();
+    let api_key = credentials.ai_api_key.as_deref();
+
+    // Assemble context
+    let context = if args.include_context || args.include_source {
+        slatevault_core::ai::assemble_context(
+            vault,
+            &args.project,
+            &args.message,
+            args.include_source,
+        )
+    } else {
+        String::new()
+    };
+
+    // Build messages
+    let mut messages = Vec::new();
+
+    // System message with context
+    let system_msg = if context.is_empty() {
+        "You are an AI assistant helping with project documentation. Be concise and helpful.".to_string()
+    } else {
+        format!(
+            "You are an AI assistant helping with project documentation. Use the following project context to inform your responses:\n\n{}\n\nBe concise and helpful.",
+            context
+        )
+    };
+    messages.push(slatevault_core::ai::ChatMessage {
+        role: "system".to_string(),
+        content: system_msg,
+    });
+
+    // History
+    for msg in &args.history {
+        messages.push(msg.clone());
+    }
+
+    // Current user message
+    messages.push(slatevault_core::ai::ChatMessage {
+        role: "user".to_string(),
+        content: args.message,
+    });
+
+    slatevault_core::ai::chat_completion(
+        &vault.config.ai.endpoint_url,
+        api_key,
+        &vault.config.ai.model,
+        messages,
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn ai_list_models(
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<String>> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+
+    let credentials = slatevault_core::credentials::Credentials::load().unwrap_or_default();
+    let api_key = credentials.ai_api_key.as_deref();
+
+    slatevault_core::ai::list_models(&vault.config.ai.endpoint_url, api_key)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_project_source_folder(
+    project: String,
+    source_folder: Option<String>,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let mut project_obj = vault.open_project(&project).map_err(|e| e.to_string())?;
+
+    project_obj.config.project.source_folder = source_folder.clone();
+    let toml_str = toml::to_string_pretty(&project_obj.config).map_err(|e| e.to_string())?;
+    std::fs::write(
+        vault.projects_dir().join(&project).join("project.toml"),
+        toml_str,
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(format!(
+        "Source folder {} for project '{}'",
+        source_folder.as_deref().unwrap_or("cleared"),
+        project
+    ))
+}
+
+#[tauri::command]
+pub fn get_project_source_folder(
+    project: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<Option<String>> {
+    with_vault(&state, |vault| {
+        let project_obj = vault.open_project(&project)?;
+        Ok(project_obj.config.project.source_folder.clone())
+    })
 }
 
 // -- Playbook commands --

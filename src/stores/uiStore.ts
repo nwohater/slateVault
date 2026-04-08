@@ -24,7 +24,7 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  sidebarWidth: 260,
+  sidebarWidth: 340,
   showEditor: true,
   showPreview: true,
   previewRatio: 0.5,

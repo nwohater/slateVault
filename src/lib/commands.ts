@@ -19,6 +19,8 @@ import type {
   BacklinkInfo,
   RecentChange,
   PlaybookInfo,
+  AiChatMessage,
+  AiChatResult,
 } from "@/types";
 
 export async function createVault(
@@ -39,6 +41,35 @@ export async function createProject(
   template?: string
 ): Promise<string> {
   return invoke("create_project", { name, description, tags, template });
+}
+
+export async function aiChat(
+  message: string,
+  project: string,
+  includeContext: boolean,
+  includeSource: boolean,
+  history: AiChatMessage[]
+): Promise<AiChatResult> {
+  return invoke("ai_chat", {
+    args: { message, project, includeContext, includeSource, history },
+  });
+}
+
+export async function aiListModels(): Promise<string[]> {
+  return invoke("ai_list_models");
+}
+
+export async function setProjectSourceFolder(
+  project: string,
+  sourceFolder: string | null
+): Promise<string> {
+  return invoke("set_project_source_folder", { project, sourceFolder });
+}
+
+export async function getProjectSourceFolder(
+  project: string
+): Promise<string | null> {
+  return invoke("get_project_source_folder", { project });
 }
 
 export async function listPlaybooks(): Promise<PlaybookInfo[]> {
@@ -398,12 +429,14 @@ export async function gitSaveCredentials(creds: {
   ado_pat?: string;
   ado_organization?: string;
   ado_project?: string;
+  ai_api_key?: string;
 }): Promise<string> {
   return invoke("git_save_credentials", {
     githubPat: creds.github_pat,
     adoPat: creds.ado_pat,
     adoOrganization: creds.ado_organization,
     adoProject: creds.ado_project,
+    aiApiKey: creds.ai_api_key,
   });
 }
 

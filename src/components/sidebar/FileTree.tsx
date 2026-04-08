@@ -449,6 +449,26 @@ export function FileTree() {
                           const { open } = await import("@tauri-apps/plugin-dialog");
                           const folder = await open({
                             directory: true,
+                            title: "Select source code folder",
+                          });
+                          if (folder) {
+                            await commands.setProjectSourceFolder(contextMenu.project, folder as string);
+                          }
+                        } catch (e) {
+                          console.error("Set source folder failed:", e);
+                        }
+                        setContextMenu(null);
+                      }}
+                      className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                    >
+                      Set Source Folder
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const { open } = await import("@tauri-apps/plugin-dialog");
+                          const folder = await open({
+                            directory: true,
                             title: "Select markdown folder to import",
                           });
                           if (folder) {

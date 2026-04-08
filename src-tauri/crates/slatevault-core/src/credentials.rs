@@ -13,6 +13,8 @@ pub struct Credentials {
     pub ado_organization: Option<String>,
     #[serde(default)]
     pub ado_project: Option<String>,
+    #[serde(default)]
+    pub ai_api_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -21,6 +23,7 @@ pub struct CredentialsMasked {
     pub ado_pat: Option<String>,
     pub ado_organization: Option<String>,
     pub ado_project: Option<String>,
+    pub ai_api_key: Option<String>,
 }
 
 impl Credentials {
@@ -59,6 +62,7 @@ impl Credentials {
             ado_pat: self.ado_pat.as_ref().map(|t| mask_token(t)),
             ado_organization: self.ado_organization.clone(),
             ado_project: self.ado_project.clone(),
+            ai_api_key: self.ai_api_key.as_ref().map(|t| mask_token(t)),
         }
     }
 }

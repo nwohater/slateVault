@@ -1,4 +1,5 @@
 pub mod config;
+pub mod ai;
 pub mod credentials;
 pub mod playbook;
 pub mod document;

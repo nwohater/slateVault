@@ -7,6 +7,8 @@ pub struct VaultConfig {
     pub sync: SyncConfig,
     #[serde(default)]
     pub mcp: McpConfig,
+    #[serde(default)]
+    pub ai: AiConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,6 +70,26 @@ impl Default for McpConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_ai_endpoint")]
+    pub endpoint_url: String,
+    #[serde(default)]
+    pub model: String,
+}
+
+impl Default for AiConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            endpoint_url: default_ai_endpoint(),
+            model: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectConfig {
     pub project: ProjectMeta,
 }
@@ -83,6 +105,8 @@ pub struct ProjectMeta {
     pub ai_context_files: Vec<String>,
     #[serde(default)]
     pub folder_order: Vec<String>,
+    #[serde(default)]
+    pub source_folder: Option<String>,
 }
 
 fn default_version() -> String {
@@ -95,6 +119,10 @@ fn default_branch() -> String {
 
 fn default_mcp_port() -> u16 {
     3742
+}
+
+fn default_ai_endpoint() -> String {
+    "http://localhost:11434/v1".to_string()
 }
 
 fn default_true() -> bool {

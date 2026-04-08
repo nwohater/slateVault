@@ -31,6 +31,7 @@ impl Vault {
             },
             sync: SyncConfig::default(),
             mcp: McpConfig::default(),
+            ai: crate::config::AiConfig::default(),
         };
 
         let toml_str = toml::to_string_pretty(&config)?;
