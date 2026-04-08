@@ -253,8 +253,14 @@ const SKIP_DIRS: &[&str] = &[
 
 const SOURCE_EXTENSIONS: &[&str] = &[
     "rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "kt",
-    "toml", "yaml", "yml", "json", "md", "css", "scss",
+    "toml", "yaml", "yml", "css", "scss",
     "html", "sql", "sh", "bash", "dockerfile", "svelte", "vue",
+];
+
+const SKIP_FILES: &[&str] = &[
+    "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "Cargo.lock",
+    "bun.lockb", "composer.lock", "Gemfile.lock", "poetry.lock",
+    ".DS_Store", "thumbs.db",
 ];
 
 fn read_source_files(root: &Path, max_chars: usize) -> String {
@@ -290,6 +296,11 @@ fn read_dir_recursive(
             }
             read_dir_recursive(base, &path, output, total_chars, max_chars);
         } else {
+            // Skip known noise files
+            if SKIP_FILES.contains(&name.as_str()) {
+                continue;
+            }
+
             let ext = path
                 .extension()
                 .map(|e| e.to_string_lossy().to_lowercase())
