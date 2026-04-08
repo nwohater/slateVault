@@ -214,17 +214,34 @@ pub fn assemble_context(
         }
     }
 
-    // 2. Search-based relevant docs
-    if let Ok(bundle) = vault.build_context_bundle(user_message, Some(project), Some(5)) {
-        if !bundle.docs.is_empty() {
+    // 2. Search-based relevant docs (skip _about.md template files)
+    if let Ok(bundle) = vault.build_context_bundle(user_message, Some(project), Some(8)) {
+        let real_docs: Vec<_> = bundle.docs.iter()
+            .filter(|d| !d.path.ends_with("/_about.md") && d.path != "_about.md")
+            .collect();
+        if !real_docs.is_empty() {
             context.push_str("## Relevant Documents\n\n");
-            for doc in &bundle.docs {
+            for doc in &real_docs {
                 context.push_str(&format!("### {} ({})\n{}\n\n", doc.title, doc.path, doc.content));
             }
         }
     }
 
-    // 3. Source code (if enabled and configured)
+    // 3. If search found nothing useful, list all non-template docs so AI knows what exists
+    if let Ok(all_docs) = vault.list_documents(project, None) {
+        let real_docs: Vec<_> = all_docs.iter()
+            .filter(|d| !d.path.ends_with("/_about.md") && d.path != "_about.md")
+            .collect();
+        if !real_docs.is_empty() {
+            context.push_str("## All Project Documents\n\n");
+            for doc in &real_docs {
+                context.push_str(&format!("- **{}** (`{}`)\n", doc.front_matter.title, doc.path));
+            }
+            context.push('\n');
+        }
+    }
+
+    // 4. Source code (if enabled and configured)
     if include_source {
         if let Ok(project_obj) = vault.open_project(project) {
             if let Some(ref source_folder) = project_obj.config.project.source_folder {
