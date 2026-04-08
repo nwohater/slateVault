@@ -62,6 +62,22 @@ export function ProjectPdfExport({ project, onClose }: ProjectPdfExportProps) {
         }
       };
 
+      // Sanitize text for jsPDF (only supports basic Latin characters)
+      const sanitize = (text: string): string => {
+        return text
+          .replace(/[\u2018\u2019]/g, "'")   // smart quotes
+          .replace(/[\u201C\u201D]/g, '"')   // smart double quotes
+          .replace(/\u2013/g, "-")           // en dash
+          .replace(/\u2014/g, "--")          // em dash
+          .replace(/\u2026/g, "...")         // ellipsis
+          .replace(/\u2611/g, "[x]")         // checked box
+          .replace(/\u2610/g, "[ ]")         // unchecked box
+          .replace(/[\u2022\u2023\u25E6]/g, "-") // bullets
+          .replace(/\u2192/g, "->")          // right arrow
+          .replace(/\u2190/g, "<-")          // left arrow
+          .replace(/[^\x00-\x7F]/g, "");     // strip remaining non-ASCII
+      };
+
       const writeText = (
         text: string,
         size: number,
@@ -71,7 +87,8 @@ export function ProjectPdfExport({ project, onClose }: ProjectPdfExportProps) {
         pdf.setFontSize(size);
         pdf.setFont("helvetica", style);
         pdf.setTextColor(color[0], color[1], color[2]);
-        const lines = pdf.splitTextToSize(text, pageWidth);
+        const clean = sanitize(text);
+        const lines = pdf.splitTextToSize(clean, pageWidth);
         const lineHeight = size * 0.5;
         for (const line of lines) {
           checkSpace(lineHeight);
@@ -151,6 +168,25 @@ export function ProjectPdfExport({ project, onClose }: ProjectPdfExportProps) {
                 y += 4;
               }
               y += 4;
+              continue;
+            }
+
+            // Detect tables (lines with | characters)
+            if (para.includes("|") && para.split("\n").some((l) => l.trim().startsWith("|"))) {
+              const rows = para.split("\n").filter((l) => l.trim().length > 0);
+              for (const row of rows) {
+                // Skip separator rows (|---|---|)
+                if (row.match(/^\|[\s-:|]+\|$/)) continue;
+                const cells = row
+                  .split("|")
+                  .map((c) => c.trim())
+                  .filter((c) => c.length > 0);
+                const cellText = cells.join("  |  ");
+                checkSpace(5);
+                writeText(cellText, 9, "normal");
+                y += 1;
+              }
+              y += 3;
               continue;
             }
 
