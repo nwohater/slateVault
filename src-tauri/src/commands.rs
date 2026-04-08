@@ -819,11 +819,18 @@ pub fn ai_chat(
 
     // System message with context
     let system_msg = if context.is_empty() {
-        "You are an AI assistant helping with project documentation. Be concise and helpful.".to_string()
+        format!(
+            "You are an AI assistant for the project '{}' in slateVault. Help with documentation, analysis, and writing.\n\
+            When the user asks you to write or update a document, produce the full document content.\n\
+            The user can save your response to the vault using the 'Save to vault' button below your message.\n\
+            Be concise and helpful.", args.project
+        )
     } else {
         format!(
-            "You are an AI assistant helping with project documentation. Use the following project context to inform your responses:\n\n{}\n\nBe concise and helpful.",
-            context
+            "You are an AI assistant for the project '{}' in slateVault. Use the following project context:\n\n{}\n\n\
+            When the user asks you to write or update a document, produce the full document content.\n\
+            The user can save your response to the vault using the 'Save to vault' button below your message.\n\
+            Be concise and helpful.", args.project, context
         )
     };
     messages.push(slatevault_core::ai::ChatMessage {
