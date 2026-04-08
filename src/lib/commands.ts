@@ -51,7 +51,13 @@ export async function aiChat(
   history: AiChatMessage[]
 ): Promise<AiChatResult> {
   return invoke("ai_chat", {
-    args: { message, project, includeContext, includeSource, history },
+    args: {
+      message,
+      project,
+      include_context: includeContext,
+      include_source: includeSource,
+      history,
+    },
   });
 }
 
