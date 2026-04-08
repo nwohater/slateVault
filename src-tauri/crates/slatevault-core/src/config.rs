@@ -62,7 +62,7 @@ impl Default for McpConfig {
             port: default_mcp_port(),
             auto_stage_ai_writes: true,
             read_only: false,
-            compress_context: false,
+            compress_context: true,
         }
     }
 }
