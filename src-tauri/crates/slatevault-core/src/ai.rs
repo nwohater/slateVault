@@ -390,40 +390,34 @@ pub fn assemble_context(
 ) -> String {
     let mut context = String::new();
 
-    // 1. Pinned AI context files
-    if let Ok(ctx_files) = vault.get_project_context(project) {
-        if !ctx_files.is_empty() {
-            context.push_str("## Project Context Files\n\n");
-            for (path, content) in &ctx_files {
-                context.push_str(&format!("### {}\n{}\n\n", path, content));
-            }
-        }
-    }
-
-    // 2. Search-based relevant docs (skip _about.md template files)
-    if let Ok(bundle) = vault.build_context_bundle(user_message, Some(project), Some(8)) {
-        let real_docs: Vec<_> = bundle.docs.iter()
-            .filter(|d| !d.path.ends_with("/_about.md") && d.path != "_about.md")
-            .collect();
-        if !real_docs.is_empty() {
-            context.push_str("## Relevant Documents\n\n");
-            for doc in &real_docs {
-                context.push_str(&format!("### {} ({})\n{}\n\n", doc.title, doc.path, doc.content));
-            }
-        }
-    }
-
-    // 3. If search found nothing useful, list all non-template docs so AI knows what exists
+    // 1. FIRST: List all docs so the AI knows what exists (put this first for small context models)
     if let Ok(all_docs) = vault.list_documents(project, None) {
         let real_docs: Vec<_> = all_docs.iter()
             .filter(|d| !d.path.ends_with("/_about.md") && d.path != "_about.md")
             .collect();
         if !real_docs.is_empty() {
-            context.push_str("## All Project Documents\n\n");
+            context.push_str("## Project Documents\n\n");
             for doc in &real_docs {
-                context.push_str(&format!("- **{}** (`{}`)\n", doc.front_matter.title, doc.path));
+                let canonical = if doc.front_matter.canonical { " [CANONICAL]" } else { "" };
+                context.push_str(&format!("- **{}** (`{}`){}\\n", doc.front_matter.title, doc.path, canonical));
             }
             context.push('\n');
+        }
+    }
+
+    // 2. Search-based relevant docs (skip _about.md template files)
+    if let Ok(bundle) = vault.build_context_bundle(user_message, Some(project), Some(5)) {
+        let real_docs: Vec<_> = bundle.docs.iter()
+            .filter(|d| !d.path.ends_with("/_about.md") && d.path != "_about.md")
+            .take(3) // Limit for small context models
+            .collect();
+        if !real_docs.is_empty() {
+            context.push_str("## Relevant Document Content\n\n");
+            for doc in &real_docs {
+                // Truncate content for small models
+                let content: String = doc.content.chars().take(2000).collect();
+                context.push_str(&format!("### {} ({})\n{}\n\n", doc.title, doc.path, content));
+            }
         }
     }
 
