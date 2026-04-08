@@ -60,17 +60,17 @@ struct ChatRequest {
 }
 
 #[derive(Debug, Serialize)]
-struct ToolDefinition {
+pub struct ToolDefinition {
     #[serde(rename = "type")]
-    tool_type: String,
-    function: FunctionDefinition,
+    pub tool_type: String,
+    pub function: FunctionDefinition,
 }
 
 #[derive(Debug, Serialize)]
-struct FunctionDefinition {
-    name: String,
-    description: String,
-    parameters: serde_json::Value,
+pub struct FunctionDefinition {
+    pub name: String,
+    pub description: String,
+    pub parameters: serde_json::Value,
 }
 
 #[derive(Debug, Deserialize)]
