@@ -76,11 +76,12 @@ export function AiMessageBubble({ message, project }: Props) {
           Copy
         </button>
         <button
-          onClick={handleStartSave}
-          disabled={saving || saved}
-          className="text-[10px] text-neutral-600 hover:text-neutral-400 disabled:text-neutral-700"
+          onClick={() => {
+            if (!showSaveDialog && !saved) handleStartSave();
+          }}
+          className="text-[10px] text-neutral-600 hover:text-neutral-400 cursor-pointer"
         >
-          {saved ? "Saved!" : "Save to vault"}
+          {saved ? "Saved!" : showSaveDialog ? "Saving..." : "Save to vault"}
         </button>
       </div>
       {showSaveDialog && (
