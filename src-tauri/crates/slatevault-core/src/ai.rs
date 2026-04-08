@@ -9,7 +9,41 @@ use crate::vault::Vault;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
-    pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<ToolCall>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
+impl ChatMessage {
+    pub fn text(role: &str, content: &str) -> Self {
+        Self {
+            role: role.to_string(),
+            content: Some(content.to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        }
+    }
+
+    pub fn content_str(&self) -> &str {
+        self.content.as_deref().unwrap_or("")
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCall {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub call_type: String,
+    pub function: ToolCallFunction,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCallFunction {
+    pub name: String,
+    pub arguments: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -20,7 +54,23 @@ struct ChatRequest {
     temperature: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<ToolDefinition>>,
     stream: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct ToolDefinition {
+    #[serde(rename = "type")]
+    tool_type: String,
+    function: FunctionDefinition,
+}
+
+#[derive(Debug, Serialize)]
+struct FunctionDefinition {
+    name: String,
+    description: String,
+    parameters: serde_json::Value,
 }
 
 #[derive(Debug, Deserialize)]
@@ -34,6 +84,8 @@ struct ChatResponse {
 #[derive(Debug, Deserialize)]
 struct ChatChoice {
     message: ChatMessage,
+    #[serde(default)]
+    finish_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +100,8 @@ pub struct AiChatResult {
     pub content: String,
     pub model: String,
     pub usage: Option<UsageInfo>,
+    pub tool_calls: Option<Vec<ToolCall>>,
+    pub tools_supported: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,20 +124,148 @@ struct OllamaModelInfo {
 
 // -- API calls --
 
+/// Get the tool definitions for vault operations
+pub fn vault_tools() -> Vec<ToolDefinition> {
+    vec![
+        ToolDefinition {
+            tool_type: "function".to_string(),
+            function: FunctionDefinition {
+                name: "write_document".to_string(),
+                description: "Write or update a document in the vault".to_string(),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "path": { "type": "string", "description": "Path like 'prd/my-doc.md' or 'specs/auth.md'" },
+                        "title": { "type": "string", "description": "Document title" },
+                        "content": { "type": "string", "description": "Full markdown content" },
+                        "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags for the document" }
+                    },
+                    "required": ["path", "title", "content"]
+                }),
+            },
+        },
+        ToolDefinition {
+            tool_type: "function".to_string(),
+            function: FunctionDefinition {
+                name: "read_document".to_string(),
+                description: "Read a document from the vault".to_string(),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "path": { "type": "string", "description": "Document path like 'prd/product-requirements.md'" }
+                    },
+                    "required": ["path"]
+                }),
+            },
+        },
+        ToolDefinition {
+            tool_type: "function".to_string(),
+            function: FunctionDefinition {
+                name: "search_documents".to_string(),
+                description: "Search for documents in the vault".to_string(),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string", "description": "Search query" }
+                    },
+                    "required": ["query"]
+                }),
+            },
+        },
+    ]
+}
+
+/// Test if a model supports function/tool calling
+pub fn test_tool_support(
+    endpoint_url: &str,
+    api_key: Option<&str>,
+    model: &str,
+) -> bool {
+    let messages = vec![ChatMessage::text("user", "What is 2+2? Use the calculator tool.")];
+    let tools = vec![ToolDefinition {
+        tool_type: "function".to_string(),
+        function: FunctionDefinition {
+            name: "calculator".to_string(),
+            description: "Calculate a math expression".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": { "expression": { "type": "string" } },
+                "required": ["expression"]
+            }),
+        },
+    }];
+
+    let base = endpoint_url.trim_end_matches('/');
+    let url = if base.ends_with("/v1") {
+        format!("{}/chat/completions", base)
+    } else {
+        format!("{}/v1/chat/completions", base)
+    };
+
+    let request = ChatRequest {
+        model: model.to_string(),
+        messages,
+        temperature: Some(0.0),
+        max_tokens: Some(100),
+        tools: Some(tools),
+        stream: false,
+    };
+
+    let client = match reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+
+    let mut req = client.post(&url).header("Content-Type", "application/json");
+    if let Some(key) = api_key {
+        if !key.is_empty() {
+            req = req.header("Authorization", format!("Bearer {}", key));
+        }
+    }
+
+    match req.json(&request).send() {
+        Ok(resp) => {
+            if let Ok(text) = resp.text() {
+                if let Ok(response) = serde_json::from_str::<ChatResponse>(&text) {
+                    return response
+                        .choices
+                        .first()
+                        .and_then(|c| c.message.tool_calls.as_ref())
+                        .map(|tc| !tc.is_empty())
+                        .unwrap_or(false);
+                }
+            }
+            false
+        }
+        Err(_) => false,
+    }
+}
+
 pub fn chat_completion(
     endpoint_url: &str,
     api_key: Option<&str>,
     model: &str,
     messages: Vec<ChatMessage>,
 ) -> Result<AiChatResult> {
+    chat_completion_with_tools(endpoint_url, api_key, model, messages, None)
+}
+
+pub fn chat_completion_with_tools(
+    endpoint_url: &str,
+    api_key: Option<&str>,
+    model: &str,
+    messages: Vec<ChatMessage>,
+    tools: Option<Vec<ToolDefinition>>,
+) -> Result<AiChatResult> {
     let base = endpoint_url.trim_end_matches('/');
-    // Support both OpenAI-compatible (/v1/chat/completions) and Ollama native (/api/chat)
     let url = if base.ends_with("/v1") {
         format!("{}/chat/completions", base)
     } else if base.contains("/v1") {
         format!("{}/chat/completions", base)
     } else {
-        // Assume Ollama native endpoint
         format!("{}/v1/chat/completions", base)
     };
 
@@ -92,6 +274,7 @@ pub fn chat_completion(
         messages,
         temperature: Some(0.7),
         max_tokens: None,
+        tools,
         stream: false,
     };
 
@@ -131,16 +314,19 @@ pub fn chat_completion(
     let response: ChatResponse =
         serde_json::from_str(&text).map_err(|e| crate::CoreError::Http(format!("Invalid AI response: {}", e)))?;
 
-    let content = response
-        .choices
-        .first()
-        .map(|c| c.message.content.clone())
+    let choice = response.choices.first();
+    let content = choice
+        .and_then(|c| c.message.content.clone())
         .unwrap_or_default();
+    let tool_calls = choice.and_then(|c| c.message.tool_calls.clone());
+    let has_tools = tool_calls.as_ref().map(|tc| !tc.is_empty()).unwrap_or(false);
 
     Ok(AiChatResult {
         content,
         model: response.model.unwrap_or_else(|| model.to_string()),
         usage: response.usage,
+        tool_calls,
+        tools_supported: has_tools,
     })
 }
 

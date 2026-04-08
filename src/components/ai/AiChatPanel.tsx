@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useChatStore } from "@/stores/chatStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import * as commands from "@/lib/commands";
 import { AiMessageBubble } from "./AiMessageBubble";
 
 export function AiChatPanel() {
@@ -20,6 +21,7 @@ export function AiChatPanel() {
   const projects = useVaultStore((s) => s.projects);
   const [selectedProject, setSelectedProject] = useState("");
   const [input, setInput] = useState("");
+  const [toolsSupported, setToolsSupported] = useState<boolean | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -63,6 +65,16 @@ export function AiChatPanel() {
               {lastModel}
             </span>
           )}
+          {toolsSupported === true && (
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-green-900/30 text-green-400 border border-green-800/30">
+              Tools
+            </span>
+          )}
+          {toolsSupported === false && (
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-yellow-900/30 text-yellow-400 border border-yellow-800/30">
+              Text only
+            </span>
+          )}
         </div>
         <button
           onClick={clearChat}
@@ -92,6 +104,21 @@ export function AiChatPanel() {
           />
           Include source
         </label>
+        {toolsSupported === null && (
+          <button
+            onClick={async () => {
+              try {
+                const supported = await commands.aiTestTools();
+                setToolsSupported(supported);
+              } catch {
+                setToolsSupported(false);
+              }
+            }}
+            className="text-[10px] text-neutral-600 hover:text-neutral-400"
+          >
+            Test tools
+          </button>
+        )}
       </div>
 
       {/* Messages */}

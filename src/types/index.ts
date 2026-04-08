@@ -147,6 +147,8 @@ export interface AiChatResult {
   content: string;
   model: string;
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+  tool_calls?: { id: string; call_type: string; function: { name: string; arguments: string } }[];
+  tools_supported: boolean;
 }
 
 export interface PlaybookInfo {

@@ -61,6 +61,10 @@ export async function aiChat(
   });
 }
 
+export async function aiTestTools(): Promise<boolean> {
+  return invoke("ai_test_tools");
+}
+
 export async function aiListModels(): Promise<string[]> {
   return invoke("ai_list_models");
 }

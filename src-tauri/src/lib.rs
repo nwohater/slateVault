@@ -71,6 +71,7 @@ pub fn run() {
             commands::rename_document,
             commands::rename_project,
             commands::ai_chat,
+            commands::ai_test_tools,
             commands::ai_list_models,
             commands::set_project_source_folder,
             commands::get_project_source_folder,

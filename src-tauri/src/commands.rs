@@ -833,10 +833,7 @@ pub fn ai_chat(
             Be concise and helpful.", args.project, context
         )
     };
-    messages.push(slatevault_core::ai::ChatMessage {
-        role: "system".to_string(),
-        content: system_msg,
-    });
+    messages.push(slatevault_core::ai::ChatMessage::text("system", &system_msg));
 
     // History
     for msg in &args.history {
@@ -844,18 +841,147 @@ pub fn ai_chat(
     }
 
     // Current user message
-    messages.push(slatevault_core::ai::ChatMessage {
-        role: "user".to_string(),
-        content: args.message,
-    });
+    messages.push(slatevault_core::ai::ChatMessage::text("user", &args.message));
 
-    slatevault_core::ai::chat_completion(
+    // Try with tools first
+    let tools = Some(slatevault_core::ai::vault_tools());
+    let mut result = slatevault_core::ai::chat_completion_with_tools(
         &vault.config.ai.endpoint_url,
         api_key,
         &vault.config.ai.model,
-        messages,
+        messages.clone(),
+        tools,
     )
-    .map_err(|e| e.to_string())
+    .or_else(|_| {
+        // Fallback: try without tools if model doesn't support them
+        slatevault_core::ai::chat_completion(
+            &vault.config.ai.endpoint_url,
+            api_key,
+            &vault.config.ai.model,
+            messages.clone(),
+        )
+    })
+    .map_err(|e| e.to_string())?;
+
+    // Execute tool calls if any (up to 3 rounds)
+    let mut tool_rounds = 0;
+    while let Some(ref tool_calls) = result.tool_calls {
+        if tool_calls.is_empty() || tool_rounds >= 3 {
+            break;
+        }
+        tool_rounds += 1;
+
+        // Add assistant message with tool calls to history
+        messages.push(slatevault_core::ai::ChatMessage {
+            role: "assistant".to_string(),
+            content: result.content.clone().into(),
+            tool_calls: Some(tool_calls.clone()),
+            tool_call_id: None,
+        });
+
+        // Execute each tool call
+        let mut actions_taken = Vec::new();
+        for tc in tool_calls {
+            let tool_result = execute_tool_call(vault, &args.project, &tc.function.name, &tc.function.arguments);
+            actions_taken.push(format!("{}: {}", tc.function.name, tool_result.as_deref().unwrap_or("OK")));
+
+            messages.push(slatevault_core::ai::ChatMessage {
+                role: "tool".to_string(),
+                content: Some(tool_result.unwrap_or_else(|e| format!("Error: {}", e))),
+                tool_calls: None,
+                tool_call_id: Some(tc.id.clone()),
+            });
+        }
+
+        // Get next response
+        result = slatevault_core::ai::chat_completion_with_tools(
+            &vault.config.ai.endpoint_url,
+            api_key,
+            &vault.config.ai.model,
+            messages.clone(),
+            None, // No tools on follow-up to get final text response
+        )
+        .map_err(|e| e.to_string())?;
+
+        // Append action summary to content
+        if !actions_taken.is_empty() {
+            let summary = actions_taken.join("\n");
+            result.content = format!(
+                "{}\n\n---\n*Actions taken:*\n{}",
+                result.content, summary
+            );
+        }
+    }
+
+    Ok(result)
+}
+
+fn execute_tool_call(
+    vault: &slatevault_core::Vault,
+    project: &str,
+    tool_name: &str,
+    arguments: &str,
+) -> std::result::Result<String, String> {
+    let args: serde_json::Value = serde_json::from_str(arguments).map_err(|e| e.to_string())?;
+
+    match tool_name {
+        "write_document" => {
+            let path = args["path"].as_str().ok_or("Missing path")?;
+            let title = args["title"].as_str().ok_or("Missing title")?;
+            let content = args["content"].as_str().ok_or("Missing content")?;
+            let tags: Vec<String> = args["tags"]
+                .as_array()
+                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+
+            vault
+                .write_document(project, path, title, content, tags, Some("ai-chat".to_string()))
+                .map_err(|e| e.to_string())?;
+
+            Ok(format!("Document written: {}/{}", project, path))
+        }
+        "read_document" => {
+            let path = args["path"].as_str().ok_or("Missing path")?;
+            let doc = vault.read_document(project, path).map_err(|e| e.to_string())?;
+            Ok(format!(
+                "Title: {}\nStatus: {:?}\n\n{}",
+                doc.front_matter.title, doc.front_matter.status, doc.content
+            ))
+        }
+        "search_documents" => {
+            let query = args["query"].as_str().ok_or("Missing query")?;
+            let results = vault
+                .search_documents(query, Some(project), Some(5))
+                .map_err(|e| e.to_string())?;
+
+            if results.is_empty() {
+                Ok("No results found".to_string())
+            } else {
+                let mut out = String::new();
+                for r in &results {
+                    out.push_str(&format!("- {} ({})\n  {}\n", r.title, r.path, r.snippet));
+                }
+                Ok(out)
+            }
+        }
+        _ => Err(format!("Unknown tool: {}", tool_name)),
+    }
+}
+
+#[tauri::command]
+pub fn ai_test_tools(
+    state: State<'_, VaultState>,
+) -> CmdResult<bool> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let credentials = slatevault_core::credentials::Credentials::load().unwrap_or_default();
+    let api_key = credentials.ai_api_key.as_deref();
+
+    Ok(slatevault_core::ai::test_tool_support(
+        &vault.config.ai.endpoint_url,
+        api_key,
+        &vault.config.ai.model,
+    ))
 }
 
 #[tauri::command]
