@@ -274,7 +274,11 @@ export async function setVaultConfig(config: {
   mcp_enabled?: boolean;
   mcp_port?: number;
   auto_stage_ai_writes?: boolean;
+  compress_context?: boolean;
   ssh_key_path?: string;
+  ai_enabled?: boolean;
+  ai_endpoint_url?: string;
+  ai_model?: string;
 }): Promise<string> {
   return invoke("set_vault_config", { args: config });
 }

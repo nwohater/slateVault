@@ -72,6 +72,11 @@ impl SearchIndex {
         Ok(())
     }
 
+    pub fn clear(&self) -> Result<()> {
+        self.conn.execute("DELETE FROM documents_fts", [])?;
+        Ok(())
+    }
+
     pub fn search(
         &self,
         query: &str,
@@ -188,6 +193,14 @@ impl SearchIndex {
         self.conn.execute(
             "DELETE FROM documents_fts WHERE project = ?1 AND path = ?2",
             rusqlite::params![project, path],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_project(&self, project: &str) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM documents_fts WHERE project = ?1",
+            rusqlite::params![project],
         )?;
         Ok(())
     }

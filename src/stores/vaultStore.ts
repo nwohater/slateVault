@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { ProjectInfo, DocumentInfo, VaultStatsInfo } from "@/types";
 import * as commands from "@/lib/commands";
+import { useUIStore } from "@/stores/uiStore";
 
 interface VaultState {
   isOpen: boolean;
@@ -43,6 +44,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     const result = await commands.openVault(path);
     const name = result.replace("Opened vault '", "").replace("'", "");
     set({ isOpen: true, vaultPath: path, vaultName: name });
+    useUIStore.getState().setWorkspaceView("home");
+    useUIStore.getState().setShowOnboarding(false);
 
     // Rebuild search index on open
     try {
@@ -68,6 +71,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   closeVault: () => {
     // Stop MCP server
     commands.stopMcpServer().catch(() => {});
+    useUIStore.getState().setWorkspaceView("home");
+    useUIStore.getState().setShowOnboarding(false);
     set({
       isOpen: false,
       vaultPath: null,

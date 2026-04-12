@@ -94,6 +94,44 @@ impl Document {
             path,
         }
     }
+
+    pub fn update(
+        existing: &Document,
+        title: String,
+        content: String,
+        tags: Vec<String>,
+        ai_tool: Option<String>,
+    ) -> Self {
+        let now = Utc::now();
+        let requested_author = if ai_tool.is_some() {
+            Author::Ai
+        } else {
+            Author::Human
+        };
+        let author = match (&existing.front_matter.author, &requested_author) {
+            (Author::Both, _) => Author::Both,
+            (Author::Ai, Author::Human) | (Author::Human, Author::Ai) => Author::Both,
+            (_, author) => author.clone(),
+        };
+
+        Self {
+            front_matter: FrontMatter {
+                id: existing.front_matter.id,
+                title,
+                author,
+                tags,
+                created: existing.front_matter.created,
+                modified: now,
+                project: existing.front_matter.project.clone(),
+                status: existing.front_matter.status.clone(),
+                ai_tool: ai_tool.or_else(|| existing.front_matter.ai_tool.clone()),
+                canonical: existing.front_matter.canonical,
+                protected: existing.front_matter.protected,
+            },
+            content,
+            path: existing.path.clone(),
+        }
+    }
 }
 
 fn split_front_matter(raw: &str) -> crate::error::Result<(&str, &str)> {

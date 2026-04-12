@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { FrontMatter } from "@/types";
 import * as commands from "@/lib/commands";
 import { parseFrontMatter } from "@/lib/frontmatter";
+import { useUIStore } from "@/stores/uiStore";
 
 interface EditorState {
   activeProject: string | null;
@@ -36,6 +37,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const raw = await commands.readDocument(project, path);
     const { data, content } = parseFrontMatter(raw);
+    useUIStore.getState().setShowOnboarding(false);
+    useUIStore.getState().setWorkspaceView("documents");
     set({
       activeProject: project,
       activePath: path,
@@ -53,6 +56,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     const content = await commands.readVaultFile(path);
+    useUIStore.getState().setShowOnboarding(false);
+    useUIStore.getState().setWorkspaceView("documents");
     set({
       activeProject: null,
       activePath: path,

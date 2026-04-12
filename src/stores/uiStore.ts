@@ -1,6 +1,15 @@
 import { create } from "zustand";
 
 type ActiveView = "editor" | "search";
+export type WorkspaceView =
+  | "home"
+  | "documents"
+  | "search"
+  | "start-session"
+  | "agent-access"
+  | "docs-health"
+  | "sync"
+  | "settings";
 export type Theme = "dark" | "light" | "olive" | "deepblue";
 
 interface UIState {
@@ -9,6 +18,8 @@ interface UIState {
   showPreview: boolean;
   previewRatio: number;
   activeView: ActiveView;
+  workspaceView: WorkspaceView;
+  showOnboarding: boolean;
   showTerminal: boolean;
   terminalHeight: number;
   theme: Theme;
@@ -18,6 +29,8 @@ interface UIState {
   togglePreview: () => void;
   setPreviewRatio: (ratio: number | ((prev: number) => number)) => void;
   setActiveView: (view: ActiveView) => void;
+  setWorkspaceView: (view: WorkspaceView) => void;
+  setShowOnboarding: (show: boolean) => void;
   toggleTerminal: () => void;
   setTerminalHeight: (height: number | ((prev: number) => number)) => void;
   setTheme: (theme: Theme) => void;
@@ -29,6 +42,8 @@ export const useUIStore = create<UIState>((set) => ({
   showPreview: true,
   previewRatio: 0.5,
   activeView: "editor",
+  workspaceView: "home",
+  showOnboarding: false,
   showTerminal: false,
   terminalHeight: 200,
   theme: "dark",
@@ -58,6 +73,14 @@ export const useUIStore = create<UIState>((set) => ({
     }),
 
   setActiveView: (view) => set({ activeView: view }),
+
+  setWorkspaceView: (view) =>
+    set({
+      workspaceView: view,
+      activeView: view === "search" ? "search" : "editor",
+    }),
+
+  setShowOnboarding: (show) => set({ showOnboarding: show }),
 
   toggleTerminal: () => set((s) => ({ showTerminal: !s.showTerminal })),
 

@@ -10,6 +10,7 @@ pub struct Project {
 
 impl Project {
     pub fn create(projects_dir: &Path, name: &str, description: &str, tags: Vec<String>) -> Result<Self> {
+        validate_project_name(name)?;
         let root = projects_dir.join(name);
         if root.exists() {
             return Err(crate::CoreError::ProjectAlreadyExists(name.to_string()));
@@ -35,6 +36,7 @@ impl Project {
     }
 
     pub fn open(projects_dir: &Path, name: &str) -> Result<Self> {
+        validate_project_name(name)?;
         let root = projects_dir.join(name);
         if !root.exists() {
             return Err(crate::CoreError::ProjectNotFound(name.to_string()));
@@ -70,4 +72,26 @@ impl Project {
         }
         Ok(projects)
     }
+}
+
+fn validate_project_name(name: &str) -> Result<()> {
+    use std::path::Component;
+
+    let path = Path::new(name);
+    let mut components = path.components();
+    let first = components.next().ok_or_else(|| {
+        crate::CoreError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Project name cannot be empty",
+        ))
+    })?;
+
+    if !matches!(first, Component::Normal(_)) || components.next().is_some() {
+        return Err(crate::CoreError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Project name must be a single relative path segment",
+        )));
+    }
+
+    Ok(())
 }

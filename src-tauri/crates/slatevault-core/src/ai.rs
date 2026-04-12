@@ -85,7 +85,7 @@ struct ChatResponse {
 struct ChatChoice {
     message: ChatMessage,
     #[serde(default)]
-    finish_reason: Option<String>,
+    _finish_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

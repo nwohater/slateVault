@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use crate::config::{VaultConfig, VaultMeta, McpConfig, SyncConfig};
 use crate::template::TemplateConfig;
@@ -91,6 +91,7 @@ impl Vault {
 
     /// Rebuild the FTS5 search index by walking all documents in all projects.
     pub fn rebuild_index(&self) -> Result<usize> {
+        self.search.clear()?;
         let mut count = 0;
         let projects = self.list_projects()?;
         for project_config in &projects {
@@ -185,12 +186,14 @@ impl Vault {
         ai_tool: Option<String>,
     ) -> Result<Document> {
         let project = self.open_project(project_name)?;
+        let relative_path = sanitize_relative_path(path)?;
+        let normalized_path = normalize_relative_path(&relative_path);
+        let file_path = project.docs_dir().join(&relative_path);
 
         // Check if existing doc is protected (only block AI overwrites)
         if ai_tool.is_some() {
-            let file_path = project.docs_dir().join(path);
             if file_path.exists() {
-                if let Ok(existing) = self.read_document(project_name, path) {
+                if let Ok(existing) = self.read_document(project_name, &normalized_path) {
                     if existing.front_matter.protected {
                         return Err(crate::CoreError::Branch(
                             "Document is protected. Use append_to_doc or remove protection first."
@@ -200,16 +203,26 @@ impl Vault {
                 }
             }
         }
-        let doc = Document::new(
-            title.to_string(),
-            content.to_string(),
-            project_name.to_string(),
-            path.to_string(),
-            tags.clone(),
-            ai_tool,
-        );
+        let doc = if file_path.exists() {
+            let existing = self.read_document(project_name, &normalized_path)?;
+            Document::update(
+                &existing,
+                title.to_string(),
+                content.to_string(),
+                tags.clone(),
+                ai_tool,
+            )
+        } else {
+            Document::new(
+                title.to_string(),
+                content.to_string(),
+                project_name.to_string(),
+                normalized_path.clone(),
+                tags.clone(),
+                ai_tool,
+            )
+        };
 
-        let file_path = project.docs_dir().join(path);
         if let Some(parent) = file_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -218,7 +231,7 @@ impl Vault {
         // Index for search
         self.search.index_document(
             project_name,
-            path,
+            &normalized_path,
             title,
             content,
             &tags,
@@ -237,17 +250,19 @@ impl Vault {
 
     pub fn read_document(&self, project_name: &str, path: &str) -> Result<Document> {
         let project = self.open_project(project_name)?;
-        let file_path = project.docs_dir().join(path);
+        let relative_path = sanitize_relative_path(path)?;
+        let normalized_path = normalize_relative_path(&relative_path);
+        let file_path = project.docs_dir().join(&relative_path);
 
         if !file_path.exists() {
             return Err(crate::CoreError::DocumentNotFound(format!(
                 "{}/{}",
-                project_name, path
+                project_name, normalized_path
             )));
         }
 
         let raw = std::fs::read_to_string(&file_path)?;
-        Document::parse(&raw, path)
+        Document::parse(&raw, &normalized_path)
     }
 
     pub fn list_documents(
@@ -1018,6 +1033,36 @@ impl Vault {
         }
         Ok(())
     }
+}
+
+fn sanitize_relative_path(path: &str) -> Result<PathBuf> {
+    let mut cleaned = PathBuf::new();
+
+    for component in Path::new(path).components() {
+        match component {
+            Component::Normal(part) => cleaned.push(part),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(crate::CoreError::Io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("Path escapes the vault root: {}", path),
+                )));
+            }
+        }
+    }
+
+    if cleaned.as_os_str().is_empty() {
+        return Err(crate::CoreError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Path cannot be empty",
+        )));
+    }
+
+    Ok(cleaned)
+}
+
+fn normalize_relative_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

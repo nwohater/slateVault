@@ -130,6 +130,29 @@ export function SettingsPanel() {
         </div>
       </div>
 
+      <div className="p-3 border-b border-neutral-800">
+        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
+          Workspace Files
+        </h3>
+        <div className="space-y-2">
+          <button
+            onClick={() => openVaultFile("templates.json")}
+            className="w-full px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs text-left"
+          >
+            Edit project templates
+          </button>
+          <button
+            onClick={() => openVaultFile("playbooks.json")}
+            className="w-full px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs text-left"
+          >
+            Edit session playbooks
+          </button>
+          <p className="text-neutral-600 text-[10px]">
+            Advanced workspace files live here instead of the primary sidebar.
+          </p>
+        </div>
+      </div>
+
       {/* AI Assistant section */}
       <div className="p-3 border-b border-neutral-800">
         <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">

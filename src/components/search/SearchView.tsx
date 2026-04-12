@@ -3,7 +3,6 @@
 import { useState, useCallback, useRef } from "react";
 import { useEditorStore } from "@/stores/editorStore";
 import { useVaultStore } from "@/stores/vaultStore";
-import { useUIStore } from "@/stores/uiStore";
 import * as commands from "@/lib/commands";
 import type { SearchResultInfo } from "@/types";
 
@@ -14,7 +13,6 @@ export function SearchView() {
   const [projectFilter, setProjectFilter] = useState<string>("");
   const [hasSearched, setHasSearched] = useState(false);
   const openDocument = useEditorStore((s) => s.openDocument);
-  const setActiveView = useUIStore((s) => s.setActiveView);
   const projects = useVaultStore((s) => s.projects);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -49,7 +47,6 @@ export function SearchView() {
 
   const handleOpen = (project: string, path: string) => {
     openDocument(project, path);
-    setActiveView("editor");
   };
 
   return (

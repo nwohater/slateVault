@@ -2,13 +2,58 @@ use serde::{Deserialize, Serialize};
 use slatevault_core::Vault;
 use slatevault_core::credentials::{Credentials, CredentialsMasked};
 use slatevault_core::pr::{self, PrCreateRequest, PrCreateResponse};
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 use tauri::State;
 
 pub struct VaultState(pub Mutex<Option<Vault>>);
 
 type CmdResult<T> = Result<T, String>;
+
+fn invalid_input(message: impl Into<String>) -> slatevault_core::CoreError {
+    slatevault_core::CoreError::Io(std::io::Error::new(
+        std::io::ErrorKind::InvalidInput,
+        message.into(),
+    ))
+}
+
+fn sanitize_relative_path(path: &str) -> Result<PathBuf, slatevault_core::CoreError> {
+    let mut cleaned = PathBuf::new();
+
+    for component in Path::new(path).components() {
+        match component {
+            Component::Normal(part) => cleaned.push(part),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(invalid_input(format!("Path escapes the allowed root: {}", path)));
+            }
+        }
+    }
+
+    if cleaned.as_os_str().is_empty() {
+        return Err(invalid_input("Path cannot be empty"));
+    }
+
+    Ok(cleaned)
+}
+
+fn resolve_inside(root: &Path, path: &str) -> Result<PathBuf, slatevault_core::CoreError> {
+    Ok(root.join(sanitize_relative_path(path)?))
+}
+
+fn sanitize_single_component(name: &str) -> Result<String, slatevault_core::CoreError> {
+    let path = Path::new(name);
+    let mut components = path.components();
+    let first = components
+        .next()
+        .ok_or_else(|| invalid_input("Path cannot be empty"))?;
+
+    if !matches!(first, Component::Normal(_)) || components.next().is_some() {
+        return Err(invalid_input("Value must be a single relative path segment"));
+    }
+
+    Ok(name.to_string())
+}
 
 fn with_vault<F, T>(state: &State<'_, VaultState>, f: F) -> CmdResult<T>
 where
@@ -126,8 +171,18 @@ pub fn write_document(
             }
             if needs_rewrite {
                 let project_obj = vault.open_project(&project)?;
-                let file_path = project_obj.docs_dir().join(&path);
+                let file_path = resolve_inside(&project_obj.docs_dir(), &path)?;
                 std::fs::write(&file_path, doc.to_string()?)?;
+                vault.search.index_document(
+                    &project,
+                    &doc.path,
+                    &doc.front_matter.title,
+                    &doc.content,
+                    &doc.front_matter.tags,
+                    &format!("{:?}", doc.front_matter.author).to_lowercase(),
+                    &format!("{:?}", doc.front_matter.status).to_lowercase(),
+                    doc.front_matter.canonical,
+                )?;
             }
         }
         Ok(format!("Document written: {}/{}", project, path))
@@ -488,12 +543,10 @@ pub fn show_in_folder(
     state: State<'_, VaultState>,
 ) -> CmdResult<()> {
     with_vault(&state, |vault| {
+        let project_obj = vault.open_project(&project)?;
         let full_path = match &path {
-            Some(doc_path) => {
-                let project_obj = vault.open_project(&project)?;
-                project_obj.docs_dir().join(doc_path)
-            }
-            None => vault.projects_dir().join(&project),
+            Some(doc_path) => resolve_inside(&project_obj.docs_dir(), doc_path)?,
+            None => project_obj.root.clone(),
         };
 
         #[cfg(target_os = "windows")]
@@ -530,8 +583,9 @@ pub fn delete_document(
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
         let project_obj = vault.open_project(&project)?;
-        let file_path = project_obj.docs_dir().join(&path);
+        let file_path = resolve_inside(&project_obj.docs_dir(), &path)?;
         std::fs::remove_file(&file_path)?;
+        vault.search.remove_document(&project, &sanitize_relative_path(&path)?.to_string_lossy().replace('\\', "/"))?;
         Ok(format!("Deleted: {}/{}", project, path))
     })
 }
@@ -542,8 +596,10 @@ pub fn delete_project(
     state: State<'_, VaultState>,
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
-        let project_path = vault.projects_dir().join(&name);
+        let name = sanitize_single_component(&name)?;
+        let project_path = resolve_inside(&vault.projects_dir(), &name)?;
         std::fs::remove_dir_all(&project_path)?;
+        vault.search.remove_project(&name)?;
         Ok(format!("Project '{}' deleted", name))
     })
 }
@@ -558,17 +614,33 @@ pub fn rename_document(
     with_vault(&state, |vault| {
         let project_obj = vault.open_project(&project)?;
         let docs_dir = project_obj.docs_dir();
-        let new_full = docs_dir.join(&new_path);
+        let old_rel = sanitize_relative_path(&old_path)?;
+        let new_rel = sanitize_relative_path(&new_path)?;
+        let old_full = docs_dir.join(&old_rel);
+        let new_full = docs_dir.join(&new_rel);
         // Ensure target directory exists
         if let Some(parent) = new_full.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::rename(docs_dir.join(&old_path), &new_full)?;
+        std::fs::rename(&old_full, &new_full)?;
         // Stage both old (delete) and new (add) paths for git
-        let old_repo_path = vault.projects_dir().join(&project).join("docs").join(&old_path);
-        let new_repo_path = vault.projects_dir().join(&project).join("docs").join(&new_path);
+        let old_repo_path = vault.projects_dir().join(&project).join("docs").join(&old_rel);
+        let new_repo_path = vault.projects_dir().join(&project).join("docs").join(&new_rel);
         let _ = vault.stage_file(&old_repo_path);
         let _ = vault.stage_file(&new_repo_path);
+        let old_index_path = old_rel.to_string_lossy().replace('\\', "/");
+        vault.search.remove_document(&project, &old_index_path)?;
+        let renamed = vault.read_document(&project, &new_rel.to_string_lossy().replace('\\', "/"))?;
+        vault.search.index_document(
+            &project,
+            &renamed.path,
+            &renamed.front_matter.title,
+            &renamed.content,
+            &renamed.front_matter.tags,
+            &format!("{:?}", renamed.front_matter.author).to_lowercase(),
+            &format!("{:?}", renamed.front_matter.status).to_lowercase(),
+            renamed.front_matter.canonical,
+        )?;
         Ok(format!("Moved: {}/{} -> {}", project, old_path, new_path))
     })
 }
@@ -580,12 +652,16 @@ pub fn rename_project(
     state: State<'_, VaultState>,
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
+        let old_name = sanitize_single_component(&old_name)?;
+        let new_name = sanitize_single_component(&new_name)?;
         let projects_dir = vault.projects_dir();
-        let new_path = projects_dir.join(&new_name);
+        let old_path = resolve_inside(&projects_dir, &old_name)?;
+        let new_path = resolve_inside(&projects_dir, &new_name)?;
         if new_path.exists() {
             return Err(slatevault_core::CoreError::ProjectAlreadyExists(new_name.clone()));
         }
-        std::fs::rename(projects_dir.join(&old_name), &new_path)?;
+        std::fs::rename(&old_path, &new_path)?;
+        vault.search.remove_project(&old_name)?;
         // Update name in project.toml
         let toml_path = new_path.join("project.toml");
         if toml_path.exists() {
@@ -598,6 +674,7 @@ pub fn rename_project(
                 }
             }
         }
+        vault.rebuild_index()?;
         Ok(format!("Renamed project '{}' to '{}'", old_name, new_name))
     })
 }
@@ -1625,6 +1702,26 @@ pub fn restore_vault(
     zip_path: String,
     dest_path: String,
 ) -> CmdResult<String> {
+    fn zip_entry_destination(dest: &Path, entry_name: &str) -> Result<PathBuf, String> {
+        let mut relative = PathBuf::new();
+
+        for component in Path::new(entry_name).components() {
+            match component {
+                Component::Normal(part) => relative.push(part),
+                Component::CurDir => {}
+                Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                    return Err(format!("Archive entry escapes destination: {}", entry_name));
+                }
+            }
+        }
+
+        if relative.as_os_str().is_empty() {
+            return Err(format!("Archive entry has no safe relative path: {}", entry_name));
+        }
+
+        Ok(dest.join(relative))
+    }
+
     let file = std::fs::File::open(&zip_path).map_err(|e| format!("Failed to open zip: {}", e))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Invalid zip: {}", e))?;
 
@@ -1634,7 +1731,7 @@ pub fn restore_vault(
     let mut count = 0;
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
-        let out_path = dest.join(entry.name().replace('\\', "/"));
+        let out_path = zip_entry_destination(&dest, entry.name())?;
 
         if entry.is_dir() {
             std::fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
@@ -1746,7 +1843,7 @@ pub fn read_vault_file(
     state: State<'_, VaultState>,
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
-        let full = vault.root.join(&path);
+        let full = resolve_inside(&vault.root, &path)?;
         let content = std::fs::read_to_string(&full)?;
         Ok(content)
     })
@@ -1759,7 +1856,7 @@ pub fn write_vault_file(
     state: State<'_, VaultState>,
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
-        let full = vault.root.join(&path);
+        let full = resolve_inside(&vault.root, &path)?;
         std::fs::write(&full, &content)?;
         Ok(format!("Saved {}", path))
     })
@@ -1853,7 +1950,7 @@ pub fn delete_folder(
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
         let project_obj = vault.open_project(&project)?;
-        let full_path = project_obj.docs_dir().join(&folder_path);
+        let full_path = resolve_inside(&project_obj.docs_dir(), &folder_path)?;
         if !full_path.is_dir() {
             return Err(slatevault_core::CoreError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
@@ -1895,7 +1992,7 @@ pub fn create_folder(
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
         let project_obj = vault.open_project(&project)?;
-        let full_path = project_obj.docs_dir().join(&folder_path);
+        let full_path = resolve_inside(&project_obj.docs_dir(), &folder_path)?;
         std::fs::create_dir_all(&full_path)?;
         Ok(format!("Folder created: {}/{}", project, folder_path))
     })

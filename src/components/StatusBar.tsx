@@ -33,16 +33,16 @@ export function StatusBar() {
   const mcpEnabled = stats?.mcp_enabled ?? false;
 
   return (
-    <div className="flex items-center gap-3 px-3 py-1 bg-neutral-900/80 border-t border-neutral-800/50 text-[10px] text-neutral-500 flex-shrink-0 backdrop-blur-sm">
+    <div className="flex flex-shrink-0 items-center gap-3 border-t border-neutral-800/50 bg-[linear-gradient(180deg,rgba(8,12,17,0.96),rgba(11,16,22,0.92))] px-3 py-1.5 text-[10px] text-neutral-500 backdrop-blur-sm">
       {vaultName && (
-        <span className="text-neutral-400">{vaultName}</span>
+        <span className="rounded-full border border-neutral-800 bg-neutral-900/70 px-2 py-0.5 text-neutral-400">{vaultName}</span>
       )}
 
       {stats && (
         <>
-          <span>{stats.project_count} projects</span>
-          <span>{stats.doc_count} docs</span>
-          <span className="flex items-center gap-1" title={
+          <span className="rounded-full border border-neutral-800 bg-neutral-900/60 px-2 py-0.5">{stats.project_count} projects</span>
+          <span className="rounded-full border border-neutral-800 bg-neutral-900/60 px-2 py-0.5">{stats.doc_count} docs</span>
+          <span className="flex items-center gap-1 rounded-full border border-neutral-800 bg-neutral-900/60 px-2 py-0.5" title={
             mcpRunning
               ? `MCP running on port ${stats.mcp_port}`
               : mcpEnabled
@@ -58,9 +58,9 @@ export function StatusBar() {
                     : "bg-red-500"
               }`}
             />
-            MCP :{stats.mcp_port}
+            MCP {stats.mcp_port}
           </span>
-          <span className="flex items-center gap-1 text-neutral-400">
+          <span className="flex items-center gap-1 rounded-full border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-neutral-400">
             <BranchIcon className="w-3 h-3" />
             {currentBranch}
           </span>
@@ -70,7 +70,7 @@ export function StatusBar() {
       <div className="flex-1" />
 
       {activeProject && activePath && (
-        <span className="text-neutral-400">
+        <span className="truncate rounded-full border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-neutral-400">
           {activeProject}/{activePath}
           {isDirty && " *"}
         </span>
