@@ -39,7 +39,7 @@ function StepRail({
   projectCreated: boolean;
 }) {
   return (
-    <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-4">
+    <div className="workspace-section rounded-3xl p-4">
       <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.2em] text-neutral-500">
         Setup Flow
       </p>
@@ -60,9 +60,9 @@ function StepRail({
               disabled={!isEnabled}
               className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors ${
                 isCurrent
-                  ? "bg-cyan-950/40 text-white"
+                  ? "border border-cyan-400/25 bg-cyan-950/40 text-white"
                   : isEnabled
-                    ? "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+                    ? "workspace-action text-neutral-400 hover:text-neutral-200"
                     : "cursor-not-allowed text-neutral-700"
               }`}
             >
@@ -212,7 +212,7 @@ export function Onboarding() {
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-neutral-950 px-6 py-6">
+    <div className="workspace-page h-full overflow-y-auto px-6 py-6">
       <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
         <StepRail
           currentStep={step}
@@ -220,14 +220,14 @@ export function Onboarding() {
           projectCreated={projectCreated}
         />
 
-        <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-6">
+        <div className="workspace-section rounded-3xl p-6">
           {step === "welcome" && (
             <div className="mx-auto max-w-3xl">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-900/60 bg-cyan-950/40 px-3 py-1 text-[11px] text-cyan-300">
+              <div className="workspace-kicker mb-4">
                 <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
                 {vaultName || "slateVault"} is ready
               </div>
-              <h1 className="text-3xl font-semibold tracking-tight text-neutral-100">
+              <h1 className="workspace-label text-3xl font-semibold tracking-tight text-neutral-100">
                 Project memory for software teams
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-400">
@@ -236,7 +236,7 @@ export function Onboarding() {
               </p>
 
               <div className="mt-8 grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
+                <div className="workspace-subsection rounded-2xl p-4">
                   <div className="text-xs font-medium text-neutral-200">
                     Structured project docs
                   </div>
@@ -245,7 +245,7 @@ export function Onboarding() {
                     runbooks, and handoff docs.
                   </p>
                 </div>
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
+                <div className="workspace-subsection rounded-2xl p-4">
                   <div className="text-xs font-medium text-neutral-200">
                     Team sync through git
                   </div>
@@ -254,7 +254,7 @@ export function Onboarding() {
                     pull, push, and review workflows.
                   </p>
                 </div>
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
+                <div className="workspace-subsection rounded-2xl p-4">
                   <div className="text-xs font-medium text-neutral-200">
                     Trusted agent context
                   </div>
@@ -300,7 +300,7 @@ export function Onboarding() {
                         if (e.key === "Enter") void handleCreateProject();
                       }}
                       placeholder="my-project"
-                      className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
+                    className="workspace-input w-full rounded-xl px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
                       autoFocus
                     />
                   </div>
@@ -314,7 +314,7 @@ export function Onboarding() {
                       onChange={(e) => setProjectDescription(e.target.value)}
                       rows={3}
                       placeholder="What is this project for?"
-                      className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
+                      className="workspace-input w-full rounded-xl px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
                     />
                   </div>
 
@@ -330,7 +330,7 @@ export function Onboarding() {
                           className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors ${
                             selectedTemplate === t.name
                               ? "border-cyan-500 bg-cyan-950/20 text-neutral-100"
-                              : "border-neutral-800 bg-neutral-950 text-neutral-400 hover:border-neutral-700"
+                              : "workspace-subsection text-neutral-400"
                           }`}
                         >
                           <span
@@ -375,14 +375,14 @@ export function Onboarding() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
+              <div className="workspace-subsection rounded-2xl p-4">
                 <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-neutral-500">
                   Preview
                 </p>
                 <p className="mt-3 text-sm font-medium text-neutral-200">
                   {selectedTemplateLabel}
                 </p>
-                <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-950 p-4 font-mono text-[11px] text-neutral-500">
+                <div className="workspace-input mt-4 rounded-xl p-4 font-mono text-[11px] text-neutral-500">
                   <div>overview/</div>
                   <div>architecture/</div>
                   <div>decisions/</div>
@@ -408,7 +408,7 @@ export function Onboarding() {
               </p>
 
               <div className="mt-6 space-y-4">
-                <label className="flex items-center gap-3 rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-3 text-sm text-neutral-300">
+                <label className="workspace-subsection flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-neutral-300">
                   <input
                     type="checkbox"
                     checked={connectRemote}
@@ -419,7 +419,7 @@ export function Onboarding() {
                 </label>
 
                 {connectRemote && (
-                  <div className="grid gap-4 rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4 md:grid-cols-2">
+                  <div className="workspace-subsection grid gap-4 rounded-2xl p-4 md:grid-cols-2">
                     <div className="md:col-span-2">
                       <label className="mb-1.5 block text-xs text-neutral-400">
                         Remote URL
@@ -429,7 +429,7 @@ export function Onboarding() {
                         value={remoteUrl}
                         onChange={(e) => setRemoteUrl(e.target.value)}
                         placeholder="https://github.com/your-team/your-vault.git"
-                        className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
+                        className="workspace-input w-full rounded-xl px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
                       />
                     </div>
                     <div>
@@ -440,7 +440,7 @@ export function Onboarding() {
                         type="text"
                         value={remoteBranch}
                         onChange={(e) => setRemoteBranch(e.target.value)}
-                        className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-200 outline-none focus:border-cyan-600"
+                        className="workspace-input w-full rounded-xl px-3 py-2.5 text-sm text-neutral-200 outline-none focus:border-cyan-600"
                       />
                     </div>
                     <div className="space-y-3 pt-6">
@@ -466,7 +466,7 @@ export function Onboarding() {
                   </div>
                 )}
 
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
+                <div className="workspace-subsection rounded-2xl p-4">
                   <p className="text-xs font-medium text-neutral-200">
                     Why this matters
                   </p>
@@ -526,10 +526,7 @@ export function Onboarding() {
               <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="space-y-4">
                   {AGENT_COMMANDS.map((agent) => (
-                    <div
-                      key={agent.name}
-                      className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4"
-                    >
+                    <div key={agent.name} className="workspace-subsection rounded-2xl p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <h3 className="text-sm font-medium text-neutral-200">
@@ -554,7 +551,7 @@ export function Onboarding() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
+                  <div className="workspace-subsection rounded-2xl p-4">
                     <p className="text-xs font-medium text-neutral-200">
                       Agent access status
                     </p>
@@ -581,7 +578,7 @@ export function Onboarding() {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
+                  <div className="workspace-subsection rounded-2xl p-4">
                     <p className="text-xs font-medium text-neutral-200">
                       How agent access stays safe
                     </p>
@@ -633,7 +630,7 @@ export function Onboarding() {
                     setShowOnboarding(false);
                     setWorkspaceView("documents");
                   }}
-                  className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-4 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900"
+                  className="workspace-action rounded-2xl px-4 py-4 text-left transition-colors"
                 >
                   <div className="text-sm font-medium text-neutral-200">
                     Open project workspace
@@ -647,7 +644,7 @@ export function Onboarding() {
                     setShowOnboarding(false);
                     setWorkspaceView("home");
                   }}
-                  className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-4 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900"
+                  className="workspace-action rounded-2xl px-4 py-4 text-left transition-colors"
                 >
                   <div className="text-sm font-medium text-neutral-200">
                     Go to vault home
@@ -661,7 +658,7 @@ export function Onboarding() {
                     setShowOnboarding(false);
                     setWorkspaceView("search");
                   }}
-                  className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-4 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900"
+                  className="workspace-action rounded-2xl px-4 py-4 text-left transition-colors"
                 >
                   <div className="text-sm font-medium text-neutral-200">
                     Search the vault

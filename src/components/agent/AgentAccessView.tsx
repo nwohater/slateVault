@@ -180,23 +180,23 @@ export function AgentAccessView() {
 
   if (loading && !vaultConfig) {
     return (
-      <div className="flex h-full items-center justify-center bg-neutral-950 text-sm text-neutral-500">
+      <div className="workspace-page flex h-full items-center justify-center text-sm text-neutral-500">
         Loading agent access...
       </div>
     );
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-neutral-950">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
-        <section className="rounded-3xl border border-neutral-800 bg-[linear-gradient(135deg,rgba(10,18,24,0.95),rgba(23,23,23,0.92))] p-6">
+    <div className="workspace-page h-full overflow-y-auto px-6 py-6">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <section className="workspace-hero rounded-3xl p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-2xl">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-900/60 bg-cyan-950/40 px-3 py-1 text-[11px] text-cyan-300">
+              <div className="workspace-kicker mb-3">
                 <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
                 Agent-ready project memory
               </div>
-              <h1 className="text-2xl font-semibold tracking-tight text-neutral-100">
+              <h1 className="workspace-label text-3xl font-semibold tracking-tight text-neutral-100">
                 Agent Access
               </h1>
               <p className="mt-2 text-sm leading-6 text-neutral-400">
@@ -219,7 +219,7 @@ export function AgentAccessView() {
             <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[360px]">
               <button
                 onClick={() => setWorkspaceView("start-session")}
-                className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
+                className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors"
               >
                 <div className="text-xs font-medium text-neutral-200">
                   Start Session
@@ -230,7 +230,7 @@ export function AgentAccessView() {
               </button>
               <button
                 onClick={() => setWorkspaceView("search")}
-                className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
+                className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors"
               >
                 <div className="text-xs font-medium text-neutral-200">
                   Search vault
@@ -242,7 +242,7 @@ export function AgentAccessView() {
               <button
                 onClick={mcpStatus?.running ? handleStopServer : handleStartServer}
                 disabled={saving || !vaultConfig?.mcp_enabled || !mcpStatus?.binary_found}
-                className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <div className="text-xs font-medium text-neutral-200">
                   {mcpStatus?.running ? "Stop MCP server" : "Start MCP server"}
@@ -255,7 +255,7 @@ export function AgentAccessView() {
               </button>
               <button
                 onClick={handleTestTools}
-                className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
+                className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors"
               >
                 <div className="text-xs font-medium text-neutral-200">
                   Test AI tools
@@ -282,7 +282,7 @@ export function AgentAccessView() {
 
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-6">
-            <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-5">
+            <div className="workspace-section rounded-3xl p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-lg font-semibold text-neutral-100">
@@ -298,7 +298,7 @@ export function AgentAccessView() {
                 {AGENT_COMMANDS.map((agent) => (
                   <div
                     key={agent.name}
-                    className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4"
+                    className="workspace-subsection rounded-2xl p-4"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>
@@ -324,7 +324,7 @@ export function AgentAccessView() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-5">
+            <div className="workspace-section rounded-3xl p-5">
               <h2 className="text-lg font-semibold text-neutral-100">
                 Access behavior
               </h2>
@@ -333,7 +333,7 @@ export function AgentAccessView() {
               </p>
 
               <div className="mt-5 space-y-4">
-                <label className="flex items-start gap-3 rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-4">
+                <label className="workspace-subsection flex items-start gap-3 rounded-2xl px-4 py-4">
                   <input
                     type="checkbox"
                     checked={vaultConfig?.mcp_enabled ?? false}
@@ -351,7 +351,7 @@ export function AgentAccessView() {
                   </div>
                 </label>
 
-                <label className="flex items-start gap-3 rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-4">
+                <label className="workspace-subsection flex items-start gap-3 rounded-2xl px-4 py-4">
                   <input
                     type="checkbox"
                     checked={vaultConfig?.auto_stage_ai_writes ?? false}
@@ -371,7 +371,7 @@ export function AgentAccessView() {
                   </div>
                 </label>
 
-                <label className="flex items-start gap-3 rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-4">
+                <label className="workspace-subsection flex items-start gap-3 rounded-2xl px-4 py-4">
                   <input
                     type="checkbox"
                     checked={vaultConfig?.compress_context ?? false}
@@ -393,21 +393,21 @@ export function AgentAccessView() {
           </div>
 
           <div className="space-y-6">
-            <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-5">
+            <div className="workspace-section rounded-3xl p-5">
               <h2 className="text-lg font-semibold text-neutral-100">
                 Readiness
               </h2>
               <div className="mt-4 space-y-3">
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
-                  <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+                <div className="workspace-stat rounded-2xl p-4">
+                  <div className="workspace-stat-label">
                     Vault
                   </div>
                   <div className="mt-2 text-sm font-medium text-neutral-200">
                     {stats?.project_count ?? 0} projects, {stats?.doc_count ?? 0} docs
                   </div>
                 </div>
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
-                  <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+                <div className="workspace-stat rounded-2xl p-4">
+                  <div className="workspace-stat-label">
                     Server
                   </div>
                   <div className="mt-2 text-sm font-medium text-neutral-200">
@@ -419,8 +419,8 @@ export function AgentAccessView() {
                       : "No port configured"}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
-                  <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+                <div className="workspace-stat rounded-2xl p-4">
+                  <div className="workspace-stat-label">
                     Team sync
                   </div>
                   <div className="mt-2 text-sm font-medium text-neutral-200">
@@ -432,8 +432,8 @@ export function AgentAccessView() {
                       : "Connect a remote when your team is ready to share the vault."}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
-                  <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+                <div className="workspace-stat rounded-2xl p-4">
+                  <div className="workspace-stat-label">
                     AI endpoint
                   </div>
                   <div className="mt-2 text-sm font-medium text-neutral-200">
@@ -450,7 +450,7 @@ export function AgentAccessView() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-5">
+            <div className="workspace-section rounded-3xl p-5">
               <h2 className="text-lg font-semibold text-neutral-100">
                 Recommended flow
               </h2>

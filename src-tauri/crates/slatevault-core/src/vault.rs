@@ -1065,6 +1065,45 @@ fn normalize_relative_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
+#[cfg(test)]
+mod tests {
+    use super::Vault;
+
+    #[test]
+    fn rebuild_index_removes_stale_entries_for_deleted_documents() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let vault = Vault::create(temp_dir.path(), "Test Vault").expect("create vault");
+        vault
+            .create_project("demo", "Demo project", Vec::new(), None)
+            .expect("create project");
+        vault
+            .write_document(
+                "demo",
+                "notes.md",
+                "Notes",
+                "staletoken",
+                Vec::new(),
+                None,
+            )
+            .expect("write document");
+
+        let initial_results = vault
+            .search_documents("staletoken", Some("demo"), Some(10))
+            .expect("search before delete");
+        assert_eq!(initial_results.len(), 1);
+
+        std::fs::remove_file(temp_dir.path().join("projects").join("demo").join("docs").join("notes.md"))
+            .expect("delete markdown file");
+
+        let _ = vault.rebuild_index().expect("rebuild index");
+
+        let final_results = vault
+            .search_documents("staletoken", Some("demo"), Some(10))
+            .expect("search after delete");
+        assert!(final_results.is_empty());
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct FileStatus {
     pub path: String,

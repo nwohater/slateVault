@@ -18,7 +18,7 @@ function ProjectCard({
   onOpen: (projectName: string) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/70 p-4">
+    <div className="workspace-subsection rounded-2xl p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold text-neutral-100">
@@ -106,16 +106,16 @@ export function VaultHome() {
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-neutral-950">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
-        <section className="rounded-3xl border border-neutral-800 bg-[linear-gradient(135deg,rgba(10,18,24,0.95),rgba(23,23,23,0.92))] p-6">
+    <div className="workspace-page h-full overflow-y-auto px-6 py-6">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <section className="workspace-hero rounded-3xl p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-2xl">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-900/60 bg-cyan-950/40 px-3 py-1 text-[11px] text-cyan-300">
+              <div className="workspace-kicker mb-3">
                 <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
                 Project memory backed by git
               </div>
-              <h1 className="text-2xl font-semibold tracking-tight text-neutral-100">
+              <h1 className="workspace-label text-3xl font-semibold tracking-tight text-neutral-100">
                 {vaultName || "Your vault"}
               </h1>
               <p className="mt-2 text-sm leading-6 text-neutral-400">
@@ -133,7 +133,7 @@ export function VaultHome() {
                   setShowOnboarding(false);
                   setWorkspaceView("documents");
                 }}
-                className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
+                className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors"
               >
                 <div className="text-xs font-medium text-neutral-200">
                   Open documents
@@ -147,7 +147,7 @@ export function VaultHome() {
                   setShowOnboarding(false);
                   setWorkspaceView("search");
                 }}
-                className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
+                className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors"
               >
                 <div className="text-xs font-medium text-neutral-200">
                   Search vault
@@ -161,7 +161,7 @@ export function VaultHome() {
                   setShowOnboarding(false);
                   setWorkspaceView("start-session");
                 }}
-                className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
+                className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors"
               >
                 <div className="text-xs font-medium text-neutral-200">
                   Start session
@@ -175,7 +175,7 @@ export function VaultHome() {
                   setShowOnboarding(false);
                   setWorkspaceView("agent-access");
                 }}
-                className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
+                className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors"
               >
                 <div className="text-xs font-medium text-neutral-200">
                   Agent access
@@ -189,7 +189,7 @@ export function VaultHome() {
                   setShowOnboarding(false);
                   setWorkspaceView("docs-health");
                 }}
-                className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
+                className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors"
               >
                 <div className="text-xs font-medium text-neutral-200">
                   Docs health
@@ -203,7 +203,7 @@ export function VaultHome() {
                   setShowOnboarding(false);
                   setWorkspaceView("sync");
                 }}
-                className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
+                className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors"
               >
                 <div className="text-xs font-medium text-neutral-200">
                   Team sync
@@ -217,24 +217,24 @@ export function VaultHome() {
         </section>
 
         <section className="grid gap-4 md:grid-cols-4">
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
-            <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+          <div className="workspace-stat rounded-2xl p-4">
+            <div className="workspace-stat-label">
               Projects
             </div>
             <div className="mt-2 text-2xl font-semibold text-neutral-100">
               {stats?.project_count ?? projects.length}
             </div>
           </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
-            <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+          <div className="workspace-stat rounded-2xl p-4">
+            <div className="workspace-stat-label">
               Documents
             </div>
             <div className="mt-2 text-2xl font-semibold text-neutral-100">
               {stats?.doc_count ?? 0}
             </div>
           </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
-            <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+          <div className="workspace-stat rounded-2xl p-4">
+            <div className="workspace-stat-label">
               Team Sync
             </div>
             <div className="mt-2 text-sm font-medium text-neutral-200">
@@ -244,8 +244,8 @@ export function VaultHome() {
               {stats?.remote_url ? stats.remote_branch : "Set a remote when ready"}
             </div>
           </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
-            <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+          <div className="workspace-stat rounded-2xl p-4">
+            <div className="workspace-stat-label">
               Agent Access
             </div>
             <div className="mt-2 text-sm font-medium text-neutral-200">
@@ -260,7 +260,7 @@ export function VaultHome() {
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-5">
+          <div className="workspace-section rounded-3xl p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-neutral-100">
@@ -273,7 +273,7 @@ export function VaultHome() {
             </div>
 
             {sortedProjects.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-neutral-800 bg-neutral-950/60 px-5 py-10 text-center">
+              <div className="workspace-empty rounded-2xl px-5 py-10 text-center">
                 <h3 className="text-sm font-medium text-neutral-200">
                   Create your first project memory space
                 </h3>
@@ -295,7 +295,7 @@ export function VaultHome() {
             )}
           </div>
 
-          <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-5">
+          <div className="workspace-section rounded-3xl p-5">
             <h2 className="text-lg font-semibold text-neutral-100">
               Quick actions
             </h2>
@@ -317,7 +317,7 @@ export function VaultHome() {
                       if (e.key === "Enter") void handleCreateProject();
                     }}
                     placeholder="project-name"
-                    className="flex-1 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
+                    className="workspace-input flex-1 rounded-xl px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
                   />
                   <button
                     onClick={() => void handleCreateProject()}
@@ -335,7 +335,7 @@ export function VaultHome() {
                     setShowOnboarding(false);
                     setWorkspaceView("start-session");
                   }}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900"
+                  className="workspace-action w-full rounded-2xl px-4 py-3 text-left transition-colors"
                 >
                   <div className="text-xs font-medium text-neutral-200">
                     Start Session
@@ -349,7 +349,7 @@ export function VaultHome() {
                     setShowOnboarding(false);
                     setWorkspaceView("agent-access");
                   }}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900"
+                  className="workspace-action w-full rounded-2xl px-4 py-3 text-left transition-colors"
                 >
                   <div className="text-xs font-medium text-neutral-200">
                     Open agent access
@@ -363,7 +363,7 @@ export function VaultHome() {
                     setShowOnboarding(false);
                     setWorkspaceView("search");
                   }}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900"
+                  className="workspace-action w-full rounded-2xl px-4 py-3 text-left transition-colors"
                 >
                   <div className="text-xs font-medium text-neutral-200">
                     Search across the vault
@@ -377,7 +377,7 @@ export function VaultHome() {
                     setShowOnboarding(false);
                     setWorkspaceView("docs-health");
                   }}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900"
+                  className="workspace-action w-full rounded-2xl px-4 py-3 text-left transition-colors"
                 >
                   <div className="text-xs font-medium text-neutral-200">
                     Review docs health
@@ -391,7 +391,7 @@ export function VaultHome() {
                     setShowOnboarding(false);
                     setWorkspaceView("sync");
                   }}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900"
+                  className="workspace-action w-full rounded-2xl px-4 py-3 text-left transition-colors"
                 >
                   <div className="text-xs font-medium text-neutral-200">
                     Open team sync

@@ -160,16 +160,16 @@ export function DocsHealthView() {
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-neutral-950">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
-        <section className="rounded-3xl border border-neutral-800 bg-[linear-gradient(135deg,rgba(24,18,10,0.95),rgba(23,23,23,0.92))] p-6">
+    <div className="workspace-page h-full overflow-y-auto px-6 py-6">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <section className="workspace-hero rounded-3xl p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-2xl">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-amber-900/60 bg-amber-950/40 px-3 py-1 text-[11px] text-amber-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+              <div className="workspace-kicker mb-3">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
                 Keep project memory trustworthy
               </div>
-              <h1 className="text-2xl font-semibold tracking-tight text-neutral-100">
+              <h1 className="workspace-label text-3xl font-semibold tracking-tight text-neutral-100">
                 Docs Health
               </h1>
               <p className="mt-2 text-sm leading-6 text-neutral-400">
@@ -178,16 +178,16 @@ export function DocsHealthView() {
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 lg:min-w-[320px]">
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-3">
-                <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+              <div className="workspace-stat rounded-2xl px-4 py-3">
+                <div className="workspace-stat-label">
                   Canonical coverage
                 </div>
                 <div className="mt-1 text-xl font-semibold text-neutral-100">
                   {summary.canonicalCoverage}%
                 </div>
               </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-3">
-                <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+              <div className="workspace-stat rounded-2xl px-4 py-3">
+                <div className="workspace-stat-label">
                   Stale docs
                 </div>
                 <div className="mt-1 text-xl font-semibold text-neutral-100">
@@ -205,23 +205,23 @@ export function DocsHealthView() {
         )}
 
         <section className="grid gap-4 md:grid-cols-4">
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
-            <div className="text-[11px] uppercase tracking-wide text-neutral-500">Documents</div>
+          <div className="workspace-stat rounded-2xl p-4">
+            <div className="workspace-stat-label">Documents</div>
             <div className="mt-2 text-2xl font-semibold text-neutral-100">{summary.totalDocs}</div>
             <div className="mt-1 text-[11px] text-neutral-500">Across all projects</div>
           </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
-            <div className="text-[11px] uppercase tracking-wide text-neutral-500">Canonical docs</div>
+          <div className="workspace-stat rounded-2xl p-4">
+            <div className="workspace-stat-label">Canonical docs</div>
             <div className="mt-2 text-2xl font-semibold text-neutral-100">{summary.canonicalDocs}</div>
             <div className="mt-1 text-[11px] text-neutral-500">Trusted starting points</div>
           </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
-            <div className="text-[11px] uppercase tracking-wide text-neutral-500">Protected docs</div>
+          <div className="workspace-stat rounded-2xl p-4">
+            <div className="workspace-stat-label">Protected docs</div>
             <div className="mt-2 text-2xl font-semibold text-neutral-100">{summary.protectedDocs}</div>
             <div className="mt-1 text-[11px] text-neutral-500">Should prefer proposal flow</div>
           </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
-            <div className="text-[11px] uppercase tracking-wide text-neutral-500">Draft / Review</div>
+          <div className="workspace-stat rounded-2xl p-4">
+            <div className="workspace-stat-label">Draft / Review</div>
             <div className="mt-2 text-2xl font-semibold text-neutral-100">
               {summary.draftDocs + summary.reviewDocs}
             </div>
@@ -232,7 +232,7 @@ export function DocsHealthView() {
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-5">
+          <div className="workspace-section rounded-3xl p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-neutral-100">Project health</h2>
@@ -249,7 +249,7 @@ export function DocsHealthView() {
                 {projectHealth.map((project) => (
                   <div
                     key={project.name}
-                    className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4"
+                    className="workspace-subsection rounded-2xl p-4"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>
@@ -263,13 +263,13 @@ export function DocsHealthView() {
                       </div>
                     </div>
                     <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                      <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-[11px] text-neutral-400">
+                      <div className="workspace-action rounded-xl px-3 py-2 text-[11px] text-neutral-400">
                         Draft: <span className="text-neutral-200">{project.draftCount}</span>
                       </div>
-                      <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-[11px] text-neutral-400">
+                      <div className="workspace-action rounded-xl px-3 py-2 text-[11px] text-neutral-400">
                         Review: <span className="text-neutral-200">{project.reviewCount}</span>
                       </div>
-                      <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-[11px] text-neutral-400">
+                      <div className="workspace-action rounded-xl px-3 py-2 text-[11px] text-neutral-400">
                         Final: <span className="text-neutral-200">{project.finalCount}</span>
                       </div>
                     </div>
@@ -280,18 +280,18 @@ export function DocsHealthView() {
           </div>
 
           <div className="space-y-6">
-            <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-5">
+            <div className="workspace-section rounded-3xl p-5">
               <h2 className="text-lg font-semibold text-neutral-100">Needs attention</h2>
               <div className="mt-4 space-y-3">
                 {atRiskProjects.length === 0 ? (
-                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4 text-[11px] text-neutral-500">
+                  <div className="workspace-empty rounded-2xl p-4 text-[11px] text-neutral-500">
                     No obvious project-level gaps right now.
                   </div>
                 ) : (
                   atRiskProjects.map((project) => (
                     <div
                       key={project.name}
-                      className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4"
+                      className="workspace-subsection rounded-2xl p-4"
                     >
                       <div className="text-sm font-medium text-neutral-200">{project.name}</div>
                       <div className="mt-2 text-[11px] leading-5 text-neutral-500">
@@ -307,16 +307,16 @@ export function DocsHealthView() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-5">
+            <div className="workspace-section rounded-3xl p-5">
               <h2 className="text-lg font-semibold text-neutral-100">Status mix</h2>
               <div className="mt-4 space-y-3 text-[12px] text-neutral-400">
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-3">
+                <div className="workspace-subsection rounded-2xl px-4 py-3">
                   Draft docs: <span className="text-neutral-200">{summary.draftDocs}</span>
                 </div>
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-3">
+                <div className="workspace-subsection rounded-2xl px-4 py-3">
                   Review docs: <span className="text-neutral-200">{summary.reviewDocs}</span>
                 </div>
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-3">
+                <div className="workspace-subsection rounded-2xl px-4 py-3">
                   Final docs: <span className="text-neutral-200">{summary.finalDocs}</span>
                 </div>
               </div>
@@ -325,7 +325,7 @@ export function DocsHealthView() {
         </section>
 
         <section className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-5">
+          <div className="workspace-section rounded-3xl p-5">
             <h2 className="text-lg font-semibold text-neutral-100">Stale documents</h2>
             <p className="mt-1 text-xs text-neutral-500">
               Documents untouched for at least {STALE_DAYS} days.
@@ -333,7 +333,7 @@ export function DocsHealthView() {
 
             <div className="mt-5 space-y-3">
               {staleDocs.length === 0 ? (
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4 text-[11px] text-neutral-500">
+                <div className="workspace-empty rounded-2xl p-4 text-[11px] text-neutral-500">
                   No stale docs right now.
                 </div>
               ) : (
@@ -341,7 +341,7 @@ export function DocsHealthView() {
                   <button
                     key={`${doc.project}/${doc.path}`}
                     onClick={() => handleOpen(doc.project, doc.path)}
-                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900"
+                    className="workspace-action w-full rounded-2xl p-4 text-left transition-colors"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -366,7 +366,7 @@ export function DocsHealthView() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-5">
+          <div className="workspace-section rounded-3xl p-5">
             <h2 className="text-lg font-semibold text-neutral-100">Recent changes</h2>
             <p className="mt-1 text-xs text-neutral-500">
               Useful for deciding which docs might need canonical review next.
@@ -374,7 +374,7 @@ export function DocsHealthView() {
 
             <div className="mt-5 space-y-3">
               {recentChanges.length === 0 ? (
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4 text-[11px] text-neutral-500">
+                <div className="workspace-empty rounded-2xl p-4 text-[11px] text-neutral-500">
                   No recent doc changes found.
                 </div>
               ) : (
@@ -382,7 +382,7 @@ export function DocsHealthView() {
                   <button
                     key={`${change.project}/${change.path}/${change.modified}`}
                     onClick={() => handleOpen(change.project, change.path)}
-                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900"
+                    className="workspace-action w-full rounded-2xl p-4 text-left transition-colors"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
