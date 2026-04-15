@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { AiChatMessage } from "@/types";
 import * as commands from "@/lib/commands";
+import { useEditorStore } from "@/stores/editorStore";
 
 interface Props {
   message: AiChatMessage;
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function AiMessageBubble({ message, project }: Props) {
+  const openDocument = useEditorStore((s) => s.openDocument);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -19,6 +21,7 @@ export function AiMessageBubble({ message, project }: Props) {
   const [saveTitle, setSaveTitle] = useState("");
 
   const isUser = message.role === "user";
+  const wasSavedByTool = !!message.documents_written?.length;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
@@ -83,15 +86,38 @@ export function AiMessageBubble({ message, project }: Props) {
         >
           Copy
         </button>
-        <button
-          onClick={() => {
-            if (!showSaveDialog && !saved) handleStartSave();
-          }}
-          className="text-[10px] text-neutral-600 hover:text-neutral-400 cursor-pointer"
-        >
-          {saved ? "Saved!" : showSaveDialog ? "Saving..." : "Save to vault"}
-        </button>
+        {wasSavedByTool ? (
+          <span
+            className="text-[10px] text-green-500"
+            title={message.documents_written?.join(", ")}
+          >
+            Saved via tool
+          </span>
+        ) : (
+          <button
+            onClick={() => {
+              if (!showSaveDialog && !saved) handleStartSave();
+            }}
+            className="text-[10px] text-neutral-600 hover:text-neutral-400 cursor-pointer"
+          >
+            {saved ? "Saved!" : showSaveDialog ? "Saving..." : "Save to vault"}
+          </button>
+        )}
       </div>
+      {wasSavedByTool && (
+        <div className="flex flex-wrap gap-1 px-1">
+          {message.documents_written?.map((path) => (
+            <button
+              key={path}
+              onClick={() => void openDocument(project, path)}
+              className="rounded border border-green-800/40 bg-green-950/20 px-1.5 py-0.5 text-[10px] text-green-300 hover:bg-green-900/30"
+              title={`Open ${project}/${path}`}
+            >
+              {path}
+            </button>
+          ))}
+        </div>
+      )}
       {showSaveDialog && (
         <div className="mx-1 mt-1 p-2 rounded bg-neutral-800 border border-neutral-700 space-y-1.5">
           <input

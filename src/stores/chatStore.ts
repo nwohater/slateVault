@@ -45,6 +45,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const assistantMsg: AiChatMessage = {
         role: "assistant",
         content: result.content,
+        documents_written: result.documents_written,
       };
 
       set((s) => ({

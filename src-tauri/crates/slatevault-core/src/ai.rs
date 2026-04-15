@@ -102,6 +102,7 @@ pub struct AiChatResult {
     pub usage: Option<UsageInfo>,
     pub tool_calls: Option<Vec<ToolCall>>,
     pub tools_supported: bool,
+    pub documents_written: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -131,7 +132,7 @@ pub fn vault_tools() -> Vec<ToolDefinition> {
             tool_type: "function".to_string(),
             function: FunctionDefinition {
                 name: "write_document".to_string(),
-                description: "Write or update a document in the vault".to_string(),
+                description: "Create or update a markdown document in the vault. Use this when the user asks to save, create, revise, or update docs in-project, not just to draft text for later.".to_string(),
                 parameters: serde_json::json!({
                     "type": "object",
                     "properties": {
@@ -148,7 +149,7 @@ pub fn vault_tools() -> Vec<ToolDefinition> {
             tool_type: "function".to_string(),
             function: FunctionDefinition {
                 name: "read_document".to_string(),
-                description: "Read a document from the vault".to_string(),
+                description: "Read an existing vault document before revising it or when the user asks about its current contents.".to_string(),
                 parameters: serde_json::json!({
                     "type": "object",
                     "properties": {
@@ -162,7 +163,7 @@ pub fn vault_tools() -> Vec<ToolDefinition> {
             tool_type: "function".to_string(),
             function: FunctionDefinition {
                 name: "search_documents".to_string(),
-                description: "Search for documents in the vault".to_string(),
+                description: "Search vault documents to find relevant files before answering or writing updates.".to_string(),
                 parameters: serde_json::json!({
                     "type": "object",
                     "properties": {
@@ -327,6 +328,7 @@ pub fn chat_completion_with_tools(
         usage: response.usage,
         tool_calls,
         tools_supported: has_tools,
+        documents_written: Vec::new(),
     })
 }
 

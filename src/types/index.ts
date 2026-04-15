@@ -141,6 +141,7 @@ export interface TemplateInfo {
 export interface AiChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
+  documents_written?: string[];
 }
 
 export interface AiChatResult {
@@ -149,6 +150,7 @@ export interface AiChatResult {
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
   tool_calls?: { id: string; call_type: string; function: { name: string; arguments: string } }[];
   tools_supported: boolean;
+  documents_written: string[];
 }
 
 export interface PlaybookInfo {

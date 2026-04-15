@@ -862,33 +862,41 @@ pub struct AiChatArgs {
 }
 
 #[tauri::command]
-pub fn ai_chat(
+pub async fn ai_chat(
     args: AiChatArgs,
     state: State<'_, VaultState>,
 ) -> CmdResult<slatevault_core::ai::AiChatResult> {
-    let lock = state.0.lock().map_err(|e| e.to_string())?;
-    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let (endpoint_url, model, api_key, context) = {
+        let lock = state.0.lock().map_err(|e| e.to_string())?;
+        let vault = lock.as_ref().ok_or("No vault is open")?;
 
-    if !vault.config.ai.enabled {
-        return Err("AI is not enabled. Configure in Settings > AI Assistant.".to_string());
-    }
-    if vault.config.ai.model.is_empty() {
-        return Err("No AI model configured. Set a model in Settings > AI Assistant.".to_string());
-    }
+        if !vault.config.ai.enabled {
+            return Err("AI is not enabled. Configure in Settings > AI Assistant.".to_string());
+        }
+        if vault.config.ai.model.is_empty() {
+            return Err("No AI model configured. Set a model in Settings > AI Assistant.".to_string());
+        }
 
-    let credentials = slatevault_core::credentials::Credentials::load().unwrap_or_default();
-    let api_key = credentials.ai_api_key.as_deref();
+        let credentials = slatevault_core::credentials::Credentials::load().unwrap_or_default();
+        let api_key = credentials.ai_api_key;
 
-    // Assemble context
-    let context = if args.include_context || args.include_source {
-        slatevault_core::ai::assemble_context(
-            vault,
-            &args.project,
-            &args.message,
-            args.include_source,
+        let context = if args.include_context || args.include_source {
+            slatevault_core::ai::assemble_context(
+                vault,
+                &args.project,
+                &args.message,
+                args.include_source,
+            )
+        } else {
+            String::new()
+        };
+
+        (
+            vault.config.ai.endpoint_url.clone(),
+            vault.config.ai.model.clone(),
+            api_key,
+            context,
         )
-    } else {
-        String::new()
     };
 
     // Build messages
@@ -898,15 +906,19 @@ pub fn ai_chat(
     let system_msg = if context.is_empty() {
         format!(
             "You are an AI assistant for the project '{}' in slateVault. Help with documentation, analysis, and writing.\n\
-            When the user asks you to write or update a document, produce the full document content.\n\
-            The user can save your response to the vault using the 'Save to vault' button below your message.\n\
+            You have tool access for reading, searching, and writing project documents.\n\
+            When the user explicitly asks you to create, update, revise, or save a document in the vault, prefer calling the write_document tool instead of only returning draft text.\n\
+            Use read_document and search_documents before writing when you need context.\n\
+            Only return full markdown for manual saving when the user is brainstorming, asks for a draft only, or tool use is not possible.\n\
             Be concise and helpful.", args.project
         )
     } else {
         format!(
             "You are an AI assistant for the project '{}' in slateVault. Use the following project context:\n\n{}\n\n\
-            When the user asks you to write or update a document, produce the full document content.\n\
-            The user can save your response to the vault using the 'Save to vault' button below your message.\n\
+            You have tool access for reading, searching, and writing project documents.\n\
+            When the user explicitly asks you to create, update, revise, or save a document in the vault, prefer calling the write_document tool instead of only returning draft text.\n\
+            Use read_document and search_documents before writing when you need context.\n\
+            Only return full markdown for manual saving when the user is brainstorming, asks for a draft only, or tool use is not possible.\n\
             Be concise and helpful.", args.project, context
         )
     };
@@ -922,26 +934,35 @@ pub fn ai_chat(
 
     // Try with tools first
     let tools = Some(slatevault_core::ai::vault_tools());
-    let mut result = slatevault_core::ai::chat_completion_with_tools(
-        &vault.config.ai.endpoint_url,
-        api_key,
-        &vault.config.ai.model,
-        messages.clone(),
-        tools,
-    )
-    .or_else(|_| {
-        // Fallback: try without tools if model doesn't support them
-        slatevault_core::ai::chat_completion(
-            &vault.config.ai.endpoint_url,
-            api_key,
-            &vault.config.ai.model,
-            messages.clone(),
+    let endpoint_url_for_first_call = endpoint_url.clone();
+    let model_for_first_call = model.clone();
+    let api_key_for_first_call = api_key.clone();
+    let messages_for_first_call = messages.clone();
+    let mut result = tauri::async_runtime::spawn_blocking(move || {
+        slatevault_core::ai::chat_completion_with_tools(
+            &endpoint_url_for_first_call,
+            api_key_for_first_call.as_deref(),
+            &model_for_first_call,
+            messages_for_first_call.clone(),
+            tools,
         )
+        .or_else(|_| {
+            // Fallback: try without tools if model doesn't support them
+            slatevault_core::ai::chat_completion(
+                &endpoint_url_for_first_call,
+                api_key_for_first_call.as_deref(),
+                &model_for_first_call,
+                messages_for_first_call,
+            )
+        })
     })
+    .await
+    .map_err(|e| e.to_string())?
     .map_err(|e| e.to_string())?;
 
     // Execute tool calls if any (up to 3 rounds)
     let mut tool_rounds = 0;
+    let mut documents_written = Vec::new();
     while let Some(ref tool_calls) = result.tool_calls {
         if tool_calls.is_empty() || tool_rounds >= 3 {
             break;
@@ -959,7 +980,24 @@ pub fn ai_chat(
         // Execute each tool call
         let mut actions_taken = Vec::new();
         for tc in tool_calls {
-            let tool_result = execute_tool_call(vault, &args.project, &tc.function.name, &tc.function.arguments);
+            if tc.function.name == "write_document" {
+                if let Ok(tool_args) = serde_json::from_str::<serde_json::Value>(&tc.function.arguments) {
+                    if let Some(path) = tool_args["path"].as_str() {
+                        documents_written.push(path.to_string());
+                    }
+                }
+            }
+            let tool_result = {
+                let lock = state.0.lock().map_err(|e| e.to_string())?;
+                let vault = lock.as_ref().ok_or("No vault is open")?;
+                execute_tool_call(
+                    vault,
+                    &args.project,
+                    &args.message,
+                    &tc.function.name,
+                    &tc.function.arguments,
+                )
+            };
             actions_taken.push(format!("{}: {}", tc.function.name, tool_result.as_deref().unwrap_or("OK")));
 
             messages.push(slatevault_core::ai::ChatMessage {
@@ -971,13 +1009,21 @@ pub fn ai_chat(
         }
 
         // Get next response
-        result = slatevault_core::ai::chat_completion_with_tools(
-            &vault.config.ai.endpoint_url,
-            api_key,
-            &vault.config.ai.model,
-            messages.clone(),
-            None, // No tools on follow-up to get final text response
-        )
+        let endpoint_url_for_followup = endpoint_url.clone();
+        let model_for_followup = model.clone();
+        let api_key_for_followup = api_key.clone();
+        let messages_for_followup = messages.clone();
+        result = tauri::async_runtime::spawn_blocking(move || {
+            slatevault_core::ai::chat_completion_with_tools(
+                &endpoint_url_for_followup,
+                api_key_for_followup.as_deref(),
+                &model_for_followup,
+                messages_for_followup,
+                None, // No tools on follow-up to get final text response
+            )
+        })
+        .await
+        .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())?;
 
         // Append action summary to content
@@ -990,12 +1036,24 @@ pub fn ai_chat(
         }
     }
 
+    if !documents_written.is_empty() {
+        let mut lines = Vec::new();
+        lines.push("Saved via tool:".to_string());
+        for path in &documents_written {
+            lines.push(format!("- {}/{}", args.project, path));
+        }
+        result.content = lines.join("\n");
+    }
+
+    result.documents_written = documents_written;
+
     Ok(result)
 }
 
 fn execute_tool_call(
     vault: &slatevault_core::Vault,
     project: &str,
+    user_message: &str,
     tool_name: &str,
     arguments: &str,
 ) -> std::result::Result<String, String> {
@@ -1004,15 +1062,17 @@ fn execute_tool_call(
     match tool_name {
         "write_document" => {
             let path = args["path"].as_str().ok_or("Missing path")?;
+            validate_requested_path(user_message, path)?;
             let title = args["title"].as_str().ok_or("Missing title")?;
             let content = args["content"].as_str().ok_or("Missing content")?;
+            let content = normalize_ai_written_content(content);
             let tags: Vec<String> = args["tags"]
                 .as_array()
                 .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
                 .unwrap_or_default();
 
             vault
-                .write_document(project, path, title, content, tags, Some("ai-chat".to_string()))
+                .write_document(project, path, title, &content, tags, Some("ai-chat".to_string()))
                 .map_err(|e| e.to_string())?;
 
             Ok(format!("Document written: {}/{}", project, path))
@@ -1043,6 +1103,99 @@ fn execute_tool_call(
         }
         _ => Err(format!("Unknown tool: {}", tool_name)),
     }
+}
+
+fn validate_requested_path(user_message: &str, tool_path: &str) -> std::result::Result<(), String> {
+    let requested_paths = extract_markdown_paths(user_message);
+    if requested_paths.is_empty() {
+        return Ok(());
+    }
+
+    let actual = normalize_doc_path(tool_path);
+    if requested_paths
+        .iter()
+        .map(|path| normalize_doc_path(path))
+        .any(|requested| requested == actual)
+    {
+        return Ok(());
+    }
+
+    if requested_paths.len() == 1 {
+        Err(format!(
+            "Path mismatch: user requested '{}', but tool tried to write '{}'",
+            requested_paths[0], tool_path
+        ))
+    } else {
+        Err(format!(
+            "Path mismatch: tool tried to write '{}', but allowed paths were: {}",
+            tool_path,
+            requested_paths.join(", ")
+        ))
+    }
+}
+
+fn extract_markdown_paths(text: &str) -> Vec<String> {
+    let bytes = text.as_bytes();
+    let mut paths = Vec::new();
+    let mut start = 0usize;
+
+    while let Some(rel_idx) = text[start..].find(".md") {
+        let end = start + rel_idx + 3;
+        let mut begin = end.saturating_sub(1);
+
+        while begin > 0 {
+            let ch = bytes[begin - 1] as char;
+            if ch.is_ascii_alphanumeric() || matches!(ch, '/' | '\\' | '-' | '_' | '.') {
+                begin -= 1;
+            } else {
+                break;
+            }
+        }
+
+        let candidate = text[begin..end]
+            .trim_matches(|c: char| matches!(c, '"' | '\'' | '`' | '(' | ')' | '[' | ']' | '{' | '}' | '<' | '>' | ',' | ';'))
+            .trim();
+
+        if candidate.contains('/') || candidate.contains('\\') {
+            let normalized = candidate.replace('\\', "/");
+            if !paths.iter().any(|p: &String| p.eq_ignore_ascii_case(&normalized)) {
+                paths.push(normalized);
+            }
+        }
+
+        start = end;
+    }
+
+    paths
+}
+
+fn normalize_doc_path(path: &str) -> String {
+    path.replace('\\', "/").trim().trim_matches('/').to_ascii_lowercase()
+}
+
+fn normalize_ai_written_content(content: &str) -> String {
+    let trimmed = content.trim();
+
+    // Some models accidentally place a schema-like wrapper into the content string itself.
+    // If that happens, prefer the nested `content` field rather than writing the wrapper verbatim.
+    if trimmed.starts_with('{') && trimmed.contains("\"content\"") {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
+            if let Some(inner) = value.get("content").and_then(|v| v.as_str()) {
+                return decode_common_entities(inner);
+            }
+        }
+    }
+
+    decode_common_entities(trimmed)
+}
+
+fn decode_common_entities(content: &str) -> String {
+    content
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
 }
 
 #[tauri::command]

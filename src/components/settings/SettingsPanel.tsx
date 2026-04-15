@@ -20,6 +20,9 @@ export function SettingsPanel() {
   const [autoStage, setAutoStage] = useState(true);
   const [sshKeyPath, setSshKeyPath] = useState("");
   const [output, setOutput] = useState<string | null>(null);
+  const [aiTestOutput, setAiTestOutput] = useState<string | null>(null);
+  const [aiTestStatus, setAiTestStatus] = useState<"idle" | "success" | "error">("idle");
+  const [isTestingAi, setIsTestingAi] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Credentials state
@@ -207,23 +210,44 @@ export function SettingsPanel() {
               />
               <button
                 onClick={async () => {
+                  setIsTestingAi(true);
+                  setAiTestStatus("idle");
+                  setAiTestOutput("Testing endpoint...");
                   try {
                     const models = await commands.aiListModels();
                     if (models.length > 0) {
-                      setOutput(`Found ${models.length} models: ${models.slice(0, 5).join(", ")}${models.length > 5 ? "..." : ""}`);
+                      setAiTestStatus("success");
+                      setAiTestOutput(`Found ${models.length} models: ${models.slice(0, 5).join(", ")}${models.length > 5 ? "..." : ""}`);
                     } else {
-                      setOutput("No models found at endpoint");
+                      setAiTestStatus("error");
+                      setAiTestOutput("No models found at endpoint");
                     }
-                    setTimeout(() => setOutput(null), 3000);
                   } catch (e) {
-                    setOutput(`Connection failed: ${e}`);
+                    setAiTestStatus("error");
+                    setAiTestOutput(`Connection failed: ${e}`);
+                  } finally {
+                    setIsTestingAi(false);
                   }
                 }}
-                className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-neutral-400 text-[10px] flex-shrink-0"
+                disabled={isTestingAi}
+                className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 disabled:text-neutral-600 rounded text-neutral-400 text-[10px] flex-shrink-0"
               >
-                Test
+                {isTestingAi ? "Testing..." : "Test"}
               </button>
             </div>
+            {aiTestOutput && (
+              <div
+                className={`mt-1 rounded px-2 py-1 text-[10px] ${
+                  aiTestStatus === "success"
+                    ? "bg-green-950/30 text-green-300 border border-green-800/40"
+                    : aiTestStatus === "error"
+                      ? "bg-red-950/30 text-red-300 border border-red-800/40"
+                      : "bg-neutral-800/70 text-neutral-400 border border-neutral-700"
+                }`}
+              >
+                {aiTestOutput}
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-neutral-500 mb-1">
