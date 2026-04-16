@@ -186,18 +186,36 @@ export function TerminalPanel() {
   const [selectedProject, setSelectedProject] = useState<string>("");
   // undefined = not yet loaded; null = loaded but none set; string = loaded with value
   const [workFolder, setWorkFolder] = useState<string | null | undefined>(undefined);
+  // Projects that have a work folder set — only these appear in the dropdown
+  const [projectsWithFolder, setProjectsWithFolder] = useState<string[]>([]);
 
-  // Initialize selectedProject once projects load
+  // When projects change, load their source folders and build the filtered list
   useEffect(() => {
-    if (projects.length > 0 && !selectedProject) {
-      setSelectedProject(projects[0].name);
+    if (projects.length === 0) {
+      setProjectsWithFolder([]);
+      return;
     }
-  }, [projects, selectedProject]);
+    Promise.all(
+      projects.map((p) =>
+        commands.getProjectSourceFolder(p.name)
+          .then((f) => (f ? p.name : null))
+          .catch(() => null)
+      )
+    ).then((results) => {
+      const withFolder = results.filter((n): n is string => n !== null);
+      setProjectsWithFolder(withFolder);
+      // Auto-select first project with a folder if nothing is selected yet
+      setSelectedProject((prev) => {
+        if (prev && withFolder.includes(prev)) return prev;
+        return withFolder[0] ?? "";
+      });
+    });
+  }, [projects]);
 
   // Load work folder when selected project changes
   useEffect(() => {
     if (!selectedProject) {
-      setWorkFolder(projects.length === 0 ? null : undefined);
+      setWorkFolder(projectsWithFolder.length === 0 ? null : undefined);
       return;
     }
     setWorkFolder(undefined);
@@ -206,7 +224,7 @@ export function TerminalPanel() {
     }).catch(() => {
       setWorkFolder(null);
     });
-  }, [selectedProject, projects.length]);
+  }, [selectedProject, projectsWithFolder.length]);
 
   // Defer first tab creation until work folder is known so it gets the right cwd
   useEffect(() => {
@@ -268,10 +286,6 @@ export function TerminalPanel() {
     }
   };
 
-  const workFolderBasename = workFolder
-    ? workFolder.split("/").pop() || workFolder
-    : null;
-
   return (
     <div className="flex h-full flex-col bg-neutral-950">
       <div className="flex h-8 flex-shrink-0 items-center gap-1 border-b border-neutral-800 bg-neutral-900/80 px-2">
@@ -302,26 +316,19 @@ export function TerminalPanel() {
           ))}
         </div>
         <div className="flex flex-shrink-0 items-center gap-1.5">
-          {projects.length > 0 && (
-            <>
-              <select
-                value={selectedProject}
-                onChange={(e) => setSelectedProject(e.target.value)}
-                className="bg-neutral-900 border border-neutral-800 text-neutral-400 text-[10px] rounded px-1 py-0.5 outline-none"
-                title="Project for new terminals"
-              >
-                {projects.map((p) => (
-                  <option key={p.name} value={p.name}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              {workFolderBasename && (
-                <span className="text-[10px] text-neutral-600 truncate max-w-24" title={workFolder ?? ""}>
-                  {workFolderBasename}
-                </span>
-              )}
-            </>
+          {projectsWithFolder.length > 0 && (
+            <select
+              value={selectedProject}
+              onChange={(e) => setSelectedProject(e.target.value)}
+              className="bg-neutral-900 border border-neutral-800 text-neutral-400 text-[10px] rounded px-1 py-0.5 outline-none"
+              title="Project for new terminals"
+            >
+              {projectsWithFolder.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
           )}
           <button
             onClick={handleNewTerminal}
