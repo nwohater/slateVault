@@ -2309,6 +2309,24 @@ fn unique_file_path(dir: &std::path::Path, filename: &str) -> std::path::PathBuf
     }
 }
 
+/// Extract a human-readable title from raw markdown text.
+/// Prefers the first `# Heading`; falls back to the filename stem.
+fn extract_md_title(text: &str, filename: &str) -> String {
+    for line in text.lines() {
+        if let Some(heading) = line.trim().strip_prefix("# ") {
+            let t = heading.trim();
+            if !t.is_empty() {
+                return t.to_string();
+            }
+        }
+    }
+    Path::new(filename)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(filename)
+        .replace(['-', '_'], " ")
+}
+
 #[tauri::command]
 pub fn import_files_to_project(
     project: String,
@@ -2341,37 +2359,67 @@ pub fn import_files_to_project(
                 .decode(&file_arg.data_base64)
                 .map_err(|e| invalid_input(format!("Bad base64 for {}: {}", filename, e)))?;
 
-            // Find a non-conflicting destination path
-            let dest = unique_file_path(&target_dir, &filename);
-            std::fs::write(&dest, &data)?;
-
-            // Stage to git
-            let _ = vault.stage_file(&dest);
-
-            // Relative path from docs_dir for the return value / indexing
-            let rel = dest
-                .strip_prefix(&docs_dir)
-                .unwrap_or(&dest)
-                .to_string_lossy()
-                .replace('\\', "/");
-
-            // Index markdown files so they appear in search immediately
             if filename.to_lowercase().ends_with(".md") {
-                if let Ok(doc) = vault.read_document(&project, &rel) {
-                    let _ = vault.search.index_document(
-                        &project,
-                        &doc.path,
-                        &doc.front_matter.title,
-                        &doc.content,
-                        &doc.front_matter.tags,
-                        &format!("{:?}", doc.front_matter.author).to_lowercase(),
-                        &format!("{:?}", doc.front_matter.status).to_lowercase(),
-                        doc.front_matter.canonical,
-                    );
-                }
-            }
+                // --- Markdown: ensure it has vault front matter ---
+                let text = String::from_utf8_lossy(&data).into_owned();
+                let has_front_matter = text.trim_start().starts_with("---");
 
-            imported.push(rel);
+                // Figure out the final (conflict-free) filename
+                let dest_check = unique_file_path(&target_dir, &filename);
+                let final_name = dest_check
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or(&filename)
+                    .to_string();
+                let vault_rel = if folder_path.is_empty() {
+                    final_name.clone()
+                } else {
+                    format!("{}/{}", folder_path, final_name)
+                };
+
+                if has_front_matter {
+                    // Raw write — vault already can parse it
+                    std::fs::write(&dest_check, &data)?;
+                    let _ = vault.stage_file(&dest_check);
+                    if let Ok(doc) = vault.read_document(&project, &vault_rel) {
+                        let _ = vault.search.index_document(
+                            &project,
+                            &doc.path,
+                            &doc.front_matter.title,
+                            &doc.content,
+                            &doc.front_matter.tags,
+                            &format!("{:?}", doc.front_matter.author).to_lowercase(),
+                            &format!("{:?}", doc.front_matter.status).to_lowercase(),
+                            doc.front_matter.canonical,
+                        );
+                    }
+                    imported.push(vault_rel);
+                } else {
+                    // No front matter — let vault.write_document add it so the
+                    // file parses correctly and appears in the tree / search.
+                    let title = extract_md_title(&text, &final_name);
+                    let doc = vault.write_document(
+                        &project,
+                        &vault_rel,
+                        &title,
+                        &text,
+                        vec![],
+                        None,
+                    )?;
+                    imported.push(doc.path);
+                }
+            } else {
+                // --- Non-markdown: raw copy, won't appear in doc tree ---
+                let dest = unique_file_path(&target_dir, &filename);
+                std::fs::write(&dest, &data)?;
+                let _ = vault.stage_file(&dest);
+                let rel = dest
+                    .strip_prefix(&docs_dir)
+                    .unwrap_or(&dest)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                imported.push(rel);
+            }
         }
 
         Ok(imported)
