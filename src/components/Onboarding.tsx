@@ -18,7 +18,7 @@ type TemplateConfigMap = Record<
 
 const STEPS: { id: Step; label: string }[] = [
   { id: "welcome", label: "Welcome" },
-  { id: "project", label: "First Project" },
+  { id: "project", label: "New Project" },
   { id: "sync", label: "Team Sync" },
   { id: "agent", label: "Agent Access" },
   { id: "finish", label: "Finish" },
@@ -108,6 +108,7 @@ export function Onboarding() {
   const [error, setError] = useState<string | null>(null);
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
+  const [workFolder, setWorkFolder] = useState<string | null>(null);
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   const [templateConfig, setTemplateConfig] = useState<TemplateConfigMap>({});
   const [selectedTemplate, setSelectedTemplate] = useState("");
@@ -211,6 +212,14 @@ export function Onboarding() {
     if (previous) setStep(previous.id);
   };
 
+  const handleBrowseWorkFolder = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const folder = await open({ directory: true, title: "Select work folder for this project" });
+      if (folder) setWorkFolder(folder as string);
+    } catch {}
+  };
+
   const handleCreateProject = async () => {
     if (!projectName.trim()) return;
     setLoading(true);
@@ -222,6 +231,9 @@ export function Onboarding() {
         undefined,
         selectedTemplate || undefined
       );
+      if (workFolder) {
+        await commands.setProjectSourceFolder(projectName.trim(), workFolder);
+      }
       await loadProjects();
       await loadStats();
       setStep("sync");
@@ -279,7 +291,7 @@ export function Onboarding() {
                 Project memory for software teams
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-400">
-                Set up your first project, decide how the vault should be shared,
+                Set up a project, decide how the vault should be shared,
                 and optionally connect coding agents once your docs are in place.
               </p>
 
@@ -318,7 +330,7 @@ export function Onboarding() {
                   onClick={() => setStep("project")}
                   className="rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-cyan-500"
                 >
-                  Set up first project
+                  Set up a project
                 </button>
               </div>
             </div>
@@ -328,11 +340,11 @@ export function Onboarding() {
             <div className="mx-auto grid max-w-4xl gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
               <div>
                 <h2 className="text-2xl font-semibold text-neutral-100">
-                  Start your first project
+                  Set up a new project
                 </h2>
                 <p className="mt-2 text-sm text-neutral-400">
-                  Use a practical structure so your docs stay useful during real
-                  engineering work.
+                  Name it, pick a template, and optionally link a work folder so
+                  terminals and AI chat know where your code lives.
                 </p>
 
                 <div className="mt-6 space-y-4">
@@ -397,6 +409,38 @@ export function Onboarding() {
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-xs text-neutral-400">
+                      Work folder{" "}
+                      <span className="text-neutral-600">— optional</span>
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="workspace-input flex-1 truncate rounded-xl px-3 py-2.5 text-sm text-neutral-400">
+                        {workFolder
+                          ? workFolder.split("/").pop() || workFolder
+                          : "No folder selected"}
+                      </div>
+                      {workFolder && (
+                        <button
+                          onClick={() => setWorkFolder(null)}
+                          className="rounded-xl border border-neutral-700 px-3 py-2 text-xs text-neutral-500 hover:bg-neutral-800"
+                          title="Clear"
+                        >
+                          ×
+                        </button>
+                      )}
+                      <button
+                        onClick={() => void handleBrowseWorkFolder()}
+                        className="rounded-xl border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition-colors hover:bg-neutral-800"
+                      >
+                        Browse
+                      </button>
+                    </div>
+                    <p className="mt-1.5 text-[10px] text-neutral-600">
+                      Terminals and AI chat will default to this folder for this project.
+                    </p>
                   </div>
 
                   {error && (
