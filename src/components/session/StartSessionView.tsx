@@ -5,6 +5,7 @@ import { useVaultStore } from "@/stores/vaultStore";
 import { useSessionStore, SESSION_PRESETS, buildMcpUseText } from "@/stores/sessionStore";
 import { useEditorStore } from "@/stores/editorStore";
 import * as commands from "@/lib/commands";
+import { copyToClipboard } from "@/lib/clipboard";
 import type { PlaybookInfo } from "@/types";
 
 export function StartSessionView() {
@@ -62,7 +63,7 @@ export function StartSessionView() {
   const handleCopyPlaybook = async (playbookId: string) => {
     if (!selectedProject) return;
     const prompt = await commands.getPlaybookPrompt(playbookId, selectedProject);
-    await navigator.clipboard.writeText(prompt);
+    await copyToClipboard(prompt);
     setCopiedPlaybookId(playbookId);
     window.setTimeout(() => setCopiedPlaybookId(null), 1800);
   };

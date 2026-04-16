@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import * as commands from "@/lib/commands";
+import { copyToClipboard } from "@/lib/clipboard";
 import { useEditorStore } from "@/stores/editorStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import type { PlaybookInfo } from "@/types";
@@ -34,7 +35,7 @@ export function PlaybooksPanel() {
     if (!selectedProject) return;
     try {
       const prompt = await commands.getPlaybookPrompt(id, selectedProject);
-      await navigator.clipboard.writeText(prompt);
+      await copyToClipboard(prompt);
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     } catch (e) {
