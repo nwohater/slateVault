@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { listen } from "@tauri-apps/api/event";
@@ -28,9 +28,11 @@ function createTab(number: number): TerminalTab {
 function TerminalInstance({
   id,
   active,
+  onRegister,
 }: {
   id: string;
   active: boolean;
+  onRegister: (id: string, term: Terminal | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -78,14 +80,10 @@ function TerminalInstance({
     termRef.current = term;
     fitRef.current = fit;
 
+    onRegister(id, term);
+
     term.onData((data) => {
       commands.writeTerminal(id, data).catch(() => {});
-    });
-
-    const unlisten = listen<TerminalOutput>("terminal:output", (event) => {
-      if (event.payload.terminal_id === id) {
-        term.write(event.payload.data);
-      }
     });
 
     if (vaultPath) {
@@ -118,8 +116,8 @@ function TerminalInstance({
     observer.observe(containerRef.current);
 
     return () => {
+      onRegister(id, null);
       observer.disconnect();
-      unlisten.then((fn) => fn());
       commands.closeTerminal(id).catch(() => {});
       term.dispose();
       termRef.current = null;
@@ -164,6 +162,32 @@ export function TerminalPanel() {
   const nextTerminalNumberRef = useRef(2);
   const [tabs, setTabs] = useState<TerminalTab[]>(() => [createTab(1)]);
   const [activeId, setActiveId] = useState("terminal-1");
+  const termMapRef = useRef<Map<string, Terminal>>(new Map());
+
+  // Single shared listener for all terminal instances — avoids Tauri listener
+  // corruption that occurs when multiple instances register/unregister the same
+  // event concurrently (especially under React StrictMode double-mount).
+  useEffect(() => {
+    let cancelled = false;
+    let unlistenFn: (() => void) | null = null;
+
+    listen<TerminalOutput>("terminal:output", (event) => {
+      termMapRef.current.get(event.payload.terminal_id)?.write(event.payload.data);
+    }).then((fn) => {
+      if (cancelled) fn();
+      else unlistenFn = fn;
+    });
+
+    return () => {
+      cancelled = true;
+      unlistenFn?.();
+    };
+  }, []);
+
+  const handleRegister = useCallback((id: string, term: Terminal | null) => {
+    if (term) termMapRef.current.set(id, term);
+    else termMapRef.current.delete(id);
+  }, []);
 
   const handleNewTerminal = () => {
     const tab = createTab(nextTerminalNumberRef.current);
@@ -229,6 +253,7 @@ export function TerminalPanel() {
             key={tab.id}
             id={tab.id}
             active={activeId === tab.id}
+            onRegister={handleRegister}
           />
         ))}
       </div>
