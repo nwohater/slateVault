@@ -365,6 +365,20 @@ export function FileTree() {
                     }}
                   />
                 </div>
+                {project.name in sourceFolders && (
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mr-1 ${
+                      sourceFolders[project.name]
+                        ? "bg-green-600"
+                        : "bg-yellow-600"
+                    }`}
+                    title={
+                      sourceFolders[project.name]
+                        ? `Source: ${sourceFolders[project.name]}`
+                        : "No source folder set"
+                    }
+                  />
+                )}
                 {isExpanded && (
                   <button
                     onClick={(e) => {
@@ -381,16 +395,6 @@ export function FileTree() {
                   </button>
                 )}
               </div>
-
-              {sourceFolders[project.name] && (
-                <div className="flex items-center gap-1 pl-8 text-[10px] text-neutral-600 truncate pr-2 pb-0.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 flex-shrink-0">
-                    <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h2.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12A1.5 1.5 0 0 0 9.62 4H12.5A1.5 1.5 0 0 1 14 5.5v1H2v-3Z" />
-                    <path d="M2 7.5A1.5 1.5 0 0 1 3.5 6h9A1.5 1.5 0 0 1 14 7.5v5A1.5 1.5 0 0 1 12.5 14h-9A1.5 1.5 0 0 1 2 12.5v-5Z" />
-                  </svg>
-                  <span className="truncate">{sourceFolders[project.name]!.split("/").pop() || sourceFolders[project.name]}</span>
-                </div>
-              )}
 
               {isExpanded && newDocProject === project.name && (
                 <div className="pl-8 pr-2 py-1">
