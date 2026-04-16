@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
-import { useSessionStore, SESSION_PRESETS } from "@/stores/sessionStore";
+import { useSessionStore, SESSION_PRESETS, buildMcpUseText } from "@/stores/sessionStore";
 import { useEditorStore } from "@/stores/editorStore";
 import * as commands from "@/lib/commands";
 import type { PlaybookInfo } from "@/types";
@@ -35,6 +35,9 @@ export function StartSessionView() {
   const [playbooks, setPlaybooks] = useState<PlaybookInfo[]>([]);
   const [playbooksLoading, setPlaybooksLoading] = useState(true);
   const [copiedPlaybookId, setCopiedPlaybookId] = useState<string | null>(null);
+  const [copiedBrief, setCopiedBrief] = useState(false);
+  const [copiedMcpUse, setCopiedMcpUse] = useState(false);
+  const mcpUseText = buildMcpUseText(selectedProject);
 
   useEffect(() => {
     if (!selectedProject && projects.length > 0) {
@@ -52,6 +55,8 @@ export function StartSessionView() {
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(buildExportText());
+    setCopiedBrief(true);
+    window.setTimeout(() => setCopiedBrief(false), 1800);
   };
 
   const handleCopyPlaybook = async (playbookId: string) => {
@@ -60,6 +65,12 @@ export function StartSessionView() {
     await navigator.clipboard.writeText(prompt);
     setCopiedPlaybookId(playbookId);
     window.setTimeout(() => setCopiedPlaybookId(null), 1800);
+  };
+
+  const handleCopyMcpUse = async () => {
+    await navigator.clipboard.writeText(mcpUseText);
+    setCopiedMcpUse(true);
+    window.setTimeout(() => setCopiedMcpUse(false), 1800);
   };
 
   return (
@@ -79,119 +90,131 @@ export function StartSessionView() {
               context package into your coding agent before implementation work starts.
             </p>
           </div>
+        </div>
 
-          <div className="flex gap-3">
-            <button
-              onClick={() => void handleCopy()}
-              disabled={!hasGenerated}
-              className="rounded-xl border border-neutral-700 px-4 py-2.5 text-sm text-neutral-300 transition-colors hover:bg-neutral-800 disabled:border-neutral-800 disabled:text-neutral-600"
-            >
-              Copy for agent
-            </button>
+        <div className="surface-card rounded-3xl border-dashed px-6 py-6">
+          <h2 className="text-lg font-semibold text-neutral-100">
+            Prepare a better coding session
+          </h2>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-500">
+            Use this before coding or handing work to an agent. It builds a project-specific kickoff brief from the vault so implementation starts with trusted docs, recent changes, and the right source-folder context.
+          </p>
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-4">
+              <div className="text-xs font-medium text-neutral-200">1. Pick the project</div>
+              <div className="mt-1 text-[11px] leading-5 text-neutral-500">
+                Choose the vault project that should anchor the session.
+              </div>
+            </div>
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-4">
+              <div className="text-xs font-medium text-neutral-200">2. Describe the task</div>
+              <div className="mt-1 text-[11px] leading-5 text-neutral-500">
+                Give the brief enough direction to bias reading and recommendations.
+              </div>
+            </div>
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-4">
+              <div className="text-xs font-medium text-neutral-200">3. Generate the brief</div>
+              <div className="mt-1 text-[11px] leading-5 text-neutral-500">
+                Copy the result into your agent or use it as your own kickoff context.
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
           <div className="space-y-4">
             <div className="surface-card-strong rounded-3xl p-5">
-              <h2 className="text-lg font-semibold text-neutral-100">
-                Session setup
-              </h2>
-              <p className="mt-1 text-xs text-neutral-500">
-                Choose a project, describe the task, and decide what context to include.
-              </p>
-
-              <div className="mt-5 space-y-4">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-neutral-500">
-                    Project
-                  </label>
-                  <select
-                    value={selectedProject}
-                    onChange={(e) => setSelectedProject(e.target.value)}
-                    className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-200 outline-none focus:border-cyan-600"
-                  >
-                    {projects.map((project) => (
-                      <option key={project.name} value={project.name}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
+                  <h2 className="text-lg font-semibold text-neutral-100">
+                    MCP Use
+                  </h2>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Generic instructions you can give any coding agent before the task-specific prompt.
+                  </p>
                 </div>
+                <button
+                  onClick={() => void handleCopyMcpUse()}
+                  className="rounded-xl border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition-colors hover:bg-neutral-800"
+                >
+                  {copiedMcpUse ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-2xl bg-neutral-950 p-4 text-xs leading-6 text-neutral-300">
+                {mcpUseText}
+              </pre>
+            </div>
 
+            <div className="surface-card-strong rounded-3xl p-5">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-neutral-500">
-                    Task prompt
-                  </label>
-                  <textarea
-                    value={taskPrompt}
-                    onChange={(e) => setTaskPrompt(e.target.value)}
-                    rows={4}
-                    placeholder="Authentication refactor, release workflow cleanup, PDF export investigation..."
-                    className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
-                  />
+                  <h2 className="text-lg font-semibold text-neutral-100">
+                    Session setup
+                  </h2>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Choose the project, describe the work, and decide what trusted context should be included.
+                  </p>
                 </div>
-
-                <div>
-                  <div className="mb-2 block text-[11px] font-medium uppercase tracking-wide text-neutral-500">
-                    Quick presets
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {SESSION_PRESETS.map((preset) => (
-                      <button
-                        key={preset.id}
-                        onClick={() => applyPreset(preset)}
-                        className="rounded-full border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-[11px] text-neutral-300 transition-colors hover:border-neutral-600 hover:bg-neutral-900"
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
-                  </div>
+                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-3 text-[11px] leading-5 text-neutral-500">
+                  Best used before implementation, review, bug-fixing, release notes, or onboarding work.
                 </div>
+              </div>
 
-                <div>
-                  <div className="mb-2 block text-[11px] font-medium uppercase tracking-wide text-neutral-500">
-                    Session playbooks
+              <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+                      Project
+                    </label>
+                    <select
+                      value={selectedProject}
+                      onChange={(e) => setSelectedProject(e.target.value)}
+                      className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-200 outline-none focus:border-cyan-600"
+                    >
+                      {projects.map((project) => (
+                        <option key={project.name} value={project.name}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="space-y-2 rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
-                    {playbooksLoading ? (
-                      <div className="text-xs text-neutral-500">Loading playbooks...</div>
-                    ) : playbooks.length === 0 ? (
-                      <div className="text-xs text-neutral-500">No playbooks available.</div>
-                    ) : (
-                      playbooks.slice(0, 4).map((playbook) => (
-                        <div
-                          key={playbook.id}
-                          className="rounded-xl border border-neutral-800 bg-neutral-900/70 px-3 py-3"
+
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+                      Task prompt
+                    </label>
+                    <textarea
+                      value={taskPrompt}
+                      onChange={(e) => setTaskPrompt(e.target.value)}
+                      rows={5}
+                      placeholder="Authentication refactor, release workflow cleanup, PDF export investigation..."
+                      className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="mb-2 block text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+                      Quick presets
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {SESSION_PRESETS.map((preset) => (
+                        <button
+                          key={preset.id}
+                          onClick={() => applyPreset(preset)}
+                          className="rounded-full border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-[11px] text-neutral-300 transition-colors hover:border-neutral-600 hover:bg-neutral-900"
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-xs font-medium text-neutral-200">
-                                {playbook.label}
-                              </div>
-                              <div className="mt-1 text-[11px] leading-5 text-neutral-500">
-                                {playbook.description}
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => void handleCopyPlaybook(playbook.id)}
-                              disabled={!selectedProject}
-                              className="rounded-lg border border-neutral-700 px-2.5 py-1 text-[10px] text-neutral-300 transition-colors hover:bg-neutral-800 disabled:border-neutral-800 disabled:text-neutral-600"
-                            >
-                              {copiedPlaybookId === playbook.id ? "Copied" : "Copy"}
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    )}
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                <div>
+                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
                   <div className="mb-2 block text-[11px] font-medium uppercase tracking-wide text-neutral-500">
                     Include
                   </div>
-                  <div className="space-y-2 rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4 text-sm text-neutral-400">
+                  <div className="space-y-2 text-sm text-neutral-400">
                     <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -229,8 +252,13 @@ export function StartSessionView() {
                       Attention warnings
                     </label>
                   </div>
+                  <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/70 px-3 py-3 text-[11px] leading-5 text-neutral-500">
+                    Include only the context your agent actually needs. Smaller, task-shaped briefs usually produce better work than dumping the whole vault.
+                  </div>
                 </div>
+              </div>
 
+              <div className="mt-5">
                 <button
                   onClick={() => void generateSession()}
                   disabled={loading || !selectedProject}
@@ -240,7 +268,7 @@ export function StartSessionView() {
                 </button>
 
                 {error && (
-                  <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-xs text-red-300">
+                  <div className="mt-3 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-xs text-red-300">
                     {error}
                   </div>
                 )}
@@ -249,17 +277,46 @@ export function StartSessionView() {
           </div>
 
           <div className="space-y-4">
-            {!hasGenerated && !loading && (
-              <div className="surface-card rounded-3xl border-dashed px-6 py-12 text-center">
-                <h2 className="text-lg font-semibold text-neutral-100">
-                  Prepare a better coding session
-                </h2>
-                <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-neutral-500">
-                  Generate a project brief before implementation so you or your agent
-                  can start from trusted docs, recent changes, and the right project context.
-                </p>
+            <div className="surface-card-strong rounded-3xl p-5">
+              <h2 className="text-lg font-semibold text-neutral-100">
+                Session playbooks
+              </h2>
+              <p className="mt-1 text-xs text-neutral-500">
+                These are reusable kickoff prompts for common workflows. Copy one when you want a more opinionated starting point.
+              </p>
+              <div className="mt-4 space-y-2">
+                {playbooksLoading ? (
+                  <div className="text-xs text-neutral-500">Loading playbooks...</div>
+                ) : playbooks.length === 0 ? (
+                  <div className="text-xs text-neutral-500">No playbooks available.</div>
+                ) : (
+                  playbooks.slice(0, 4).map((playbook) => (
+                    <div
+                      key={playbook.id}
+                      className="rounded-xl border border-neutral-800 bg-neutral-900/70 px-3 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-xs font-medium text-neutral-200">
+                            {playbook.label}
+                          </div>
+                          <div className="mt-1 text-[11px] leading-5 text-neutral-500">
+                            {playbook.description}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => void handleCopyPlaybook(playbook.id)}
+                          disabled={!selectedProject}
+                          className="rounded-lg border border-neutral-700 px-2.5 py-1 text-[10px] text-neutral-300 transition-colors hover:bg-neutral-800 disabled:border-neutral-800 disabled:text-neutral-600"
+                        >
+                          {copiedPlaybookId === playbook.id ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
-            )}
+            </div>
 
             {loading && (
               <div className="surface-card-strong rounded-3xl p-6">
@@ -291,7 +348,7 @@ export function StartSessionView() {
                       onClick={() => void handleCopy()}
                       className="rounded-xl border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition-colors hover:bg-neutral-800"
                     >
-                      Copy
+                      {copiedBrief ? "Copied" : "Copy"}
                     </button>
                   </div>
                   <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-2xl bg-neutral-950 p-4 text-xs leading-6 text-neutral-300">
@@ -391,6 +448,19 @@ export function StartSessionView() {
                   </div>
                 </div>
               </>
+            )}
+
+            {!hasGenerated && !loading && (
+              <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-5">
+                <h3 className="text-base font-semibold text-neutral-100">
+                  What this gives you
+                </h3>
+                <div className="mt-4 space-y-2 text-xs leading-5 text-neutral-500">
+                  <p>A concise project brief instead of an empty prompt box.</p>
+                  <p>Recommended docs to read before implementation or review work.</p>
+                  <p>Recent changes so the next coding session starts from the current project state.</p>
+                </div>
+              </div>
             )}
           </div>
         </div>

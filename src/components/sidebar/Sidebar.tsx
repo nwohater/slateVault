@@ -45,11 +45,36 @@ const viewIcons: Record<SidebarView, React.ReactNode> = {
   ),
 };
 
+function OnboardingShieldIcon({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.45}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 3.25 5.25 5.7v5.26c0 4.33 2.72 8.2 6.75 9.8 4.03-1.6 6.75-5.47 6.75-9.8V5.7L12 3.25Z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9.25 12.25 11.1 14.1l3.9-4.2"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8.25 7.75h.01M15.75 7.75h.01"
+      />
+    </svg>
+  );
+}
+
 export function Sidebar() {
   const vaultName = useVaultStore((s) => s.vaultName);
   const closeVault = useVaultStore((s) => s.closeVault);
   const createProject = useVaultStore((s) => s.createProject);
+  const expandedProjects = useVaultStore((s) => s.expandedProjects);
+  const loadDocuments = useVaultStore((s) => s.loadDocuments);
   const workspaceView = useUIStore((s) => s.workspaceView);
+  const showOnboarding = useUIStore((s) => s.showOnboarding);
   const setWorkspaceView = useUIStore((s) => s.setWorkspaceView);
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const [showNewProject, setShowNewProject] = useState(false);
@@ -58,6 +83,7 @@ export function Sidebar() {
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   const loadProjects = useVaultStore((s) => s.loadProjects);
   const [view, setView] = useState<SidebarView>("home");
+  const [refreshingFiles, setRefreshingFiles] = useState(false);
 
   useEffect(() => {
     commands.listTemplates().then((t) => {
@@ -124,6 +150,16 @@ export function Sidebar() {
     setShowNewProject(false);
   };
 
+  const handleRefreshFiles = async () => {
+    setRefreshingFiles(true);
+    try {
+      await loadProjects();
+      await Promise.all(Array.from(expandedProjects).map((project) => loadDocuments(project)));
+    } finally {
+      setRefreshingFiles(false);
+    }
+  };
+
   return (
     <div className="flex h-full">
       {/* Activity Bar */}
@@ -131,6 +167,24 @@ export function Sidebar() {
         <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-2xl border border-cyan-900/30 bg-cyan-950/20 text-[11px] font-semibold text-cyan-200">
           SV
         </div>
+        <button
+          onClick={() => {
+            setView("home");
+            setWorkspaceView("home");
+            setShowOnboarding(true);
+          }}
+          title="Open onboarding"
+          className={`relative flex h-10 w-10 items-center justify-center rounded-2xl transition-colors ${
+            showOnboarding
+              ? "bg-cyan-950/70 text-cyan-200 shadow-[0_10px_24px_rgba(0,0,0,0.22)]"
+              : "text-neutral-500 hover:bg-neutral-800/50 hover:text-neutral-300"
+          }`}
+        >
+          <OnboardingShieldIcon />
+          {showOnboarding && (
+            <span className="absolute left-0 top-2 bottom-2 w-0.5 bg-cyan-400 rounded-r-full" />
+          )}
+        </button>
         {(["home", "files", "start-session", "agent-access", "docs-health", "git", "ai"] as SidebarView[]).map((v) => (
           <button
             key={v}
@@ -151,13 +205,13 @@ export function Sidebar() {
                     : "AI Chat"
             }
             className={`relative flex h-10 w-10 items-center justify-center rounded-2xl transition-colors ${
-              view === v && view !== "settings"
+              view === v && view !== "settings" && !showOnboarding
                 ? "bg-neutral-800/90 text-white shadow-[0_10px_24px_rgba(0,0,0,0.22)]"
                 : "text-neutral-500 hover:bg-neutral-800/50 hover:text-neutral-300"
             }`}
           >
             {viewIcons[v]}
-            {view === v && view !== "settings" && (
+            {view === v && view !== "settings" && !showOnboarding && (
               <span className="absolute left-0 top-2 bottom-2 w-0.5 bg-cyan-400 rounded-r-full" />
             )}
           </button>
@@ -219,15 +273,27 @@ export function Sidebar() {
           )}
           <div className="flex items-center gap-1">
             {view === "files" && (
-              <button
-                onClick={() => setShowNewProject(!showNewProject)}
-                className="flex h-6 w-6 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200"
-                title="New project"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-              </button>
+              <>
+                <button
+                  onClick={() => void handleRefreshFiles()}
+                  disabled={refreshingFiles}
+                  className="flex h-6 w-6 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200 disabled:text-neutral-700"
+                  title="Refresh files"
+                >
+                  <svg className={`w-3.5 h-3.5 ${refreshingFiles ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992V4.356m-1.59 14.287A9 9 0 1 1 21 12" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setShowNewProject(!showNewProject)}
+                  className="flex h-6 w-6 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200"
+                  title="New project"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                </button>
+              </>
             )}
           </div>
         </div>

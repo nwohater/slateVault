@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+@import "@xterm/xterm/css/xterm.css";
 
 :root {
   --font-sans: "Segoe UI Variable Text", "Aptos", "Segoe UI", sans-serif;

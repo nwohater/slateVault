@@ -7,6 +7,14 @@ import * as commands from "@/lib/commands";
 import type { McpServerStatus, RemoteConfig, TemplateInfo, VaultSettings } from "@/types";
 
 type Step = "welcome" | "project" | "sync" | "agent" | "finish";
+type TemplateConfigMap = Record<
+  string,
+  {
+    label: string;
+    folders: string[];
+    files: Record<string, string>;
+  }
+>;
 
 const STEPS: { id: Step; label: string }[] = [
   { id: "welcome", label: "Welcome" },
@@ -101,6 +109,7 @@ export function Onboarding() {
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
+  const [templateConfig, setTemplateConfig] = useState<TemplateConfigMap>({});
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [remoteConfig, setRemoteConfig] = useState<RemoteConfig | null>(null);
   const [connectRemote, setConnectRemote] = useState(false);
@@ -124,6 +133,14 @@ export function Onboarding() {
       .catch(() => {});
 
     commands
+      .getTemplatesConfig()
+      .then((raw) => {
+        const parsed = JSON.parse(raw) as { templates?: TemplateConfigMap };
+        setTemplateConfig(parsed.templates ?? {});
+      })
+      .catch(() => {});
+
+    commands
       .gitRemoteConfig()
       .then((config) => {
         setRemoteConfig(config);
@@ -140,16 +157,47 @@ export function Onboarding() {
       .then(setVaultConfig)
       .catch(() => {});
 
-    commands
-      .mcpServerStatus()
-      .then(setMcpStatus)
-      .catch(() => {});
+    const refreshMcpStatus = () => {
+      commands
+        .mcpServerStatus()
+        .then(setMcpStatus)
+        .catch(() => {});
+    };
+    refreshMcpStatus();
+    const statusInterval = window.setInterval(refreshMcpStatus, 5000);
+
+    return () => window.clearInterval(statusInterval);
   }, []);
 
   const selectedTemplateLabel = useMemo(
     () => templates.find((t) => t.name === selectedTemplate)?.label ?? "Software Project",
     [selectedTemplate, templates]
   );
+  const selectedTemplateConfig = useMemo(
+    () => templateConfig[selectedTemplate],
+    [selectedTemplate, templateConfig]
+  );
+  const templatePreviewItems = useMemo(() => {
+    if (!selectedTemplateConfig) {
+      return [];
+    }
+
+    const folderItems = selectedTemplateConfig.folders.map((folder) => ({
+      key: folder,
+      label: `${folder}/`,
+      tone: "folder" as const,
+    }));
+    const fileItems = Object.keys(selectedTemplateConfig.files)
+      .sort()
+      .slice(0, 6)
+      .map((path) => ({
+        key: path,
+        label: path,
+        tone: "file" as const,
+      }));
+
+    return [...folderItems, ...fileItems];
+  }, [selectedTemplateConfig]);
 
   const goToNext = () => {
     const currentIndex = STEPS.findIndex((s) => s.id === step);
@@ -383,15 +431,30 @@ export function Onboarding() {
                   {selectedTemplateLabel}
                 </p>
                 <div className="workspace-input mt-4 rounded-xl p-4 font-mono text-[11px] text-neutral-500">
-                  <div>overview/</div>
-                  <div>architecture/</div>
-                  <div>decisions/</div>
-                  <div>runbooks/</div>
-                  <div>handoff/</div>
+                  {templatePreviewItems.length > 0 ? (
+                    <>
+                      {templatePreviewItems.map((item) => (
+                        <div
+                          key={item.key}
+                          className={item.tone === "folder" ? "text-neutral-400" : "pl-3 text-neutral-600"}
+                        >
+                          {item.label}
+                        </div>
+                      ))}
+                      {Object.keys(selectedTemplateConfig?.files ?? {}).length > 6 && (
+                        <div className="pl-3 text-neutral-700">
+                          ...{Object.keys(selectedTemplateConfig?.files ?? {}).length - 6} more starter files
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-neutral-600">
+                      Minimal template starts empty so you can shape the project yourself.
+                    </div>
+                  )}
                 </div>
                 <p className="mt-4 text-[11px] leading-5 text-neutral-500">
-                  Start with a practical doc shape, then adjust it later as the
-                  project matures.
+                  This preview is pulled from the actual template config the project will use.
                 </p>
               </div>
             </div>
@@ -553,7 +616,7 @@ export function Onboarding() {
                 <div className="space-y-4">
                   <div className="workspace-subsection rounded-2xl p-4">
                     <p className="text-xs font-medium text-neutral-200">
-                      Agent access status
+                      Built-in MCP server status
                     </p>
                     <div className="mt-3 flex items-center gap-2 text-sm text-neutral-300">
                       <span
@@ -566,15 +629,15 @@ export function Onboarding() {
                         }`}
                       />
                       {mcpStatus?.running
-                        ? "Connected and running"
+                        ? "Running in slateVault"
                         : vaultConfig?.mcp_enabled
-                          ? "Enabled but not currently running"
+                          ? "Enabled, but slateVault is not hosting a server process right now"
                           : "Disabled"}
                     </div>
                     <p className="mt-2 text-[11px] leading-5 text-neutral-500">
                       {vaultConfig?.mcp_enabled
-                        ? `MCP is enabled${vaultConfig.mcp_port ? ` on port ${vaultConfig.mcp_port}` : ""}.`
-                        : "Enable MCP later in settings when you want agents to connect."}
+                        ? `This only reflects the MCP server process started by slateVault${vaultConfig.mcp_port ? ` on port ${vaultConfig.mcp_port}` : ""}. If you already configured an external MCP client or wrapper, that can still be working even when this status stays yellow.`
+                        : "Enable MCP later in settings when you want slateVault to host the local server itself."}
                     </p>
                   </div>
 

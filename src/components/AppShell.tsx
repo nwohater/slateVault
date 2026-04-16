@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import dynamic from "next/dynamic";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUIStore } from "@/stores/uiStore";
-import type { Theme } from "@/stores/uiStore";
 import { useEditorStore } from "@/stores/editorStore";
 import { Sidebar } from "./sidebar/Sidebar";
 import { EditorPane } from "./editor/EditorPane";
@@ -15,18 +13,11 @@ import { StartSessionView } from "./session/StartSessionView";
 import { AgentAccessView } from "./agent/AgentAccessView";
 import { DocsHealthView } from "./health/DocsHealthView";
 import { SyncView } from "./sync/SyncView";
+import { TerminalPanel } from "./terminal/TerminalPanel";
 import { VaultPicker } from "./vault/VaultPicker";
 import { ResizeHandle } from "./shared/ResizeHandle";
 import { StatusBar } from "./StatusBar";
 import { Onboarding } from "./Onboarding";
-
-const TerminalPanel = dynamic(
-  () =>
-    import("./terminal/TerminalPanel").then((mod) => ({
-      default: mod.TerminalPanel,
-    })),
-  { ssr: false }
-);
 
 export function AppShell() {
   const isOpen = useVaultStore((s) => s.isOpen);
@@ -47,7 +38,6 @@ export function AppShell() {
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const toggleTerminal = useUIStore((s) => s.toggleTerminal);
   const setTerminalHeight = useUIStore((s) => s.setTerminalHeight);
-  const setTheme = useUIStore((s) => s.setTheme);
   const projects = useVaultStore((s) => s.projects);
   const isDirty = useEditorStore((s) => s.isDirty);
   const saveDocument = useEditorStore((s) => s.saveDocument);
@@ -68,11 +58,11 @@ export function AppShell() {
                   ? "Team Sync"
                   : "Workspace";
 
-  // Restore theme from localStorage on mount
+  // Keep the workspace on the default dark theme.
   useEffect(() => {
-    const saved = localStorage.getItem("sv-theme") as Theme | null;
-    if (saved && saved !== "dark") setTheme(saved);
-  }, [setTheme]);
+    document.documentElement.removeAttribute("data-theme");
+    localStorage.removeItem("sv-theme");
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -232,38 +222,42 @@ export function AppShell() {
             )}
           </div>
 
-          {/* Terminal */}
-          {showTerminal && (
-            <>
-              <div
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  const startY = e.clientY;
-                  const startHeight = terminalHeight;
-                  const onMove = (ev: PointerEvent) => {
-                    setTerminalHeight(startHeight - (ev.clientY - startY));
-                  };
-                  const onUp = () => {
-                    document.removeEventListener("pointermove", onMove);
-                    document.removeEventListener("pointerup", onUp);
-                    document.body.style.cursor = "";
-                    document.body.style.userSelect = "";
-                  };
-                  document.addEventListener("pointermove", onMove);
-                  document.addEventListener("pointerup", onUp);
-                  document.body.style.cursor = "row-resize";
-                  document.body.style.userSelect = "none";
-                }}
-                className="flex-shrink-0 h-1.5 bg-neutral-800 hover:bg-blue-600 cursor-row-resize transition-colors"
-              />
-              <div
-                style={{ height: terminalHeight }}
-                className="flex-shrink-0 border-t border-neutral-800"
-              >
-                <TerminalPanel />
-              </div>
-            </>
-          )}
+          {/* Terminal stays mounted so xterm scrollback and PTY state survive toggles. */}
+          <div
+            onPointerDown={(e) => {
+              if (!showTerminal) return;
+              e.preventDefault();
+              const startY = e.clientY;
+              const startHeight = terminalHeight;
+              const onMove = (ev: PointerEvent) => {
+                setTerminalHeight(startHeight - (ev.clientY - startY));
+              };
+              const onUp = () => {
+                document.removeEventListener("pointermove", onMove);
+                document.removeEventListener("pointerup", onUp);
+                document.body.style.cursor = "";
+                document.body.style.userSelect = "";
+              };
+              document.addEventListener("pointermove", onMove);
+              document.addEventListener("pointerup", onUp);
+              document.body.style.cursor = "row-resize";
+              document.body.style.userSelect = "none";
+            }}
+            className={`flex-shrink-0 bg-neutral-800 transition-colors ${
+              showTerminal
+                ? "h-1.5 cursor-row-resize hover:bg-blue-600"
+                : "h-0 overflow-hidden"
+            }`}
+          />
+          <div
+            style={{ height: showTerminal ? terminalHeight : 0 }}
+            className={`flex-shrink-0 overflow-hidden border-t border-neutral-800 ${
+              showTerminal ? "" : "pointer-events-none border-t-0"
+            }`}
+            aria-hidden={!showTerminal}
+          >
+            <TerminalPanel />
+          </div>
         </div>
 
         {/* Status bar */}

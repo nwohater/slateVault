@@ -1,4 +1,6 @@
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
+use serde::Serialize;
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, State};
@@ -9,24 +11,30 @@ struct PtySession {
     child: Box<dyn portable_pty::Child + Send>,
 }
 
-pub struct PtyState(Arc<Mutex<Option<PtySession>>>);
+pub struct PtyState(Arc<Mutex<HashMap<String, PtySession>>>);
+
+#[derive(Clone, Serialize)]
+struct TerminalOutput {
+    terminal_id: String,
+    data: String,
+}
 
 impl PtyState {
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(None)))
+        Self(Arc::new(Mutex::new(HashMap::new())))
     }
 }
 
 #[tauri::command]
 pub fn spawn_terminal(
+    terminal_id: String,
     cwd: String,
     app: AppHandle,
     state: State<'_, PtyState>,
 ) -> Result<String, String> {
     let mut lock = state.0.lock().map_err(|e| e.to_string())?;
 
-    // Close existing session if any
-    if let Some(mut session) = lock.take() {
+    if let Some(mut session) = lock.remove(&terminal_id) {
         let _ = session.child.kill();
     }
 
@@ -41,7 +49,6 @@ pub fn spawn_terminal(
         })
         .map_err(|e| format!("Failed to open PTY: {}", e))?;
 
-    // Determine shell
     #[cfg(windows)]
     let shell = std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string());
     #[cfg(not(windows))]
@@ -60,13 +67,13 @@ pub fn spawn_terminal(
         .take_writer()
         .map_err(|e| format!("Failed to get PTY writer: {}", e))?;
 
-    // Spawn reader thread that emits Tauri events
     let mut reader = pair
         .master
         .try_clone_reader()
         .map_err(|e| format!("Failed to clone PTY reader: {}", e))?;
 
     let app_handle = app.clone();
+    let output_id = terminal_id.clone();
     std::thread::spawn(move || {
         let mut buf = [0u8; 4096];
         loop {
@@ -74,29 +81,41 @@ pub fn spawn_terminal(
                 Ok(0) => break,
                 Ok(n) => {
                     let data = String::from_utf8_lossy(&buf[..n]).to_string();
-                    let _ = app_handle.emit("terminal:output", &data);
+                    let _ = app_handle.emit(
+                        "terminal:output",
+                        TerminalOutput {
+                            terminal_id: output_id.clone(),
+                            data,
+                        },
+                    );
                 }
                 Err(_) => break,
             }
         }
     });
 
-    *lock = Some(PtySession {
-        master: pair.master,
-        writer,
-        child,
-    });
+    lock.insert(
+        terminal_id.clone(),
+        PtySession {
+            master: pair.master,
+            writer,
+            child,
+        },
+    );
 
-    Ok("Terminal spawned".to_string())
+    Ok(terminal_id)
 }
 
 #[tauri::command]
 pub fn write_terminal(
+    terminal_id: String,
     data: String,
     state: State<'_, PtyState>,
 ) -> Result<(), String> {
     let mut lock = state.0.lock().map_err(|e| e.to_string())?;
-    let session = lock.as_mut().ok_or("No terminal session")?;
+    let session = lock
+        .get_mut(&terminal_id)
+        .ok_or_else(|| format!("No terminal session: {}", terminal_id))?;
     session
         .writer
         .write_all(data.as_bytes())
@@ -110,12 +129,15 @@ pub fn write_terminal(
 
 #[tauri::command]
 pub fn resize_terminal(
+    terminal_id: String,
     rows: u16,
     cols: u16,
     state: State<'_, PtyState>,
 ) -> Result<(), String> {
     let lock = state.0.lock().map_err(|e| e.to_string())?;
-    let session = lock.as_ref().ok_or("No terminal session")?;
+    let session = lock
+        .get(&terminal_id)
+        .ok_or_else(|| format!("No terminal session: {}", terminal_id))?;
     session
         .master
         .resize(PtySize {
@@ -130,13 +152,14 @@ pub fn resize_terminal(
 
 #[tauri::command]
 pub fn close_terminal(
+    terminal_id: String,
     state: State<'_, PtyState>,
 ) -> Result<String, String> {
     let mut lock = state.0.lock().map_err(|e| e.to_string())?;
-    if let Some(mut session) = lock.take() {
+    if let Some(mut session) = lock.remove(&terminal_id) {
         let _ = session.child.kill();
-        Ok("Terminal closed".to_string())
+        Ok(format!("Terminal closed: {}", terminal_id))
     } else {
-        Ok("No terminal to close".to_string())
+        Ok(format!("No terminal to close: {}", terminal_id))
     }
 }

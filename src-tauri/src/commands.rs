@@ -906,18 +906,20 @@ pub async fn ai_chat(
     let system_msg = if context.is_empty() {
         format!(
             "You are an AI assistant for the project '{}' in slateVault. Help with documentation, analysis, and writing.\n\
-            You have tool access for reading, searching, and writing project documents.\n\
+            You have tool access for listing, reading, searching, and writing project documents.\n\
+            When the user asks what documents exist or asks for documents in a folder like 'todo', 'prd', or 'features', prefer list_documents instead of guessing from search.\n\
             When the user explicitly asks you to create, update, revise, or save a document in the vault, prefer calling the write_document tool instead of only returning draft text.\n\
-            Use read_document and search_documents before writing when you need context.\n\
+            Use list_documents, read_document, and search_documents before writing when you need context.\n\
             Only return full markdown for manual saving when the user is brainstorming, asks for a draft only, or tool use is not possible.\n\
             Be concise and helpful.", args.project
         )
     } else {
         format!(
             "You are an AI assistant for the project '{}' in slateVault. Use the following project context:\n\n{}\n\n\
-            You have tool access for reading, searching, and writing project documents.\n\
+            You have tool access for listing, reading, searching, and writing project documents.\n\
+            When the user asks what documents exist or asks for documents in a folder like 'todo', 'prd', or 'features', prefer list_documents instead of guessing from search.\n\
             When the user explicitly asks you to create, update, revise, or save a document in the vault, prefer calling the write_document tool instead of only returning draft text.\n\
-            Use read_document and search_documents before writing when you need context.\n\
+            Use list_documents, read_document, and search_documents before writing when you need context.\n\
             Only return full markdown for manual saving when the user is brainstorming, asks for a draft only, or tool use is not possible.\n\
             Be concise and helpful.", args.project, context
         )
@@ -1084,6 +1086,50 @@ fn execute_tool_call(
                 "Title: {}\nStatus: {:?}\n\n{}",
                 doc.front_matter.title, doc.front_matter.status, doc.content
             ))
+        }
+        "list_documents" => {
+            let path_prefix = args["path_prefix"].as_str().map(|prefix| {
+                let normalized = prefix.replace('\\', "/").trim().trim_matches('/').to_string();
+                if normalized.is_empty() {
+                    String::new()
+                } else {
+                    format!("{}/", normalized)
+                }
+            });
+            let docs = vault
+                .list_documents(project, None)
+                .map_err(|e| e.to_string())?;
+
+            let filtered: Vec<_> = docs
+                .into_iter()
+                .filter(|doc| {
+                    if let Some(prefix) = &path_prefix {
+                        doc.path.starts_with(prefix)
+                    } else {
+                        true
+                    }
+                })
+                .collect();
+
+            if filtered.is_empty() {
+                if let Some(prefix) = path_prefix {
+                    Ok(format!("No documents found under {}", prefix))
+                } else {
+                    Ok("No documents found".to_string())
+                }
+            } else {
+                let mut out = String::new();
+                for doc in filtered.iter().take(50) {
+                    out.push_str(&format!(
+                        "- {} ({})\n",
+                        doc.front_matter.title, doc.path
+                    ));
+                }
+                if filtered.len() > 50 {
+                    out.push_str(&format!("...and {} more\n", filtered.len() - 50));
+                }
+                Ok(out)
+            }
         }
         "search_documents" => {
             let query = args["query"].as_str().ok_or("Missing query")?;
@@ -1381,21 +1427,208 @@ pub fn get_recent_changes(
 
 // -- Agent brief command --
 
+fn is_about_doc(path: &str) -> bool {
+    path.ends_with("/_about.md") || path == "_about.md"
+}
+
+fn task_keywords(task_focus: &str) -> Vec<String> {
+    task_focus
+        .to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|token| token.len() >= 4)
+        .map(|token| token.to_string())
+        .collect()
+}
+
+fn feature_doc_slug(task_focus: &str) -> String {
+    let focus = task_focus.to_lowercase();
+    if focus.contains("dry") && focus.contains("tracker") {
+        return "dry-day-tracking".to_string();
+    }
+    if focus.contains("feature") && focus.contains("spec") {
+        return "feature-spec".to_string();
+    }
+
+    let mut parts: Vec<String> = task_keywords(task_focus)
+        .into_iter()
+        .take(4)
+        .collect();
+    if parts.is_empty() {
+        parts.push("core-feature".to_string());
+    }
+    parts.join("-")
+}
+
+fn recommended_first_docs(task_focus: &str) -> Vec<(String, String)> {
+    let focus = task_focus.to_lowercase();
+    let feature_slug = feature_doc_slug(task_focus);
+    let mut docs = vec![
+        (
+            "prd/product-requirements.md".to_string(),
+            "Capture problem, target users, success criteria, and product scope.".to_string(),
+        ),
+        (
+            format!("features/{}.md", feature_slug),
+            "Define the first concrete user-facing feature and acceptance criteria.".to_string(),
+        ),
+        (
+            "todo/initial-build.md".to_string(),
+            "Break the first implementation pass into concrete tasks.".to_string(),
+        ),
+    ];
+
+    if focus.contains("ios") || focus.contains("swiftui") {
+        docs.push((
+            "context/ios-architecture.md".to_string(),
+            "Outline app structure, SwiftUI state flow, persistence, and platform constraints.".to_string(),
+        ));
+    }
+
+    docs
+}
+
+fn infer_task_folders(task_focus: &str) -> Vec<&'static str> {
+    let focus = task_focus.to_lowercase();
+    let mut folders = Vec::new();
+
+    let contains_any = |terms: &[&str]| terms.iter().any(|term| focus.contains(term));
+
+    if contains_any(&["feature", "spec", "requirement", "prd"]) {
+        folders.extend(["prd", "features", "todo", "specs", "notes"]);
+    }
+    if contains_any(&["implement", "implementation", "build", "develop", "coding"]) {
+        folders.extend(["todo", "features", "prd", "specs", "context", "notes"]);
+    }
+    if contains_any(&["bug", "fix", "issue", "regression"]) {
+        folders.extend(["bugs", "todo", "changelog", "notes", "specs"]);
+    }
+    if contains_any(&["architecture", "design", "system", "refactor"]) {
+        folders.extend(["specs", "decisions", "context", "features"]);
+    }
+    if contains_any(&["handoff", "onboard", "resume", "session"]) {
+        folders.extend(["context", "changelog", "guides", "specs", "notes"]);
+    }
+    if contains_any(&["release", "ship", "launch"]) {
+        folders.extend(["changelog", "todo", "guides", "notes"]);
+    }
+
+    if folders.is_empty() {
+        folders.extend(["prd", "features", "todo", "specs", "notes", "context"]);
+    }
+
+    folders
+}
+
+fn score_doc_for_task(
+    doc: &slatevault_core::document::Document,
+    task_focus: &str,
+    preferred_folders: &[&str],
+    newest_modified: chrono::DateTime<chrono::Utc>,
+) -> i32 {
+    if is_about_doc(&doc.path) {
+        return i32::MIN / 2;
+    }
+
+    let path_lower = doc.path.to_lowercase();
+    let title_lower = doc.front_matter.title.to_lowercase();
+    let folder = doc.path.split('/').next().unwrap_or("");
+    let keywords = task_keywords(task_focus);
+    let mut score = 0;
+
+    if doc.front_matter.canonical {
+        score += 40;
+    }
+
+    if path_lower.starts_with("wbmgr/") {
+        score += 18;
+    }
+
+    if let Some(index) = preferred_folders.iter().position(|candidate| *candidate == folder) {
+        score += 24 - (index as i32 * 3);
+    }
+
+    let age_days = newest_modified
+        .signed_duration_since(doc.front_matter.modified)
+        .num_days();
+    if age_days <= 1 {
+        score += 16;
+    } else if age_days <= 7 {
+        score += 10;
+    } else if age_days <= 30 {
+        score += 4;
+    }
+
+    for keyword in keywords {
+        if title_lower.contains(&keyword) {
+            score += 12;
+        }
+        if path_lower.contains(&keyword) {
+            score += 8;
+        }
+    }
+
+    if title_lower.contains("product requirements") || title_lower.contains("prd") {
+        score += 10;
+    }
+    if path_lower.starts_with("prd/") {
+        score += 14;
+    }
+    if title_lower.contains("feature") || path_lower.contains("/features/") {
+        score += 8;
+    }
+    if title_lower.contains("todo") || path_lower.contains("/todo/") {
+        score += 6;
+    }
+    if title_lower.contains("spec") || path_lower.contains("/specs/") {
+        score += 8;
+    }
+
+    let workflow_like = title_lower.contains("workflow")
+        || title_lower.contains("getting started")
+        || path_lower.contains("/guides/");
+    let explicit_process_task = task_focus.to_lowercase().contains("workflow")
+        || task_focus.to_lowercase().contains("process")
+        || task_focus.to_lowercase().contains("guide");
+    if workflow_like && !explicit_process_task {
+        score -= 10;
+    }
+
+    let implementation_like = task_focus.to_lowercase().contains("implement")
+        || task_focus.to_lowercase().contains("implementation")
+        || task_focus.to_lowercase().contains("build");
+    if implementation_like && path_lower.contains("settings-ai") {
+        score -= 8;
+    }
+
+    score
+}
+
 #[tauri::command]
 pub fn generate_project_brief(
     project: String,
+    focus: Option<String>,
     state: State<'_, VaultState>,
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
         let docs = vault.list_documents(&project, None)?;
         let project_config = vault.open_project(&project)?;
         let desc = &project_config.config.project.description;
+        let focus = focus.unwrap_or_default();
+        let focus_trimmed = focus.trim();
 
         let canonical: Vec<_> = docs.iter().filter(|d| d.front_matter.canonical).collect();
         let protected_count = docs.iter().filter(|d| d.front_matter.protected).count();
         let ai_count = docs.iter().filter(|d| format!("{:?}", d.front_matter.author).to_lowercase() == "ai").count();
         let draft_count = docs.iter().filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "draft").count();
         let final_count = docs.iter().filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "final").count();
+        let newest_modified = docs
+            .iter()
+            .map(|d| d.front_matter.modified)
+            .max()
+            .unwrap_or_else(chrono::Utc::now);
+        let preferred_folders = infer_task_folders(focus_trimmed);
+        let substantive_docs: Vec<_> = docs.iter().filter(|d| !is_about_doc(&d.path)).collect();
+        let greenfield_mode = substantive_docs.is_empty();
 
         // Group by folder
         let mut folder_counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
@@ -1406,6 +1639,16 @@ pub fn generate_project_brief(
         }
 
         let mut brief = format!("# Agent Brief: {}\n\n", project);
+
+        brief.push_str("## Agent Rules\n\n");
+        brief.push_str("- Use the SlateVault MCP for documentation discovery, reading, and writing whenever possible.\n");
+        brief.push_str("- Prefer SlateVault document tools over direct filesystem edits for docs that live in the vault.\n");
+        brief.push_str("- Treat canonical SlateVault docs as the source of truth when they exist.\n\n");
+
+        if !focus_trimmed.is_empty() {
+            brief.push_str("## Current Task\n\n");
+            brief.push_str(&format!("{}\n\n", focus_trimmed));
+        }
 
         // 1. Project Summary
         brief.push_str("## Project Summary\n\n");
@@ -1428,11 +1671,22 @@ pub fn generate_project_brief(
         }
 
         // 2. Key Documents (Read First) — canonical + high-signal docs
+        if greenfield_mode {
+            brief.push_str("---\n\n## Greenfield Status\n\n");
+            brief.push_str("No substantive project docs exist yet beyond starter folder descriptions.\n\n");
+            brief.push_str("## Recommended First Docs\n\n");
+            for (path, reason) in recommended_first_docs(focus_trimmed) {
+                brief.push_str(&format!("- `{}` â€” {}\n", path, reason));
+            }
+            brief.push_str("\n");
+        }
         brief.push_str("---\n\n## Key Documents (Read First)\n\n");
         if !canonical.is_empty() {
             brief.push_str("_These are canonical — they define the source of truth._\n\n");
             for doc in &canonical {
-                brief.push_str(&format!("### {}\n\n{}\n\n", doc.front_matter.title, doc.content));
+                if !is_about_doc(&doc.path) {
+                    brief.push_str(&format!("### {}\n\n{}\n\n", doc.front_matter.title, doc.content));
+                }
             }
         }
 
@@ -1440,6 +1694,7 @@ pub fn generate_project_brief(
         if let Ok(context) = vault.get_project_context(&project) {
             let new_context: Vec<_> = context.iter()
                 .filter(|(path, _)| !canonical.iter().any(|c| c.path == *path))
+                .filter(|(path, _)| !is_about_doc(path))
                 .collect();
             if !new_context.is_empty() {
                 if canonical.is_empty() {
@@ -1458,6 +1713,9 @@ pub fn generate_project_brief(
                 // Auto-detect best starting docs
                 let starters: Vec<_> = docs.iter()
                     .filter(|d| {
+                        if is_about_doc(&d.path) {
+                            return false;
+                        }
                         let p = d.path.to_lowercase();
                         let t = d.front_matter.title.to_lowercase();
                         p.contains("overview") || p.contains("architecture") || p.contains("readme")
@@ -1478,8 +1736,30 @@ pub fn generate_project_brief(
             }
         }
 
+        if !focus_trimmed.is_empty() {
+            let mut focus_docs: Vec<_> = docs
+                .iter()
+                .filter(|d| !is_about_doc(&d.path))
+                .map(|doc| (score_doc_for_task(doc, focus_trimmed, &preferred_folders, newest_modified), doc))
+                .filter(|(score, _)| *score > 0)
+                .collect();
+            focus_docs.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.front_matter.modified.cmp(&a.1.front_matter.modified)));
+            if !focus_docs.is_empty() {
+                brief.push_str("## Task-Relevant Docs\n\n");
+                brief.push_str("_These documents appear most relevant to the current task._\n\n");
+                for (_, doc) in focus_docs.into_iter().take(6) {
+                    let status = format!("{:?}", doc.front_matter.status).to_lowercase();
+                    brief.push_str(&format!(
+                        "- **{}** (`{}`) [{}]\n",
+                        doc.front_matter.title, doc.path, status
+                    ));
+                }
+                brief.push_str("\n");
+            }
+        }
+
         // 3. Current Focus (recent docs by modification date)
-        let mut recent: Vec<_> = docs.iter().collect();
+        let mut recent: Vec<_> = docs.iter().filter(|d| !is_about_doc(&d.path)).collect();
         recent.sort_by(|a, b| b.front_matter.modified.cmp(&a.front_matter.modified));
         let recent_5: Vec<_> = recent.into_iter().take(5).collect();
         if !recent_5.is_empty() {
@@ -1559,19 +1839,35 @@ pub fn generate_project_brief(
 
         // 5. Suggested Actions (context-aware)
         brief.push_str("## Suggested Actions\n\n");
-        if canonical.is_empty() {
-            brief.push_str("- **Identify and promote key documents to canonical status** (architecture, specs, decisions)\n");
+        if greenfield_mode {
+            brief.push_str("- Create `prd/product-requirements.md` to define product scope, target user, and success criteria\n");
+            brief.push_str("- Draft the first feature spec with the core user flow and acceptance criteria\n");
+            if focus_trimmed.to_lowercase().contains("dry") || focus_trimmed.to_lowercase().contains("tracker") {
+                brief.push_str("- Define exactly what counts as a dry day, how logging works, and how streak/history should behave\n");
+            }
+            if focus_trimmed.to_lowercase().contains("ios") || focus_trimmed.to_lowercase().contains("swiftui") {
+                brief.push_str("- Decide SwiftUI app structure, state management, and local persistence approach before implementation\n");
+            }
+            brief.push_str("- Break the initial build into concrete tasks in `todo/initial-build.md`\n");
+        } else {
+            if canonical.is_empty() {
+                brief.push_str("- **Identify and promote key documents to canonical status** (architecture, specs, decisions)\n");
+            }
+            if draft_count > 0 {
+                brief.push_str(&format!("- Review and finalize {} draft document{}\n", draft_count, if draft_count != 1 { "s" } else { "" }));
+            }
+            brief.push_str("- Propose structural improvements via `propose_doc_update`\n");
+            brief.push_str("- Generate implementation specs from feature docs with `convert_to_spec`\n");
+            brief.push_str("- Use `build_context_bundle` for focused analysis before major changes\n");
+            brief.push_str("- Check for stale docs with `detect_stale_docs`\n");
         }
-        if draft_count > 0 {
-            brief.push_str(&format!("- Review and finalize {} draft document{}\n", draft_count, if draft_count != 1 { "s" } else { "" }));
-        }
-        brief.push_str("- Propose structural improvements via `propose_doc_update`\n");
-        brief.push_str("- Generate implementation specs from feature docs with `convert_to_spec`\n");
-        brief.push_str("- Use `build_context_bundle` for focused analysis before major changes\n");
-        brief.push_str("- Check for stale docs with `detect_stale_docs`\n");
 
         // All docs index
-        let non_canonical: Vec<_> = docs.iter().filter(|d| !d.front_matter.canonical).collect();
+        let non_canonical: Vec<_> = docs
+            .iter()
+            .filter(|d| !d.front_matter.canonical)
+            .filter(|d| !greenfield_mode || !is_about_doc(&d.path))
+            .collect();
         if !non_canonical.is_empty() {
             brief.push_str("\n---\n\n## Document Index\n\n");
             for doc in &non_canonical {
@@ -1583,6 +1879,23 @@ pub fn generate_project_brief(
                 ));
             }
         }
+
+        let brief = brief
+            .replace(
+                "---\n\n## Key Documents (Read First)\n\n## Task-Relevant Docs\n\n",
+                "## Task-Relevant Docs\n\n",
+            )
+            .replace(
+                "---\n\n## Key Documents (Read First)\n\n---\n\n## Current Focus (Recently Modified)\n\n",
+                "---\n\n## Current Focus (Recently Modified)\n\n",
+            )
+            .replace(
+                "---\n\n## Key Documents (Read First)\n\n---\n\n## Canonical Strategy\n\n",
+                "---\n\n## Canonical Strategy\n\n",
+            )
+            .replace("Ã¢â‚¬â€", "-")
+            .replace("â€”", "-")
+            .replace("â†’", "->");
 
         Ok(brief)
     })

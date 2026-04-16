@@ -1,20 +1,42 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { listen } from "@tauri-apps/api/event";
 import { useVaultStore } from "@/stores/vaultStore";
+import { useUIStore } from "@/stores/uiStore";
 import * as commands from "@/lib/commands";
 
-import "@xterm/xterm/css/xterm.css";
+interface TerminalTab {
+  id: string;
+  label: string;
+}
 
-export function TerminalPanel() {
+interface TerminalOutput {
+  terminal_id: string;
+  data: string;
+}
+
+function createTab(number: number): TerminalTab {
+  return {
+    id: `terminal-${number}`,
+    label: `Terminal ${number}`,
+  };
+}
+
+function TerminalInstance({
+  id,
+  active,
+}: {
+  id: string;
+  active: boolean;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
-  const spawnedRef = useRef(false);
   const vaultPath = useVaultStore((s) => s.vaultPath);
+  const showTerminal = useUIStore((s) => s.showTerminal);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -56,37 +78,38 @@ export function TerminalPanel() {
     termRef.current = term;
     fitRef.current = fit;
 
-    // Send user input to PTY
     term.onData((data) => {
-      commands.writeTerminal(data).catch(() => {});
+      commands.writeTerminal(id, data).catch(() => {});
     });
 
-    // Listen for PTY output
-    const unlisten = listen<string>("terminal:output", (event) => {
-      term.write(event.payload);
+    const unlisten = listen<TerminalOutput>("terminal:output", (event) => {
+      if (event.payload.terminal_id === id) {
+        term.write(event.payload.data);
+      }
     });
 
-    // Spawn terminal if we have a vault path
-    if (vaultPath && !spawnedRef.current) {
-      spawnedRef.current = true;
-      commands.spawnTerminal(vaultPath).then(() => {
-        fit.fit();
-        const dims = fit.proposeDimensions();
-        if (dims) {
-          commands.resizeTerminal(dims.rows, dims.cols).catch(() => {});
-        }
-      }).catch((e) => {
-        term.write(`\r\nFailed to spawn terminal: ${e}\r\n`);
-      });
+    if (vaultPath) {
+      commands
+        .spawnTerminalSession(id, vaultPath)
+        .then(() => {
+          fit.fit();
+          const dims = fit.proposeDimensions();
+          if (dims) {
+            commands.resizeTerminal(id, dims.rows, dims.cols).catch(() => {});
+          }
+        })
+        .catch((e) => {
+          term.write(`\r\nFailed to spawn terminal: ${e}\r\n`);
+        });
     }
 
-    // Resize observer
     const observer = new ResizeObserver(() => {
+      if (!active || !showTerminal) return;
       try {
         fit.fit();
         const dims = fit.proposeDimensions();
         if (dims) {
-          commands.resizeTerminal(dims.rows, dims.cols).catch(() => {});
+          commands.resizeTerminal(id, dims.rows, dims.cols).catch(() => {});
         }
       } catch {
         // ignore resize errors during teardown
@@ -97,6 +120,7 @@ export function TerminalPanel() {
     return () => {
       observer.disconnect();
       unlisten.then((fn) => fn());
+      commands.closeTerminal(id).catch(() => {});
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
@@ -104,11 +128,110 @@ export function TerminalPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!active || !showTerminal || !fitRef.current) return;
+    requestAnimationFrame(() => {
+      try {
+        fitRef.current?.fit();
+        const dims = fitRef.current?.proposeDimensions();
+        if (dims) {
+          commands.resizeTerminal(id, dims.rows, dims.cols).catch(() => {});
+        }
+        termRef.current?.focus();
+      } catch {
+        // ignore fit errors while hidden
+      }
+    });
+  }, [active, id, showTerminal]);
+
   return (
     <div
       ref={containerRef}
-      className="h-full w-full"
-      style={{ padding: "4px 0 0 4px" }}
+      className={`absolute inset-0 h-full w-full transition-opacity ${
+        active
+          ? "z-10 opacity-100"
+          : "pointer-events-none z-0 opacity-0"
+      }`}
+      style={{
+        padding: "4px 0 0 4px",
+        visibility: active ? "visible" : "hidden",
+      }}
     />
+  );
+}
+
+export function TerminalPanel() {
+  const nextTerminalNumberRef = useRef(2);
+  const [tabs, setTabs] = useState<TerminalTab[]>(() => [createTab(1)]);
+  const [activeId, setActiveId] = useState("terminal-1");
+
+  const handleNewTerminal = () => {
+    const tab = createTab(nextTerminalNumberRef.current);
+    nextTerminalNumberRef.current += 1;
+    setTabs((current) => [...current, tab]);
+    setActiveId(tab.id);
+  };
+
+  const handleCloseTerminal = (id: string) => {
+    if (tabs.length <= 1) return;
+    const index = tabs.findIndex((tab) => tab.id === id);
+    const nextTabs = tabs.filter((tab) => tab.id !== id);
+    setTabs(nextTabs);
+
+    if (activeId === id) {
+      const nextActive = nextTabs[Math.max(0, index - 1)] ?? nextTabs[0];
+      setActiveId(nextActive.id);
+    }
+  };
+
+  return (
+    <div className="flex h-full flex-col bg-neutral-950">
+      <div className="flex h-8 flex-shrink-0 items-center gap-1 border-b border-neutral-800 bg-neutral-900/80 px-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveId(tab.id)}
+              className={`group flex h-6 max-w-36 items-center gap-2 rounded-lg border px-2 text-[11px] transition-colors ${
+                activeId === tab.id
+                  ? "border-cyan-900/50 bg-cyan-950/30 text-cyan-200"
+                  : "border-transparent text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300"
+              }`}
+              title={tab.label}
+            >
+              <span className="truncate">{tab.label}</span>
+              {tabs.length > 1 && (
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCloseTerminal(tab.id);
+                  }}
+                  className="rounded px-1 text-neutral-600 hover:bg-neutral-700 hover:text-neutral-200"
+                  title={`Close ${tab.label}`}
+                >
+                  x
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={handleNewTerminal}
+          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200"
+          title="New terminal"
+        >
+          +
+        </button>
+      </div>
+      <div className="relative min-h-0 flex-1">
+        {tabs.map((tab) => (
+          <TerminalInstance
+            key={tab.id}
+            id={tab.id}
+            active={activeId === tab.id}
+          />
+        ))}
+      </div>
+    </div>
   );
 }

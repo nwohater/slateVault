@@ -125,9 +125,10 @@ export async function getRecentChanges(
 }
 
 export async function generateProjectBrief(
-  project: string
+  project: string,
+  focus?: string
 ): Promise<string> {
-  return invoke("generate_project_brief", { project });
+  return invoke("generate_project_brief", { project, focus });
 }
 
 export async function getRelatedDocs(
@@ -284,22 +285,33 @@ export async function setVaultConfig(config: {
 }
 
 export async function spawnTerminal(cwd: string): Promise<string> {
-  return invoke("spawn_terminal", { cwd });
+  return spawnTerminalSession(`terminal-${Date.now()}`, cwd);
 }
 
-export async function writeTerminal(data: string): Promise<void> {
-  return invoke("write_terminal", { data });
+export async function spawnTerminalSession(
+  terminalId: string,
+  cwd: string
+): Promise<string> {
+  return invoke("spawn_terminal", { terminalId, cwd });
+}
+
+export async function writeTerminal(
+  terminalId: string,
+  data: string
+): Promise<void> {
+  return invoke("write_terminal", { terminalId, data });
 }
 
 export async function resizeTerminal(
+  terminalId: string,
   rows: number,
   cols: number
 ): Promise<void> {
-  return invoke("resize_terminal", { rows, cols });
+  return invoke("resize_terminal", { terminalId, rows, cols });
 }
 
-export async function closeTerminal(): Promise<string> {
-  return invoke("close_terminal");
+export async function closeTerminal(terminalId: string): Promise<string> {
+  return invoke("close_terminal", { terminalId });
 }
 
 export async function listFolders(project: string): Promise<string[]> {

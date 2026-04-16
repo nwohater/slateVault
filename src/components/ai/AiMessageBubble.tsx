@@ -22,6 +22,7 @@ export function AiMessageBubble({ message, project }: Props) {
 
   const isUser = message.role === "user";
   const wasSavedByTool = !!message.documents_written?.length;
+  const referencedDocs = extractReferencedDocs(message.content, message.documents_written ?? []);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
@@ -118,6 +119,20 @@ export function AiMessageBubble({ message, project }: Props) {
           ))}
         </div>
       )}
+      {!wasSavedByTool && referencedDocs.length > 0 && (
+        <div className="flex flex-wrap gap-1 px-1">
+          {referencedDocs.map((doc) => (
+            <button
+              key={doc.path}
+              onClick={() => void openDocument(project, doc.path)}
+              className="rounded border border-cyan-800/40 bg-cyan-950/20 px-1.5 py-0.5 text-[10px] text-cyan-300 hover:bg-cyan-900/30"
+              title={`Open ${project}/${doc.path}`}
+            >
+              {doc.label}
+            </button>
+          ))}
+        </div>
+      )}
       {showSaveDialog && (
         <div className="mx-1 mt-1 p-2 rounded bg-neutral-800 border border-neutral-700 space-y-1.5">
           <input
@@ -153,4 +168,34 @@ export function AiMessageBubble({ message, project }: Props) {
       )}
     </div>
   );
+}
+
+function extractReferencedDocs(content: string, excludedPaths: string[]) {
+  const excluded = new Set(excludedPaths.map((path) => path.trim()));
+  const docs = new Map<string, string>();
+
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    const titledMatch = trimmed.match(/^-?\s*(.+?)\s+\(([\w./-]+\.md)\)$/);
+    if (titledMatch) {
+      const [, title, path] = titledMatch;
+      if (!excluded.has(path)) {
+        docs.set(path, title.trim());
+      }
+      continue;
+    }
+
+    const pathMatches = trimmed.match(/[\w./-]+\.md/g);
+    if (!pathMatches) {
+      continue;
+    }
+
+    for (const path of pathMatches) {
+      if (!excluded.has(path) && !docs.has(path)) {
+        docs.set(path, path);
+      }
+    }
+  }
+
+  return Array.from(docs.entries()).map(([path, label]) => ({ path, label }));
 }

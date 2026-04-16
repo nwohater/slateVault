@@ -148,6 +148,22 @@ pub fn vault_tools() -> Vec<ToolDefinition> {
         ToolDefinition {
             tool_type: "function".to_string(),
             function: FunctionDefinition {
+                name: "list_documents".to_string(),
+                description: "List documents in the current project. Use this when the user asks what docs exist, asks for docs in a folder like 'todo' or 'prd', or wants an inventory before choosing what to read.".to_string(),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "path_prefix": {
+                            "type": "string",
+                            "description": "Optional folder prefix like 'todo/' or 'prd/' to limit results to one folder"
+                        }
+                    }
+                }),
+            },
+        },
+        ToolDefinition {
+            tool_type: "function".to_string(),
+            function: FunctionDefinition {
                 name: "read_document".to_string(),
                 description: "Read an existing vault document before revising it or when the user asks about its current contents.".to_string(),
                 parameters: serde_json::json!({
