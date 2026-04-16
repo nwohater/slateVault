@@ -75,7 +75,6 @@ function TerminalInstance({
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(containerRef.current);
-    fit.fit();
 
     termRef.current = term;
     fitRef.current = fit;
@@ -84,6 +83,15 @@ function TerminalInstance({
 
     term.onData((data) => {
       commands.writeTerminal(id, data).catch(() => {});
+    });
+
+    // Defer initial fit so WKWebView layout has settled before measuring
+    requestAnimationFrame(() => {
+      try {
+        fit.fit();
+      } catch {
+        // ignore if disposed before frame fires
+      }
     });
 
     if (vaultPath) {
