@@ -39,6 +39,10 @@ function TerminalInstance({
   const fitRef = useRef<FitAddon | null>(null);
   const vaultPath = useVaultStore((s) => s.vaultPath);
   const showTerminal = useUIStore((s) => s.showTerminal);
+  const activeRef = useRef(active);
+  const showTerminalRef = useRef(showTerminal);
+  activeRef.current = active;
+  showTerminalRef.current = showTerminal;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -110,7 +114,7 @@ function TerminalInstance({
     }
 
     const observer = new ResizeObserver(() => {
-      if (!active || !showTerminal) return;
+      if (!activeRef.current || !showTerminalRef.current) return;
       try {
         fit.fit();
         const dims = fit.proposeDimensions();
