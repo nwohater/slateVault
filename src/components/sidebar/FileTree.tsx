@@ -469,7 +469,7 @@ export function FileTree() {
                           const { open } = await import("@tauri-apps/plugin-dialog");
                           const folder = await open({
                             directory: true,
-                            title: "Select work folder",
+                            title: "Select source folder",
                           });
                           if (folder) {
                             await commands.setProjectSourceFolder(contextMenu.project, folder as string);
@@ -483,7 +483,7 @@ export function FileTree() {
                       }}
                       className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
                     >
-                      Set Work Folder
+                      Set Source Folder
                     </button>
                     <button
                       onClick={async () => {

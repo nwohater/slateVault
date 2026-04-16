@@ -215,7 +215,7 @@ export function Onboarding() {
   const handleBrowseWorkFolder = async () => {
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
-      const folder = await open({ directory: true, title: "Select work folder for this project" });
+      const folder = await open({ directory: true, title: "Select source folder for this project" });
       if (folder) setWorkFolder(folder as string);
     } catch {}
   };
@@ -343,7 +343,7 @@ export function Onboarding() {
                   Set up a new project
                 </h2>
                 <p className="mt-2 text-sm text-neutral-400">
-                  Name it, pick a template, and optionally link a work folder so
+                  Name it, pick a template, and optionally link a source folder so
                   terminals and AI chat know where your code lives.
                 </p>
 
@@ -413,7 +413,7 @@ export function Onboarding() {
 
                   <div>
                     <label className="mb-1.5 block text-xs text-neutral-400">
-                      Work folder{" "}
+                      Source folder{" "}
                       <span className="text-neutral-600">— optional</span>
                     </label>
                     <div className="flex gap-2">
@@ -439,7 +439,7 @@ export function Onboarding() {
                       </button>
                     </div>
                     <p className="mt-1.5 text-[10px] text-neutral-600">
-                      Terminals and AI chat will default to this folder for this project.
+                      Terminals and AI chat will default to this source folder for this project.
                     </p>
                   </div>
 
