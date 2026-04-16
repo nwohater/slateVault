@@ -21,3 +21,4 @@ tracing-subscriber = "0.3"
 dirs = "6"
 toml.workspace = true
 base64.workspace = true
+pdf-extract = "0.10.0"

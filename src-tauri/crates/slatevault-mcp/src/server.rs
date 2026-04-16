@@ -856,6 +856,24 @@ impl SlateVaultMcpServer {
             .unwrap_or("")
             .to_lowercase();
 
+        // Extract text from PDF and return as readable content
+        if ext == "pdf" {
+            let text = pdf_extract::extract_text_from_mem(&bytes)
+                .unwrap_or_default();
+            let text = text.trim().to_string();
+            return if text.is_empty() {
+                Ok(CallToolResult::success(vec![Content::text(format!(
+                    "PDF `{}/{}` ({} bytes) — no extractable text found (may be a scanned/image-only PDF).",
+                    params.project, params.path, bytes.len(),
+                ))]))
+            } else {
+                Ok(CallToolResult::success(vec![Content::text(format!(
+                    "# {}/{}\n\nPDF text content ({} bytes):\n\n{}",
+                    params.project, params.path, bytes.len(), text,
+                ))]))
+            };
+        }
+
         // Detect image MIME types and return as image content so vision models can see them
         let image_mime = match ext.as_str() {
             "png"  => Some("image/png"),
