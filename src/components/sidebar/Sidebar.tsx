@@ -79,6 +79,7 @@ export function Sidebar() {
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectSourceFolder, setNewProjectSourceFolder] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   const loadProjects = useVaultStore((s) => s.loadProjects);
@@ -146,8 +147,20 @@ export function Sidebar() {
       undefined,
       selectedTemplate || undefined
     );
+    if (newProjectSourceFolder) {
+      await commands.setProjectSourceFolder(newProjectName.trim(), newProjectSourceFolder);
+    }
     setNewProjectName("");
+    setNewProjectSourceFolder(null);
     setShowNewProject(false);
+  };
+
+  const handleBrowseSourceFolder = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const folder = await open({ directory: true, title: "Select source folder for this project" });
+      if (folder) setNewProjectSourceFolder(folder as string);
+    } catch {}
   };
 
   const handleRefreshFiles = async () => {
@@ -479,16 +492,41 @@ export function Sidebar() {
                     ))}
                   </select>
                 )}
+                <div>
+                  <div className="flex gap-1 mb-1">
+                    <div className="flex-1 px-2 py-1 text-xs bg-neutral-800 border border-neutral-700 rounded text-neutral-500 truncate">
+                      {newProjectSourceFolder
+                        ? newProjectSourceFolder.split("/").pop() || newProjectSourceFolder
+                        : "No source folder"}
+                    </div>
+                    {newProjectSourceFolder && (
+                      <button
+                        onClick={() => setNewProjectSourceFolder(null)}
+                        className="px-1.5 py-1 text-xs rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-500"
+                        title="Clear"
+                      >
+                        ×
+                      </button>
+                    )}
+                    <button
+                      onClick={() => void handleBrowseSourceFolder()}
+                      className="px-2 py-1 text-xs rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 whitespace-nowrap"
+                    >
+                      Browse
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-neutral-600">Source folder — optional</p>
+                </div>
                 <div className="flex gap-1">
                   <button
-                    onClick={handleCreateProject}
+                    onClick={() => void handleCreateProject()}
                     disabled={!newProjectName.trim()}
                     className="flex-1 px-2 py-1 text-xs rounded bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-medium"
                   >
                     Create
                   </button>
                   <button
-                    onClick={() => { setShowNewProject(false); setNewProjectName(""); }}
+                    onClick={() => { setShowNewProject(false); setNewProjectName(""); setNewProjectSourceFolder(null); }}
                     className="px-2 py-1 text-xs rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-400"
                   >
                     Cancel
