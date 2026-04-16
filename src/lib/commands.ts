@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   ProjectInfo,
   DocumentInfo,
+  AssetInfo,
   SearchResultInfo,
   FileStatus,
   CommitInfo,
@@ -109,6 +110,10 @@ export async function importMarkdownFolder(
   sourcePath: string
 ): Promise<string> {
   return invoke("import_markdown_folder", { project, sourcePath });
+}
+
+export async function listProjectAssets(project: string): Promise<AssetInfo[]> {
+  return invoke("list_project_assets", { project });
 }
 
 export async function importFilesToProject(

@@ -779,6 +779,119 @@ impl SlateVaultMcpServer {
 
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
+
+    #[tool(description = "List non-markdown asset files (PDFs, images, config files, etc.) in a project's docs folder")]
+    fn list_project_assets(
+        &self,
+        Parameters(params): Parameters<ListProjectAssetsParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        let project_obj = vault
+            .open_project(&params.project)
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+        let docs_dir = project_obj.docs_dir();
+
+        let mut assets: Vec<String> = Vec::new();
+        if docs_dir.exists() {
+            collect_asset_paths(&docs_dir, &docs_dir, &mut assets);
+        }
+
+        if assets.is_empty() {
+            return Ok(CallToolResult::success(vec![Content::text(format!(
+                "No asset files found in project '{}'.",
+                params.project
+            ))]));
+        }
+
+        let output = format!(
+            "Assets in '{}' ({} file{}):\n\n{}",
+            params.project,
+            assets.len(),
+            if assets.len() == 1 { "" } else { "s" },
+            assets.iter().map(|p| format!("- `{}`", p)).collect::<Vec<_>>().join("\n"),
+        );
+        Ok(CallToolResult::success(vec![Content::text(output)]))
+    }
+
+    #[tool(description = "Read the raw content of a non-markdown asset file. Text files return their content; binary files report type and size only.")]
+    fn read_asset(
+        &self,
+        Parameters(params): Parameters<ReadAssetParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        let project_obj = vault
+            .open_project(&params.project)
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+        let docs_dir = project_obj.docs_dir();
+
+        // Sanitize path (reject any traversal)
+        let mut cleaned = std::path::PathBuf::new();
+        for component in std::path::Path::new(&params.path).components() {
+            match component {
+                std::path::Component::Normal(p) => cleaned.push(p),
+                std::path::Component::CurDir => {}
+                _ => return Err(McpError::internal_error(
+                    format!("Invalid path: {}", params.path), None,
+                )),
+            }
+        }
+        if cleaned.as_os_str().is_empty() {
+            return Err(McpError::internal_error("Path cannot be empty".to_string(), None));
+        }
+        let full_path = docs_dir.join(&cleaned);
+
+        if !full_path.exists() {
+            return Err(McpError::internal_error(
+                format!("Asset not found: {}/{}", params.project, params.path),
+                None,
+            ));
+        }
+
+        let bytes = std::fs::read(&full_path)
+            .map_err(|e| McpError::internal_error(format!("Read error: {}", e), None))?;
+
+        // Try to interpret as UTF-8 text
+        match std::str::from_utf8(&bytes) {
+            Ok(text) => {
+                let output = format!(
+                    "# {}/{}\n\nSize: {} bytes\n\n```\n{}\n```",
+                    params.project,
+                    params.path,
+                    bytes.len(),
+                    text,
+                );
+                Ok(CallToolResult::success(vec![Content::text(output)]))
+            }
+            Err(_) => {
+                let ext = full_path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("unknown");
+                Ok(CallToolResult::success(vec![Content::text(format!(
+                    "Asset `{}/{}` is a binary file ({}, {} bytes). Cannot display raw content.",
+                    params.project, params.path, ext, bytes.len(),
+                ))]))
+            }
+        }
+    }
+}
+
+fn collect_asset_paths(base: &std::path::Path, dir: &std::path::Path, out: &mut Vec<String>) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                collect_asset_paths(base, &path, out);
+            } else if path.extension().map_or(true, |e| e != "md") {
+                let rel = path
+                    .strip_prefix(base)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                out.push(rel);
+            }
+        }
+    }
 }
 
 #[tool_handler]

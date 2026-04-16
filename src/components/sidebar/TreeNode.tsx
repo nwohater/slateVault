@@ -15,6 +15,8 @@ interface TreeNodeProps {
   canonical?: boolean;
   isProtected?: boolean;
   draggable?: boolean;
+  /** Non-markdown file — shown read-only with a paperclip icon */
+  isAsset?: boolean;
   /** Highlight as an external-file drop target (cyan) vs internal move (blue) */
   isExternalDropTarget?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
@@ -29,6 +31,15 @@ const authorBadge: Record<string, { label: string; color: string }> = {
   Both: { label: "B", color: "bg-blue-900 text-blue-300" },
 };
 
+/** Paperclip icon for non-markdown assets */
+function AssetIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+    </svg>
+  );
+}
+
 export function TreeNode({
   label,
   isFolder,
@@ -41,6 +52,7 @@ export function TreeNode({
   onContextMenu,
   depth,
   draggable,
+  isAsset,
   isExternalDropTarget,
   onDragStart,
   onDragOver,
@@ -54,7 +66,9 @@ export function TreeNode({
     ? isExpanded
       ? <FolderOpenIcon className="w-3.5 h-3.5 text-yellow-500" />
       : <FolderIcon className="w-3.5 h-3.5 text-yellow-600" />
-    : <FileIcon className="w-3.5 h-3.5 text-neutral-500" />;
+    : isAsset
+      ? <AssetIcon className="w-3.5 h-3.5 text-neutral-500" />
+      : <FileIcon className="w-3.5 h-3.5 text-neutral-500" />;
 
   const chevron = isFolder
     ? isExpanded
@@ -91,11 +105,16 @@ export function TreeNode({
       }}
       className={`
         w-full flex items-center gap-1 px-2 py-1 text-xs text-left
-        hover:bg-neutral-800 transition-colors
-        ${isActive ? "bg-neutral-800 text-blue-400" : "text-neutral-300"}
+        transition-colors
+        ${isAsset
+          ? "text-neutral-500 hover:text-neutral-400 hover:bg-neutral-800/50"
+          : isActive
+            ? "bg-neutral-800 text-blue-400 hover:bg-neutral-800"
+            : "text-neutral-300 hover:bg-neutral-800"}
         ${isExternalDropTarget ? "bg-cyan-950/40 border-l-2 border-cyan-500" : dragOver ? "bg-blue-900/30 border-l-2 border-blue-500" : ""}
       `}
       style={{ paddingLeft: 8 + depth * 16 }}
+      title={isAsset ? `${label} — click to reveal in Finder` : undefined}
     >
       {isFolder && <span className="w-3 flex-shrink-0">{chevron}</span>}
       <span className="flex-shrink-0">{icon}</span>

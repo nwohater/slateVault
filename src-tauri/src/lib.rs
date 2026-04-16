@@ -39,6 +39,7 @@ pub fn run() {
             commands::write_document,
             commands::read_document,
             commands::list_documents,
+            commands::list_project_assets,
             commands::search_documents,
             commands::get_project_context,
             commands::git_commit,

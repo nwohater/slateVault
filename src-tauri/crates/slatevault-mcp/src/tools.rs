@@ -204,3 +204,19 @@ pub struct SummarizeBranchDiffParams {
     #[schemars(description = "Head branch name (e.g. 'feature/new-docs')")]
     pub head: String,
 }
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "List non-markdown files (assets) in a project — PDFs, images, config files, etc.")]
+pub struct ListProjectAssetsParams {
+    #[schemars(description = "Project name")]
+    pub project: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Read the raw content of a non-markdown asset file (text files only; binary files will report their size)")]
+pub struct ReadAssetParams {
+    #[schemars(description = "Project name")]
+    pub project: String,
+    #[schemars(description = "Path relative to the project's docs/ folder, e.g. 'specs/diagram.json'")]
+    pub path: String,
+}

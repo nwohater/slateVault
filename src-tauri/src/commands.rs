@@ -239,6 +239,58 @@ pub fn list_documents(
     })
 }
 
+/// Non-markdown file inside a project's docs directory.
+#[derive(Serialize)]
+pub struct AssetInfo {
+    /// Path relative to the project docs dir, e.g. "specs/diagram.pdf"
+    pub path: String,
+    /// Just the filename, e.g. "diagram.pdf"
+    pub filename: String,
+}
+
+#[tauri::command]
+pub fn list_project_assets(
+    project: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<AssetInfo>> {
+    with_vault(&state, |vault| {
+        let project_obj = vault.open_project(&project)?;
+        let docs_dir = project_obj.docs_dir();
+        let mut assets: Vec<AssetInfo> = Vec::new();
+        if docs_dir.exists() {
+            collect_assets(&docs_dir, &docs_dir, &mut assets)?;
+        }
+        Ok(assets)
+    })
+}
+
+fn collect_assets(
+    base: &Path,
+    dir: &Path,
+    out: &mut Vec<AssetInfo>,
+) -> Result<(), slatevault_core::CoreError> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_assets(base, &path, out)?;
+        } else if path.extension().map_or(true, |e| e != "md") {
+            let rel = path
+                .strip_prefix(base)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .replace('\\', "/");
+            let filename = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string();
+            out.push(AssetInfo { path: rel, filename });
+        }
+    }
+    Ok(())
+}
+
 #[derive(Serialize)]
 pub struct SearchResultInfo {
     project: String,

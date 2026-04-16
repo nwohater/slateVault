@@ -33,6 +33,11 @@ export interface DocumentInfo {
   protected: boolean;
 }
 
+export interface AssetInfo {
+  path: string;
+  filename: string;
+}
+
 export interface SearchResultInfo {
   project: string;
   path: string;

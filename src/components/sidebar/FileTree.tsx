@@ -9,32 +9,41 @@ import { parseFrontMatter } from "@/lib/frontmatter";
 import { TreeNode } from "./TreeNode";
 import { ProjectPdfExport } from "../preview/ProjectPdfExport";
 
-import type { DocumentInfo } from "@/types";
+import type { DocumentInfo, AssetInfo } from "@/types";
 
 interface FolderNode {
   name: string;
   path: string; // full relative path like "specs" or "specs/api"
   children: FolderNode[];
   docs: DocumentInfo[];
+  assets: AssetInfo[];
 }
 
-function buildFolderTree(docs: DocumentInfo[], folderPaths: string[]): FolderNode {
-  const root: FolderNode = { name: "", path: "", children: [], docs: [] };
+function buildFolderTree(
+  docs: DocumentInfo[],
+  folderPaths: string[],
+  assets: AssetInfo[] = []
+): FolderNode {
+  const root: FolderNode = { name: "", path: "", children: [], docs: [], assets: [] };
 
-  // Ensure all known folders exist in the tree (including empty ones)
-  for (const fp of folderPaths) {
-    const parts = fp.split("/");
+  const ensurePath = (pathParts: string[]): FolderNode => {
     let current = root;
-    for (let i = 0; i < parts.length; i++) {
-      const folderName = parts[i];
-      const folderPath = parts.slice(0, i + 1).join("/");
+    for (let i = 0; i < pathParts.length; i++) {
+      const folderName = pathParts[i];
+      const folderPath = pathParts.slice(0, i + 1).join("/");
       let child = current.children.find((c) => c.name === folderName);
       if (!child) {
-        child = { name: folderName, path: folderPath, children: [], docs: [] };
+        child = { name: folderName, path: folderPath, children: [], docs: [], assets: [] };
         current.children.push(child);
       }
       current = child;
     }
+    return current;
+  };
+
+  // Ensure all known folders exist in the tree (including empty ones)
+  for (const fp of folderPaths) {
+    ensurePath(fp.split("/"));
   }
 
   // Place docs into the correct folder nodes
@@ -43,18 +52,19 @@ function buildFolderTree(docs: DocumentInfo[], folderPaths: string[]): FolderNod
     if (parts.length === 1) {
       root.docs.push(doc);
     } else {
-      let current = root;
-      for (let i = 0; i < parts.length - 1; i++) {
-        const folderName = parts[i];
-        const folderPath = parts.slice(0, i + 1).join("/");
-        let child = current.children.find((c) => c.name === folderName);
-        if (!child) {
-          child = { name: folderName, path: folderPath, children: [], docs: [] };
-          current.children.push(child);
-        }
-        current = child;
-      }
-      current.docs.push(doc);
+      const folder = ensurePath(parts.slice(0, -1));
+      folder.docs.push(doc);
+    }
+  }
+
+  // Place assets into the correct folder nodes
+  for (const asset of assets) {
+    const parts = asset.path.split("/");
+    if (parts.length === 1) {
+      root.assets.push(asset);
+    } else {
+      const folder = ensurePath(parts.slice(0, -1));
+      folder.assets.push(asset);
     }
   }
 
@@ -97,6 +107,7 @@ export function FileTree() {
   const [externalDropTarget, setExternalDropTarget] = useState<{ project: string; folder: string } | null>(null);
   const [importToast, setImportToast] = useState<string | null>(null);
   const [projectFolders, setProjectFolders] = useState<Record<string, string[]>>({});
+  const [projectAssets, setProjectAssets] = useState<Record<string, AssetInfo[]>>({});
   const [exportingProject, setExportingProject] = useState<string | null>(null);
   const [sourceFolders, setSourceFolders] = useState<Record<string, string | null>>({});
 
@@ -115,11 +126,14 @@ export function FileTree() {
     }
   }, [projects]);
 
-  // Load folders for expanded projects
+  // Load folders and assets for expanded projects
   useEffect(() => {
     for (const name of expandedProjects) {
       commands.listFolders(name).then((folders) => {
         setProjectFolders((prev) => ({ ...prev, [name]: folders }));
+      }).catch(() => {});
+      commands.listProjectAssets(name).then((assets) => {
+        setProjectAssets((prev) => ({ ...prev, [name]: assets }));
       }).catch(() => {});
     }
   }, [expandedProjects, documents]);
@@ -285,6 +299,9 @@ export function FileTree() {
 
       const imported = await commands.importFilesToProject(project, folder, fileArgs);
       await loadDocuments(project);
+      // Refresh assets so non-markdown files appear in the tree
+      const assets = await commands.listProjectAssets(project).catch(() => [] as AssetInfo[]);
+      setProjectAssets((prev) => ({ ...prev, [project]: assets }));
       await loadGitStatus();
 
       const label =
@@ -388,6 +405,23 @@ export function FileTree() {
                 e.dataTransfer.effectAllowed = "move";
                 e.dataTransfer.setData("text/plain", doc.path);
               }}
+            />
+          ))}
+
+        {/* Render non-markdown assets at this level (read-only) */}
+        {node.assets
+          .sort((a, b) => a.filename.localeCompare(b.filename))
+          .map((asset) => (
+            <TreeNode
+              key={asset.path}
+              label={asset.filename}
+              isFolder={false}
+              isAsset
+              onClick={() => commands.showInFolder(projectName, asset.path).catch(() => {})}
+              onContextMenu={(e) =>
+                openContextMenu(e, "doc", projectName, asset.path, asset.filename)
+              }
+              depth={baseDepth}
             />
           ))}
       </div>
@@ -517,7 +551,8 @@ export function FileTree() {
                 renderFolderTree(
                   buildFolderTree(
                     documents[project.name] || [],
-                    projectFolders[project.name] || []
+                    projectFolders[project.name] || [],
+                    projectAssets[project.name] || []
                   ),
                   project.name,
                   1
