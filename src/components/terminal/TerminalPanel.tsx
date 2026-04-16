@@ -177,13 +177,14 @@ function TerminalInstance({
 
 export function TerminalPanel() {
   const nextTerminalNumberRef = useRef(2);
-  const [tabs, setTabs] = useState<TerminalTab[]>(() => [createTab(1, null)]);
+  const [tabs, setTabs] = useState<TerminalTab[]>([]);
   const [activeId, setActiveId] = useState("terminal-1");
   const termMapRef = useRef<Map<string, Terminal>>(new Map());
 
   const projects = useVaultStore((s) => s.projects);
-  const [selectedProject, setSelectedProject] = useState<string>(() => "");
-  const [workFolder, setWorkFolder] = useState<string | null>(null);
+  const [selectedProject, setSelectedProject] = useState<string>("");
+  // undefined = not yet loaded; null = loaded but none set; string = loaded with value
+  const [workFolder, setWorkFolder] = useState<string | null | undefined>(undefined);
 
   // Initialize selectedProject once projects load
   useEffect(() => {
@@ -195,15 +196,25 @@ export function TerminalPanel() {
   // Load work folder when selected project changes
   useEffect(() => {
     if (!selectedProject) {
-      setWorkFolder(null);
+      setWorkFolder(projects.length === 0 ? null : undefined);
       return;
     }
+    setWorkFolder(undefined);
     commands.getProjectSourceFolder(selectedProject).then((folder) => {
       setWorkFolder(folder);
     }).catch(() => {
       setWorkFolder(null);
     });
-  }, [selectedProject]);
+  }, [selectedProject, projects.length]);
+
+  // Defer first tab creation until work folder is known so it gets the right cwd
+  useEffect(() => {
+    if (tabs.length > 0) return;
+    if (workFolder === undefined) return; // still loading
+    const tab = createTab(1, workFolder);
+    setTabs([tab]);
+    setActiveId(tab.id);
+  }, [workFolder, tabs.length]);
 
   // Single shared listener for all terminal instances — avoids Tauri listener
   // corruption that occurs when multiple instances register/unregister the same
@@ -230,8 +241,12 @@ export function TerminalPanel() {
     else termMapRef.current.delete(id);
   }, []);
 
-  const handleNewTerminal = () => {
-    const tab = createTab(nextTerminalNumberRef.current, workFolder);
+  const handleNewTerminal = async () => {
+    // Always fetch fresh — user may have set a work folder after the panel mounted
+    const folder = selectedProject
+      ? await commands.getProjectSourceFolder(selectedProject).catch(() => null)
+      : null;
+    const tab = createTab(nextTerminalNumberRef.current, folder);
     nextTerminalNumberRef.current += 1;
     setTabs((current) => [...current, tab]);
     setActiveId(tab.id);
