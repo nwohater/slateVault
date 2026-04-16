@@ -408,16 +408,29 @@ pub fn assemble_context(
 ) -> String {
     let mut context = String::new();
 
-    // 1. FIRST: List all docs so the AI knows what exists (put this first for small context models)
-    if let Ok(all_docs) = vault.list_documents(project, None) {
-        let real_docs: Vec<_> = all_docs.iter()
-            .filter(|d| !d.path.ends_with("/_about.md") && d.path != "_about.md")
-            .collect();
+    // 1. FIRST: List all docs and assets so the AI knows what exists
+    let all_docs = vault.list_documents(project, None).unwrap_or_default();
+    let real_docs: Vec<_> = all_docs.iter()
+        .filter(|d| !d.path.ends_with("/_about.md") && d.path != "_about.md")
+        .collect();
+    let all_assets = vault.list_assets(project).unwrap_or_default();
+
+    if !real_docs.is_empty() || !all_assets.is_empty() {
+        context.push_str("## Project Files\n\n");
+
         if !real_docs.is_empty() {
-            context.push_str("## Project Documents\n\n");
+            context.push_str("### Documents\n\n");
             for doc in &real_docs {
                 let canonical = if doc.front_matter.canonical { " [CANONICAL]" } else { "" };
                 context.push_str(&format!("- **{}** (`{}`){}\\n", doc.front_matter.title, doc.path, canonical));
+            }
+            context.push('\n');
+        }
+
+        if !all_assets.is_empty() {
+            context.push_str("### Assets (non-text files)\n\n");
+            for (path, _filename) in &all_assets {
+                context.push_str(&format!("- `{}`\\n", path));
             }
             context.push('\n');
         }

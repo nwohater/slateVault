@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useChatStore } from "@/stores/chatStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import * as commands from "@/lib/commands";
+import type { AssetInfo } from "@/types";
 import { AiMessageBubble } from "./AiMessageBubble";
 
 export function AiChatPanel() {
@@ -22,6 +23,7 @@ export function AiChatPanel() {
   const [selectedProject, setSelectedProject] = useState("");
   const [input, setInput] = useState("");
   const [toolsSupported, setToolsSupported] = useState<boolean | null>(null);
+  const [projectAssets, setProjectAssets] = useState<AssetInfo[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,6 +31,14 @@ export function AiChatPanel() {
       setSelectedProject(projects[0].name);
     }
   }, [projects, selectedProject]);
+
+  // Fetch assets whenever selected project changes
+  useEffect(() => {
+    if (!selectedProject) return;
+    commands.listProjectAssets(selectedProject)
+      .then(setProjectAssets)
+      .catch(() => setProjectAssets([]));
+  }, [selectedProject]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -153,7 +163,7 @@ export function AiChatPanel() {
         )}
 
         {messages.map((msg, i) => (
-          <AiMessageBubble key={i} message={msg} project={selectedProject} />
+          <AiMessageBubble key={i} message={msg} project={selectedProject} assets={projectAssets} />
         ))}
 
         {isLoading && (

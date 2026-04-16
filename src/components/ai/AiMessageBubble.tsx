@@ -3,16 +3,17 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { AiChatMessage } from "@/types";
+import type { AiChatMessage, AssetInfo } from "@/types";
 import * as commands from "@/lib/commands";
 import { useEditorStore } from "@/stores/editorStore";
 
 interface Props {
   message: AiChatMessage;
   project: string;
+  assets?: AssetInfo[];
 }
 
-export function AiMessageBubble({ message, project }: Props) {
+export function AiMessageBubble({ message, project, assets = [] }: Props) {
   const openDocument = useEditorStore((s) => s.openDocument);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -23,6 +24,11 @@ export function AiMessageBubble({ message, project }: Props) {
   const isUser = message.role === "user";
   const wasSavedByTool = !!message.documents_written?.length;
   const referencedDocs = extractReferencedDocs(message.content, message.documents_written ?? []);
+  const referencedAssets = extractReferencedAssets(message.content, assets);
+
+  const handleOpenAsset = (path: string) => {
+    void commands.openAsset(project, path);
+  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
@@ -133,6 +139,21 @@ export function AiMessageBubble({ message, project }: Props) {
           ))}
         </div>
       )}
+      {referencedAssets.length > 0 && (
+        <div className="flex flex-wrap gap-1 px-1">
+          {referencedAssets.map((asset) => (
+            <button
+              key={asset.path}
+              onClick={() => handleOpenAsset(asset.path)}
+              className={`flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] hover:opacity-80 ${assetBadgeStyle(asset.filename)}`}
+              title={`Open ${asset.path}`}
+            >
+              <span>{assetIcon(asset.filename)}</span>
+              <span>{asset.filename}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {showSaveDialog && (
         <div className="mx-1 mt-1 p-2 rounded bg-neutral-800 border border-neutral-700 space-y-1.5">
           <input
@@ -170,28 +191,72 @@ export function AiMessageBubble({ message, project }: Props) {
   );
 }
 
+function assetIcon(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "pdf") return "📄";
+  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "avif"].includes(ext)) return "🖼️";
+  if (["mp4", "mov", "avi", "mkv"].includes(ext)) return "🎬";
+  if (["mp3", "wav", "ogg", "m4a"].includes(ext)) return "🎵";
+  if (["zip", "tar", "gz", "7z"].includes(ext)) return "🗜️";
+  return "📎";
+}
+
+function assetBadgeStyle(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "pdf") return "border-red-800/40 bg-red-950/20 text-red-300";
+  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "avif"].includes(ext))
+    return "border-purple-800/40 bg-purple-950/20 text-purple-300";
+  if (["mp4", "mov", "avi", "mkv"].includes(ext))
+    return "border-blue-800/40 bg-blue-950/20 text-blue-300";
+  return "border-neutral-700/40 bg-neutral-800/20 text-neutral-400";
+}
+
+function extractReferencedAssets(content: string, assets: AssetInfo[]): AssetInfo[] {
+  if (!assets.length) return [];
+  const found: AssetInfo[] = [];
+  const seen = new Set<string>();
+  for (const asset of assets) {
+    // Match by full path or just the filename anywhere in the content
+    if (
+      (content.includes(asset.path) || content.includes(asset.filename)) &&
+      !seen.has(asset.path)
+    ) {
+      found.push(asset);
+      seen.add(asset.path);
+    }
+  }
+  return found;
+}
+
+function isInternalDoc(path: string): boolean {
+  // Filter out internal template files that users shouldn't click into
+  return path === "_about.md" || path.endsWith("/_about.md");
+}
+
 function extractReferencedDocs(content: string, excludedPaths: string[]) {
   const excluded = new Set(excludedPaths.map((path) => path.trim()));
   const docs = new Map<string, string>();
 
   for (const line of content.split("\n")) {
     const trimmed = line.trim();
-    const titledMatch = trimmed.match(/^-?\s*(.+?)\s+\(([\w./-]+\.md)\)$/);
+    // Match "Title (`path/to/file.md`)" or "Title (path/to/file.md)"
+    const titledMatch = trimmed.match(/^-?\s*(.+?)\s+\(`?([\w./-]+\.md)`?\)\s*$/);
     if (titledMatch) {
       const [, title, path] = titledMatch;
-      if (!excluded.has(path)) {
-        docs.set(path, title.trim());
+      if (!excluded.has(path) && !isInternalDoc(path)) {
+        docs.set(path, title.replace(/\*\*/g, "").trim());
       }
       continue;
     }
 
-    const pathMatches = trimmed.match(/[\w./-]+\.md/g);
+    const pathMatches = trimmed.match(/`([\w./-]+\.md)`|(?<![`\w])([\w][\w./-]*\.md)(?![`\w])/g);
     if (!pathMatches) {
       continue;
     }
 
-    for (const path of pathMatches) {
-      if (!excluded.has(path) && !docs.has(path)) {
+    for (const raw of pathMatches) {
+      const path = raw.replace(/`/g, "").trim();
+      if (!excluded.has(path) && !docs.has(path) && !isInternalDoc(path)) {
         docs.set(path, path);
       }
     }

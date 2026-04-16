@@ -116,6 +116,10 @@ export async function listProjectAssets(project: string): Promise<AssetInfo[]> {
   return invoke("list_project_assets", { project });
 }
 
+export async function openAsset(project: string, path: string): Promise<void> {
+  return invoke("open_asset", { project, path });
+}
+
 export async function importFilesToProject(
   project: string,
   folderPath: string,

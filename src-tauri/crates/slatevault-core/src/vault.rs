@@ -282,6 +282,53 @@ impl Vault {
         Ok(documents)
     }
 
+    /// List non-markdown assets (images, PDFs, etc.) in a project's docs directory.
+    pub fn list_assets(&self, project_name: &str) -> Result<Vec<(String, String)>> {
+        let project = self.open_project(project_name)?;
+        let docs_dir = project.docs_dir();
+        let mut assets: Vec<(String, String)> = Vec::new();
+
+        if !docs_dir.exists() {
+            return Ok(assets);
+        }
+
+        self.walk_assets(&docs_dir, &docs_dir, &mut assets)?;
+        Ok(assets)
+    }
+
+    fn walk_assets(
+        &self,
+        base: &Path,
+        dir: &Path,
+        assets: &mut Vec<(String, String)>,
+    ) -> Result<()> {
+        for entry in std::fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            let filename = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+
+            // Skip hidden files and macOS metadata files
+            if filename.starts_with('.') {
+                continue;
+            }
+
+            if path.is_dir() {
+                self.walk_assets(base, &path, assets)?;
+            } else if !path.extension().map_or(false, |e| e == "md") {
+                let rel = path
+                    .strip_prefix(base)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                assets.push((rel, filename));
+            }
+        }
+        Ok(())
+    }
+
     fn walk_docs(
         &self,
         base: &Path,

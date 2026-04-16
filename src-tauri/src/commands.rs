@@ -628,6 +628,43 @@ pub fn show_in_folder(
 }
 
 #[tauri::command]
+pub fn open_asset(
+    project: String,
+    path: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<()> {
+    with_vault(&state, |vault| {
+        let project_obj = vault.open_project(&project)?;
+        let full_path = resolve_inside(&project_obj.docs_dir(), &path)?;
+
+        if !full_path.exists() {
+            return Err(invalid_input(format!("Asset not found: {}", path)));
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            let path_str = full_path.to_string_lossy().replace('/', "\\");
+            std::process::Command::new("cmd")
+                .raw_arg(format!("/c start \"\" \"{path_str}\""))
+                .spawn()?;
+        }
+
+        #[cfg(target_os = "macos")]
+        std::process::Command::new("open")
+            .arg(&*full_path.to_string_lossy())
+            .spawn()?;
+
+        #[cfg(target_os = "linux")]
+        std::process::Command::new("xdg-open")
+            .arg(&*full_path.to_string_lossy())
+            .spawn()?;
+
+        Ok(())
+    })
+}
+
+#[tauri::command]
 pub fn delete_document(
     project: String,
     path: String,
@@ -1014,9 +1051,33 @@ pub async fn ai_chat(
     .map_err(|e| e.to_string())?
     .map_err(|e| e.to_string())?;
 
+    // If the model returned nothing AND called no tools, it probably doesn't support
+    // tool calling (e.g. small local models like gemma3:4b). Retry without tools.
+    let tool_calls_empty = result.tool_calls.as_ref().map(|tc| tc.is_empty()).unwrap_or(true);
+    if result.content.trim().is_empty() && tool_calls_empty {
+        let endpoint_url_notool = endpoint_url.clone();
+        let model_notool = model.clone();
+        let api_key_notool = api_key.clone();
+        let messages_notool = messages.clone();
+        result = tauri::async_runtime::spawn_blocking(move || {
+            slatevault_core::ai::chat_completion(
+                &endpoint_url_notool,
+                api_key_notool.as_deref(),
+                &model_notool,
+                messages_notool,
+            )
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
+    }
+
     // Execute tool calls if any (up to 3 rounds)
     let mut tool_rounds = 0;
     let mut documents_written = Vec::new();
+    // Track all tool results across rounds for fallback rendering
+    let mut all_tool_results: Vec<(String, String)> = Vec::new();
+
     while let Some(ref tool_calls) = result.tool_calls {
         if tool_calls.is_empty() || tool_rounds >= 3 {
             break;
@@ -1032,7 +1093,7 @@ pub async fn ai_chat(
         });
 
         // Execute each tool call
-        let mut actions_taken = Vec::new();
+        let mut round_tool_results: Vec<(String, String)> = Vec::new();
         for tc in tool_calls {
             if tc.function.name == "write_document" {
                 if let Ok(tool_args) = serde_json::from_str::<serde_json::Value>(&tc.function.arguments) {
@@ -1052,15 +1113,17 @@ pub async fn ai_chat(
                     &tc.function.arguments,
                 )
             };
-            actions_taken.push(format!("{}: {}", tc.function.name, tool_result.as_deref().unwrap_or("OK")));
+            let result_text = tool_result.unwrap_or_else(|e| format!("Error: {}", e));
+            round_tool_results.push((tc.function.name.clone(), result_text.clone()));
 
             messages.push(slatevault_core::ai::ChatMessage {
                 role: "tool".to_string(),
-                content: Some(tool_result.unwrap_or_else(|e| format!("Error: {}", e))),
+                content: Some(result_text),
                 tool_calls: None,
                 tool_call_id: Some(tc.id.clone()),
             });
         }
+        all_tool_results.extend(round_tool_results);
 
         // Get next response
         let endpoint_url_for_followup = endpoint_url.clone();
@@ -1079,24 +1142,47 @@ pub async fn ai_chat(
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())?;
-
-        // Append action summary to content
-        if !actions_taken.is_empty() {
-            let summary = actions_taken.join("\n");
-            result.content = format!(
-                "{}\n\n---\n*Actions taken:*\n{}",
-                result.content, summary
-            );
-        }
     }
 
-    if !documents_written.is_empty() {
-        let mut lines = Vec::new();
-        lines.push("Saved via tool:".to_string());
-        for path in &documents_written {
-            lines.push(format!("- {}/{}", args.project, path));
+    // If the model returned no text (or only a short/useless stub) after tool execution,
+    // synthesize a readable response directly from the tool results.
+    let content_too_short = result.content.trim().len() < 80;
+    if content_too_short && !all_tool_results.is_empty() {
+        let mut parts: Vec<String> = Vec::new();
+        for (tool_name, tool_output) in &all_tool_results {
+            match tool_name.as_str() {
+                "list_documents" => {
+                    parts.push(format!("**Documents found:**\n\n{}", tool_output.trim()));
+                }
+                "read_document" => {
+                    parts.push(tool_output.trim().to_string());
+                }
+                "search_documents" => {
+                    parts.push(format!("**Search results:**\n\n{}", tool_output.trim()));
+                }
+                "write_document" => {
+                    parts.push(format!("✓ {}", tool_output.trim()));
+                }
+                _ => {
+                    parts.push(tool_output.trim().to_string());
+                }
+            }
         }
-        result.content = lines.join("\n");
+        result.content = parts.join("\n\n");
+    }
+
+    // Note documents written in the response (append, don't replace)
+    if !documents_written.is_empty() {
+        let paths: Vec<String> = documents_written
+            .iter()
+            .map(|p| format!("- {}/{}", args.project, p))
+            .collect();
+        let saved_note = format!("*Saved:*\n{}", paths.join("\n"));
+        if result.content.trim().is_empty() {
+            result.content = saved_note;
+        } else {
+            result.content = format!("{}\n\n---\n{}", result.content, saved_note);
+        }
     }
 
     result.documents_written = documents_written;
