@@ -94,6 +94,8 @@ export function FileTree() {
   const [menuError, setMenuError] = useState<string | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [dragItem, setDragItem] = useState<{ project: string; path: string } | null>(null);
+  const [externalDropTarget, setExternalDropTarget] = useState<{ project: string; folder: string } | null>(null);
+  const [importToast, setImportToast] = useState<string | null>(null);
   const [projectFolders, setProjectFolders] = useState<Record<string, string[]>>({});
   const [exportingProject, setExportingProject] = useState<string | null>(null);
   const [sourceFolders, setSourceFolders] = useState<Record<string, string | null>>({});
@@ -247,6 +249,57 @@ export function FileTree() {
     setDragItem(null);
   };
 
+  const handleExternalDrop = async (
+    e: React.DragEvent,
+    project: string,
+    folder: string
+  ) => {
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    if (droppedFiles.length === 0) return;
+
+    // Expand the target folder so the user sees the imported files
+    if (folder) {
+      const key = `${project}/${folder}`;
+      setExpandedFolders((prev) => {
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
+    }
+
+    try {
+      // Read all files as base64
+      const fileArgs = await Promise.all(
+        droppedFiles.map(async (file) => {
+          const buffer = await file.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          // Convert to base64 without btoa stack-overflow risk on large files
+          let binary = "";
+          const chunkSize = 8192;
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+          }
+          return { filename: file.name, data_base64: btoa(binary) };
+        })
+      );
+
+      const imported = await commands.importFilesToProject(project, folder, fileArgs);
+      await loadDocuments(project);
+      await loadGitStatus();
+
+      const label =
+        imported.length === 1
+          ? `Imported "${imported[0].split("/").pop()}"`
+          : `Imported ${imported.length} files`;
+      setImportToast(label);
+      setTimeout(() => setImportToast(null), 3000);
+    } catch (err) {
+      console.error("Import failed:", err);
+      setImportToast(`Import failed: ${err}`);
+      setTimeout(() => setImportToast(null), 4000);
+    }
+  };
+
   const renderFolderTree = (
     node: FolderNode,
     projectName: string,
@@ -282,14 +335,27 @@ export function FileTree() {
                   openContextMenu(e, "folder", projectName, child.path, child.name)
                 }
                 depth={baseDepth}
+                isExternalDropTarget={
+                  externalDropTarget?.project === projectName &&
+                  externalDropTarget?.folder === child.path
+                }
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
+                  if (e.dataTransfer.types.includes("Files")) {
+                    setExternalDropTarget({ project: projectName, folder: child.path });
+                  }
                 }}
+                onDragLeave={() => setExternalDropTarget(null)}
                 onDrop={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  handleDrop(projectName, child.path);
+                  setExternalDropTarget(null);
+                  if (e.dataTransfer.files.length > 0 && !dragItem) {
+                    handleExternalDrop(e, projectName, child.path);
+                  } else {
+                    handleDrop(projectName, child.path);
+                  }
                 }}
               />
               {expandedFolders.has(`${projectName}/${child.path}`) &&
@@ -338,6 +404,15 @@ export function FileTree() {
 
   return (
     <>
+      {/* Import toast */}
+      {importToast && (
+        <div className="mx-2 mb-1 px-2.5 py-1.5 rounded-md bg-cyan-950/80 border border-cyan-800/50 text-cyan-300 text-[11px] flex items-center gap-1.5 animate-pulse">
+          <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+          </svg>
+          {importToast}
+        </div>
+      )}
       <div className="py-1">
         {projects.map((project) => {
           const isExpanded = expandedProjects.has(project.name);
@@ -354,14 +429,27 @@ export function FileTree() {
                       openContextMenu(e, "project", project.name)
                     }
                     depth={0}
+                    isExternalDropTarget={
+                      externalDropTarget?.project === project.name &&
+                      externalDropTarget?.folder === ""
+                    }
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
+                      if (e.dataTransfer.types.includes("Files")) {
+                        setExternalDropTarget({ project: project.name, folder: "" });
+                      }
                     }}
+                    onDragLeave={() => setExternalDropTarget(null)}
                     onDrop={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      handleDrop(project.name, "");
+                      setExternalDropTarget(null);
+                      if (e.dataTransfer.files.length > 0 && !dragItem) {
+                        handleExternalDrop(e, project.name, "");
+                      } else {
+                        handleDrop(project.name, "");
+                      }
                     }}
                   />
                 </div>

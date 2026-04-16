@@ -111,6 +111,14 @@ export async function importMarkdownFolder(
   return invoke("import_markdown_folder", { project, sourcePath });
 }
 
+export async function importFilesToProject(
+  project: string,
+  folderPath: string,
+  files: Array<{ filename: string; data_base64: string }>
+): Promise<string[]> {
+  return invoke("import_files_to_project", { project, folderPath, files });
+}
+
 export async function getBacklinks(
   project: string,
   path: string

@@ -2277,6 +2277,107 @@ pub fn import_markdown_folder(
     })
 }
 
+// -- Import files dragged in from the OS into a project folder --
+
+#[derive(serde::Deserialize)]
+pub struct ImportFileArg {
+    filename: String,
+    data_base64: String,
+}
+
+/// Returns the destination path inside `dir` that doesn't conflict with an
+/// existing file.  E.g. "notes.md" → "notes (1).md" → "notes (2).md" …
+fn unique_file_path(dir: &std::path::Path, filename: &str) -> std::path::PathBuf {
+    let candidate = dir.join(filename);
+    if !candidate.exists() {
+        return candidate;
+    }
+    let p = std::path::Path::new(filename);
+    let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or(filename);
+    let ext = p.extension().and_then(|s| s.to_str());
+    let mut i = 1u32;
+    loop {
+        let new_name = match ext {
+            Some(e) => format!("{} ({}).{}", stem, i, e),
+            None => format!("{} ({})", stem, i),
+        };
+        let candidate = dir.join(&new_name);
+        if !candidate.exists() {
+            return candidate;
+        }
+        i += 1;
+    }
+}
+
+#[tauri::command]
+pub fn import_files_to_project(
+    project: String,
+    folder_path: String,
+    files: Vec<ImportFileArg>,
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<String>> {
+    use base64::Engine;
+    with_vault(&state, |vault| {
+        let project_obj = vault.open_project(&project)?;
+        let docs_dir = project_obj.docs_dir();
+
+        // Resolve target directory inside docs/
+        let target_dir = if folder_path.is_empty() {
+            docs_dir.clone()
+        } else {
+            let rel = sanitize_relative_path(&folder_path)?;
+            docs_dir.join(rel)
+        };
+        std::fs::create_dir_all(&target_dir)?;
+
+        let mut imported: Vec<String> = Vec::new();
+
+        for file_arg in &files {
+            // Reject path traversal in filename
+            let filename = sanitize_single_component(&file_arg.filename)?;
+
+            // Decode base64
+            let data = base64::engine::general_purpose::STANDARD
+                .decode(&file_arg.data_base64)
+                .map_err(|e| invalid_input(format!("Bad base64 for {}: {}", filename, e)))?;
+
+            // Find a non-conflicting destination path
+            let dest = unique_file_path(&target_dir, &filename);
+            std::fs::write(&dest, &data)?;
+
+            // Stage to git
+            let _ = vault.stage_file(&dest);
+
+            // Relative path from docs_dir for the return value / indexing
+            let rel = dest
+                .strip_prefix(&docs_dir)
+                .unwrap_or(&dest)
+                .to_string_lossy()
+                .replace('\\', "/");
+
+            // Index markdown files so they appear in search immediately
+            if filename.to_lowercase().ends_with(".md") {
+                if let Ok(doc) = vault.read_document(&project, &rel) {
+                    let _ = vault.search.index_document(
+                        &project,
+                        &doc.path,
+                        &doc.front_matter.title,
+                        &doc.content,
+                        &doc.front_matter.tags,
+                        &format!("{:?}", doc.front_matter.author).to_lowercase(),
+                        &format!("{:?}", doc.front_matter.status).to_lowercase(),
+                        doc.front_matter.canonical,
+                    );
+                }
+            }
+
+            imported.push(rel);
+        }
+
+        Ok(imported)
+    })
+}
+
 // -- Binary file write (for PDF export) --
 
 #[tauri::command]

@@ -85,6 +85,7 @@ pub fn run() {
             commands::backup_vault,
             commands::restore_vault,
             commands::import_markdown_folder,
+            commands::import_files_to_project,
             commands::write_binary_file,
             commands::read_vault_file,
             commands::write_vault_file,

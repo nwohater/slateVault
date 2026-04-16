@@ -15,8 +15,11 @@ interface TreeNodeProps {
   canonical?: boolean;
   isProtected?: boolean;
   draggable?: boolean;
+  /** Highlight as an external-file drop target (cyan) vs internal move (blue) */
+  isExternalDropTarget?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragOver?: (e: React.DragEvent) => void;
+  onDragLeave?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
 }
 
@@ -38,8 +41,10 @@ export function TreeNode({
   onContextMenu,
   depth,
   draggable,
+  isExternalDropTarget,
   onDragStart,
   onDragOver,
+  onDragLeave,
   onDrop,
 }: TreeNodeProps) {
   const badge = author ? authorBadge[author] : null;
@@ -67,12 +72,15 @@ export function TreeNode({
         if (isFolder) {
           e.preventDefault();
           e.stopPropagation();
-          e.dataTransfer.dropEffect = "move";
+          e.dataTransfer.dropEffect = "copy";
           setDragOver(true);
           if (onDragOver) onDragOver(e);
         }
       }}
-      onDragLeave={() => setDragOver(false)}
+      onDragLeave={(e) => {
+        setDragOver(false);
+        if (onDragLeave) onDragLeave(e);
+      }}
       onDrop={(e) => {
         if (isFolder) {
           e.preventDefault();
@@ -85,7 +93,7 @@ export function TreeNode({
         w-full flex items-center gap-1 px-2 py-1 text-xs text-left
         hover:bg-neutral-800 transition-colors
         ${isActive ? "bg-neutral-800 text-blue-400" : "text-neutral-300"}
-        ${dragOver ? "bg-blue-900/30 border-l-2 border-blue-500" : ""}
+        ${isExternalDropTarget ? "bg-cyan-950/40 border-l-2 border-cyan-500" : dragOver ? "bg-blue-900/30 border-l-2 border-blue-500" : ""}
       `}
       style={{ paddingLeft: 8 + depth * 16 }}
     >
