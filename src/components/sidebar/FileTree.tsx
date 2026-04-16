@@ -96,12 +96,22 @@ export function FileTree() {
   const [dragItem, setDragItem] = useState<{ project: string; path: string } | null>(null);
   const [projectFolders, setProjectFolders] = useState<Record<string, string[]>>({});
   const [exportingProject, setExportingProject] = useState<string | null>(null);
+  const [sourceFolders, setSourceFolders] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
     loadProjects();
     const interval = setInterval(loadProjects, 5000);
     return () => clearInterval(interval);
   }, [loadProjects]);
+
+  // Load source folders for all projects
+  useEffect(() => {
+    for (const p of projects) {
+      commands.getProjectSourceFolder(p.name).then((folder) => {
+        setSourceFolders((prev) => ({ ...prev, [p.name]: folder }));
+      }).catch(() => {});
+    }
+  }, [projects]);
 
   // Load folders for expanded projects
   useEffect(() => {
@@ -372,6 +382,16 @@ export function FileTree() {
                 )}
               </div>
 
+              {sourceFolders[project.name] && (
+                <div className="flex items-center gap-1 pl-8 text-[10px] text-neutral-600 truncate pr-2 pb-0.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 flex-shrink-0">
+                    <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h2.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12A1.5 1.5 0 0 0 9.62 4H12.5A1.5 1.5 0 0 1 14 5.5v1H2v-3Z" />
+                    <path d="M2 7.5A1.5 1.5 0 0 1 3.5 6h9A1.5 1.5 0 0 1 14 7.5v5A1.5 1.5 0 0 1 12.5 14h-9A1.5 1.5 0 0 1 2 12.5v-5Z" />
+                  </svg>
+                  <span className="truncate">{sourceFolders[project.name]!.split("/").pop() || sourceFolders[project.name]}</span>
+                </div>
+              )}
+
               {isExpanded && newDocProject === project.name && (
                 <div className="pl-8 pr-2 py-1">
                   <div className="flex gap-1">
@@ -449,19 +469,21 @@ export function FileTree() {
                           const { open } = await import("@tauri-apps/plugin-dialog");
                           const folder = await open({
                             directory: true,
-                            title: "Select source code folder",
+                            title: "Select work folder",
                           });
                           if (folder) {
                             await commands.setProjectSourceFolder(contextMenu.project, folder as string);
+                            const reloaded = await commands.getProjectSourceFolder(contextMenu.project);
+                            setSourceFolders((prev) => ({ ...prev, [contextMenu.project]: reloaded }));
                           }
                         } catch (e) {
-                          console.error("Set source folder failed:", e);
+                          console.error("Set work folder failed:", e);
                         }
                         setContextMenu(null);
                       }}
                       className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
                     >
-                      Set Source Folder
+                      Set Work Folder
                     </button>
                     <button
                       onClick={async () => {

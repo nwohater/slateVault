@@ -25,7 +25,6 @@ impl Project {
                 tags,
                 ai_context_files: Vec::new(),
                 folder_order: Vec::new(),
-                source_folder: None,
             },
         };
 

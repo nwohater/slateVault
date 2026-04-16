@@ -441,9 +441,9 @@ pub fn assemble_context(
 
     // 4. Source code (if enabled and configured)
     if include_source {
-        if let Ok(project_obj) = vault.open_project(project) {
-            if let Some(ref source_folder) = project_obj.config.project.source_folder {
-                let source_path = std::path::PathBuf::from(source_folder);
+        if let Ok(local) = crate::local_config::LocalConfig::load() {
+            if let Some(source_folder) = local.get_source_folder(project) {
+                let source_path = std::path::PathBuf::from(&source_folder);
                 if source_path.is_dir() {
                     let source_content = read_source_files(&source_path, 50_000);
                     if !source_content.is_empty() {

@@ -1278,36 +1278,24 @@ pub fn ai_list_models(
 pub fn set_project_source_folder(
     project: String,
     source_folder: Option<String>,
-    state: State<'_, VaultState>,
+    _state: State<'_, VaultState>,
 ) -> CmdResult<String> {
-    let lock = state.0.lock().map_err(|e| e.to_string())?;
-    let vault = lock.as_ref().ok_or("No vault is open")?;
-    let mut project_obj = vault.open_project(&project).map_err(|e| e.to_string())?;
-
-    project_obj.config.project.source_folder = source_folder.clone();
-    let toml_str = toml::to_string_pretty(&project_obj.config).map_err(|e| e.to_string())?;
-    std::fs::write(
-        vault.projects_dir().join(&project).join("project.toml"),
-        toml_str,
-    )
-    .map_err(|e| e.to_string())?;
-
-    Ok(format!(
-        "Source folder {} for project '{}'",
-        source_folder.as_deref().unwrap_or("cleared"),
-        project
-    ))
+    let mut local = slatevault_core::local_config::LocalConfig::load()
+        .map_err(|e| e.to_string())?;
+    let label = source_folder.as_deref().unwrap_or("cleared").to_string();
+    local.set_source_folder(&project, source_folder);
+    local.save().map_err(|e| e.to_string())?;
+    Ok(format!("Source folder {} for project '{}'", label, project))
 }
 
 #[tauri::command]
 pub fn get_project_source_folder(
     project: String,
-    state: State<'_, VaultState>,
+    _state: State<'_, VaultState>,
 ) -> CmdResult<Option<String>> {
-    with_vault(&state, |vault| {
-        let project_obj = vault.open_project(&project)?;
-        Ok(project_obj.config.project.source_folder.clone())
-    })
+    let local = slatevault_core::local_config::LocalConfig::load()
+        .map_err(|e| e.to_string())?;
+    Ok(local.get_source_folder(&project))
 }
 
 // -- Playbook commands --

@@ -11,6 +11,7 @@ import * as commands from "@/lib/commands";
 interface TerminalTab {
   id: string;
   label: string;
+  cwd: string | null;
 }
 
 interface TerminalOutput {
@@ -18,20 +19,23 @@ interface TerminalOutput {
   data: string;
 }
 
-function createTab(number: number): TerminalTab {
+function createTab(number: number, cwd: string | null = null): TerminalTab {
   return {
     id: `terminal-${number}`,
     label: `Terminal ${number}`,
+    cwd,
   };
 }
 
 function TerminalInstance({
   id,
   active,
+  cwd,
   onRegister,
 }: {
   id: string;
   active: boolean;
+  cwd: string | null;
   onRegister: (id: string, term: Terminal | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -98,9 +102,10 @@ function TerminalInstance({
       }
     });
 
-    if (vaultPath) {
+    const startPath = cwd ?? vaultPath;
+    if (startPath) {
       commands
-        .spawnTerminalSession(id, vaultPath)
+        .spawnTerminalSession(id, startPath)
         .then(() => {
           fit.fit();
           const dims = fit.proposeDimensions();
@@ -172,9 +177,33 @@ function TerminalInstance({
 
 export function TerminalPanel() {
   const nextTerminalNumberRef = useRef(2);
-  const [tabs, setTabs] = useState<TerminalTab[]>(() => [createTab(1)]);
+  const [tabs, setTabs] = useState<TerminalTab[]>(() => [createTab(1, null)]);
   const [activeId, setActiveId] = useState("terminal-1");
   const termMapRef = useRef<Map<string, Terminal>>(new Map());
+
+  const projects = useVaultStore((s) => s.projects);
+  const [selectedProject, setSelectedProject] = useState<string>(() => "");
+  const [workFolder, setWorkFolder] = useState<string | null>(null);
+
+  // Initialize selectedProject once projects load
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProject) {
+      setSelectedProject(projects[0].name);
+    }
+  }, [projects, selectedProject]);
+
+  // Load work folder when selected project changes
+  useEffect(() => {
+    if (!selectedProject) {
+      setWorkFolder(null);
+      return;
+    }
+    commands.getProjectSourceFolder(selectedProject).then((folder) => {
+      setWorkFolder(folder);
+    }).catch(() => {
+      setWorkFolder(null);
+    });
+  }, [selectedProject]);
 
   // Single shared listener for all terminal instances — avoids Tauri listener
   // corruption that occurs when multiple instances register/unregister the same
@@ -202,7 +231,7 @@ export function TerminalPanel() {
   }, []);
 
   const handleNewTerminal = () => {
-    const tab = createTab(nextTerminalNumberRef.current);
+    const tab = createTab(nextTerminalNumberRef.current, workFolder);
     nextTerminalNumberRef.current += 1;
     setTabs((current) => [...current, tab]);
     setActiveId(tab.id);
@@ -219,6 +248,10 @@ export function TerminalPanel() {
       setActiveId(nextActive.id);
     }
   };
+
+  const workFolderBasename = workFolder
+    ? workFolder.split("/").pop() || workFolder
+    : null;
 
   return (
     <div className="flex h-full flex-col bg-neutral-950">
@@ -251,13 +284,36 @@ export function TerminalPanel() {
             </button>
           ))}
         </div>
-        <button
-          onClick={handleNewTerminal}
-          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200"
-          title="New terminal"
-        >
-          +
-        </button>
+        <div className="flex flex-shrink-0 items-center gap-1.5">
+          {projects.length > 0 && (
+            <>
+              <select
+                value={selectedProject}
+                onChange={(e) => setSelectedProject(e.target.value)}
+                className="bg-neutral-900 border border-neutral-800 text-neutral-400 text-[10px] rounded px-1 py-0.5 outline-none"
+                title="Project for new terminals"
+              >
+                {projects.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              {workFolderBasename && (
+                <span className="text-[10px] text-neutral-600 truncate max-w-24" title={workFolder ?? ""}>
+                  {workFolderBasename}
+                </span>
+              )}
+            </>
+          )}
+          <button
+            onClick={handleNewTerminal}
+            className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200"
+            title="New terminal"
+          >
+            +
+          </button>
+        </div>
       </div>
       <div className="relative min-h-0 flex-1">
         {tabs.map((tab) => (
@@ -265,6 +321,7 @@ export function TerminalPanel() {
             key={tab.id}
             id={tab.id}
             active={activeId === tab.id}
+            cwd={tab.cwd}
             onRegister={handleRegister}
           />
         ))}

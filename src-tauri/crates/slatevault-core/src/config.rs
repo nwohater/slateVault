@@ -105,8 +105,6 @@ pub struct ProjectMeta {
     pub ai_context_files: Vec<String>,
     #[serde(default)]
     pub folder_order: Vec<String>,
-    #[serde(default)]
-    pub source_folder: Option<String>,
 }
 
 fn default_version() -> String {
