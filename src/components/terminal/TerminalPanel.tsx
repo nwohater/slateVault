@@ -182,6 +182,7 @@ export function TerminalPanel() {
   const termMapRef = useRef<Map<string, Terminal>>(new Map());
 
   const projects = useVaultStore((s) => s.projects);
+  const toggleTerminal = useUIStore((s) => s.toggleTerminal);
   const [selectedProject, setSelectedProject] = useState<string>("");
   // undefined = not yet loaded; null = loaded but none set; string = loaded with value
   const [workFolder, setWorkFolder] = useState<string | null | undefined>(undefined);
@@ -253,7 +254,10 @@ export function TerminalPanel() {
   };
 
   const handleCloseTerminal = (id: string) => {
-    if (tabs.length <= 1) return;
+    if (tabs.length <= 1) {
+      toggleTerminal();
+      return;
+    }
     const index = tabs.findIndex((tab) => tab.id === id);
     const nextTabs = tabs.filter((tab) => tab.id !== id);
     setTabs(nextTabs);
@@ -284,18 +288,16 @@ export function TerminalPanel() {
               title={tab.label}
             >
               <span className="truncate">{tab.label}</span>
-              {tabs.length > 1 && (
-                <span
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleCloseTerminal(tab.id);
-                  }}
-                  className="rounded px-1 text-neutral-600 hover:bg-neutral-700 hover:text-neutral-200"
-                  title={`Close ${tab.label}`}
-                >
-                  x
-                </span>
-              )}
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCloseTerminal(tab.id);
+                }}
+                className="rounded px-1 text-neutral-600 hover:bg-neutral-700 hover:text-neutral-200"
+                title={tabs.length === 1 ? "Close terminal" : `Close ${tab.label}`}
+              >
+                x
+              </span>
             </button>
           ))}
         </div>
