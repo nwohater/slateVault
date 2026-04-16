@@ -850,6 +850,34 @@ impl SlateVaultMcpServer {
         let bytes = std::fs::read(&full_path)
             .map_err(|e| McpError::internal_error(format!("Read error: {}", e), None))?;
 
+        let ext = full_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        // Detect image MIME types and return as image content so vision models can see them
+        let image_mime = match ext.as_str() {
+            "png"  => Some("image/png"),
+            "jpg" | "jpeg" => Some("image/jpeg"),
+            "gif"  => Some("image/gif"),
+            "webp" => Some("image/webp"),
+            "svg"  => Some("image/svg+xml"),
+            _      => None,
+        };
+
+        if let Some(mime) = image_mime {
+            use base64::Engine;
+            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+            return Ok(CallToolResult::success(vec![
+                Content::text(format!(
+                    "Image asset `{}/{}` ({}, {} bytes):",
+                    params.project, params.path, mime, bytes.len(),
+                )),
+                Content::image(b64, mime),
+            ]));
+        }
+
         // Try to interpret as UTF-8 text
         match std::str::from_utf8(&bytes) {
             Ok(text) => {
@@ -863,10 +891,6 @@ impl SlateVaultMcpServer {
                 Ok(CallToolResult::success(vec![Content::text(output)]))
             }
             Err(_) => {
-                let ext = full_path
-                    .extension()
-                    .and_then(|e| e.to_str())
-                    .unwrap_or("unknown");
                 Ok(CallToolResult::success(vec![Content::text(format!(
                     "Asset `{}/{}` is a binary file ({}, {} bytes). Cannot display raw content.",
                     params.project, params.path, ext, bytes.len(),
