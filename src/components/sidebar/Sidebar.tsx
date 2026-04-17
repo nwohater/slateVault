@@ -198,7 +198,7 @@ export function Sidebar() {
             <span className="absolute left-0 top-2 bottom-2 w-0.5 bg-cyan-400 rounded-r-full" />
           )}
         </button>
-        {(["home", "files", "start-session", "agent-access", "docs-health", "git", "ai"] as SidebarView[]).map((v) => (
+        {(["home", "files", "start-session", "agent-access", "docs-health", "git"] as SidebarView[]).map((v) => (
           <button
             key={v}
             onClick={() => switchView(v)}

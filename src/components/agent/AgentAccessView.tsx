@@ -51,10 +51,8 @@ export function AgentAccessView() {
   const [vaultConfig, setVaultConfig] = useState<VaultSettings | null>(null);
   const [remoteConfig, setRemoteConfig] = useState<RemoteConfig | null>(null);
   const [mcpStatus, setMcpStatus] = useState<McpServerStatus | null>(null);
-  const [toolsSupported, setToolsSupported] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [testingTools, setTestingTools] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -132,24 +130,6 @@ export function AgentAccessView() {
       window.setTimeout(() => setMessage(null), 2200);
     } catch (err) {
       setError(`Could not copy ${label.toLowerCase()}: ${err}`);
-    }
-  };
-
-  const handleTestTools = async () => {
-    setTestingTools(true);
-    setMessage("Testing AI endpoint for tool support...");
-    setError(null);
-    try {
-      const supported = await commands.aiTestTools();
-      setToolsSupported(supported);
-      setMessage(supported ? "AI endpoint supports tools." : "AI endpoint is text-only.");
-      window.setTimeout(() => setMessage(null), 2400);
-    } catch (err) {
-      setToolsSupported(false);
-      setError(`Could not test AI tools: ${err}`);
-      setMessage(null);
-    } finally {
-      setTestingTools(false);
     }
   };
 
@@ -257,23 +237,6 @@ export function AgentAccessView() {
                   {mcpStatus?.running
                     ? "Stop the local server if you want to disconnect agents."
                     : "Launch the local MCP server for the currently open vault."}
-                </div>
-              </button>
-              <button
-                onClick={handleTestTools}
-                disabled={testingTools}
-                className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <div className="flex items-center gap-2 text-xs font-medium text-neutral-200">
-                  {testingTools && (
-                    <span className="h-3.5 w-3.5 animate-spin rounded-full border border-cyan-400/30 border-t-cyan-400" />
-                  )}
-                  {testingTools ? "Testing AI tools..." : "Test AI tools"}
-                </div>
-                <div className="mt-1 text-[11px] text-neutral-500">
-                  {testingTools
-                    ? "Waiting for the configured endpoint to respond."
-                    : "Check whether your configured AI endpoint supports tool use."}
                 </div>
               </button>
             </div>
@@ -442,21 +405,6 @@ export function AgentAccessView() {
                     {remoteConfig?.remote_url
                       ? remoteConfig.remote_url
                       : "Connect a remote when your team is ready to share the vault."}
-                  </div>
-                </div>
-                <div className="workspace-stat rounded-2xl p-4">
-                  <div className="workspace-stat-label">
-                    AI endpoint
-                  </div>
-                  <div className="mt-2 text-sm font-medium text-neutral-200">
-                    {toolsSupported === null
-                      ? "Untested"
-                      : toolsSupported
-                        ? "Tools supported"
-                        : "Text only"}
-                  </div>
-                  <div className="mt-1 text-[11px] text-neutral-500">
-                    Tool support matters most when you want the built-in AI assistant to take richer actions.
                   </div>
                 </div>
               </div>
