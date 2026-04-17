@@ -23,6 +23,8 @@ export function AiChatPanel() {
   const [selectedProject, setSelectedProject] = useState("");
   const [input, setInput] = useState("");
   const [toolsSupported, setToolsSupported] = useState<boolean | null>(null);
+  const [testingTools, setTestingTools] = useState(false);
+  const [toolTestMessage, setToolTestMessage] = useState<string | null>(null);
   const [projectAssets, setProjectAssets] = useState<AssetInfo[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -77,7 +79,7 @@ export function AiChatPanel() {
           )}
           {toolsSupported === true && (
             <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-green-900/30 text-green-400 border border-green-800/30">
-              Tools
+              Tool calls enabled
             </span>
           )}
           {toolsSupported === false && (
@@ -114,20 +116,46 @@ export function AiChatPanel() {
           />
           Include source
         </label>
-        {toolsSupported === null && (
-          <button
-            onClick={async () => {
-              try {
-                const supported = await commands.aiTestTools();
-                setToolsSupported(supported);
-              } catch {
-                setToolsSupported(false);
-              }
-            }}
-            className="text-[10px] text-neutral-600 hover:text-neutral-400"
+        <button
+          onClick={async () => {
+            setTestingTools(true);
+            setToolTestMessage("Checking whether this model can call SlateVault tools...");
+            try {
+              const supported = await commands.aiTestTools();
+              setToolsSupported(supported);
+              setToolTestMessage(
+                supported
+                  ? "Tool calls enabled: the assistant can request SlateVault actions, not just return text."
+                  : "Text-only model: chat works, but it will not directly call SlateVault tools."
+              );
+            } catch {
+              setToolsSupported(false);
+              setToolTestMessage("Tool test failed. Treat this endpoint as text-only for now.");
+            } finally {
+              setTestingTools(false);
+            }
+          }}
+          disabled={testingTools}
+          className="inline-flex items-center gap-1.5 text-[10px] text-neutral-600 hover:text-neutral-400 disabled:text-neutral-700"
+        >
+          {testingTools && (
+            <span className="h-2.5 w-2.5 animate-spin rounded-full border border-neutral-600 border-t-cyan-400" />
+          )}
+          {testingTools ? "Testing tools..." : "Test tools"}
+        </button>
+        {toolTestMessage && (
+          <span
+            className={`min-w-0 truncate text-[10px] ${
+              toolsSupported === true
+                ? "text-green-400"
+                : toolsSupported === false
+                  ? "text-yellow-400"
+                  : "text-neutral-500"
+            }`}
+            title={toolTestMessage}
           >
-            Test tools
-          </button>
+            {toolTestMessage}
+          </span>
         )}
       </div>
 

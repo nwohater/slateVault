@@ -955,6 +955,10 @@ pub async fn ai_chat(
     args: AiChatArgs,
     state: State<'_, VaultState>,
 ) -> CmdResult<slatevault_core::ai::AiChatResult> {
+    if let Some(result) = try_direct_document_list_response(&args, &state)? {
+        return Ok(result);
+    }
+
     let (endpoint_url, model, api_key, context) = {
         let lock = state.0.lock().map_err(|e| e.to_string())?;
         let vault = lock.as_ref().ok_or("No vault is open")?;
@@ -997,6 +1001,7 @@ pub async fn ai_chat(
             "You are an AI assistant for the project '{}' in slateVault. Help with documentation, analysis, and writing.\n\
             You have tool access for listing, reading, searching, and writing project documents.\n\
             When the user asks what documents exist or asks for documents in a folder like 'todo', 'prd', or 'features', prefer list_documents instead of guessing from search.\n\
+            When the user asks to summarize, review, inspect, or explain a PDF or other non-markdown asset path, call read_asset. Do not claim you cannot access vault PDFs before trying read_asset.\n\
             When the user explicitly asks you to create, update, revise, or save a document in the vault, prefer calling the write_document tool instead of only returning draft text.\n\
             Use list_documents, read_document, and search_documents before writing when you need context.\n\
             Only return full markdown for manual saving when the user is brainstorming, asks for a draft only, or tool use is not possible.\n\
@@ -1007,6 +1012,7 @@ pub async fn ai_chat(
             "You are an AI assistant for the project '{}' in slateVault. Use the following project context:\n\n{}\n\n\
             You have tool access for listing, reading, searching, and writing project documents.\n\
             When the user asks what documents exist or asks for documents in a folder like 'todo', 'prd', or 'features', prefer list_documents instead of guessing from search.\n\
+            When the user asks to summarize, review, inspect, or explain a PDF or other non-markdown asset path, call read_asset. Do not claim you cannot access vault PDFs before trying read_asset.\n\
             When the user explicitly asks you to create, update, revise, or save a document in the vault, prefer calling the write_document tool instead of only returning draft text.\n\
             Use list_documents, read_document, and search_documents before writing when you need context.\n\
             Only return full markdown for manual saving when the user is brainstorming, asks for a draft only, or tool use is not possible.\n\
@@ -1157,6 +1163,9 @@ pub async fn ai_chat(
                 "read_document" => {
                     parts.push(tool_output.trim().to_string());
                 }
+                "read_asset" => {
+                    parts.push(tool_output.trim().to_string());
+                }
                 "search_documents" => {
                     parts.push(format!("**Search results:**\n\n{}", tool_output.trim()));
                 }
@@ -1188,6 +1197,137 @@ pub async fn ai_chat(
     result.documents_written = documents_written;
 
     Ok(result)
+}
+
+fn try_direct_document_list_response(
+    args: &AiChatArgs,
+    state: &State<'_, VaultState>,
+) -> CmdResult<Option<slatevault_core::ai::AiChatResult>> {
+    let message = args.message.to_lowercase();
+    let is_list_request = [
+        "list",
+        "show",
+        "what documents",
+        "which documents",
+        "what docs",
+        "which docs",
+    ]
+    .iter()
+    .any(|needle| message.contains(needle));
+
+    if !is_list_request || !(message.contains("document") || message.contains("docs")) {
+        return Ok(None);
+    }
+
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let docs = vault
+        .list_documents(&args.project, None)
+        .map_err(|e| e.to_string())?;
+    let assets = vault
+        .list_assets(&args.project)
+        .map_err(|e| e.to_string())?;
+
+    let mut folders: Vec<String> = docs
+        .iter()
+        .filter_map(|doc| doc.path.split_once('/').map(|(folder, _)| folder.to_string()))
+        .collect();
+    folders.extend(
+        assets
+            .iter()
+            .filter_map(|(path, _)| path.split_once('/').map(|(folder, _)| folder.to_string())),
+    );
+    folders.extend(["prd", "specs", "todo", "features", "context", "notes"].map(String::from));
+    folders.sort();
+    folders.dedup();
+
+    let requested_folder = folders
+        .iter()
+        .find(|folder| {
+            let folder = folder.to_lowercase();
+            message.contains(&format!("{} folder", folder))
+                || message.contains(&format!("folder {}", folder))
+                || message.contains(&format!("in {}", folder))
+                || message.contains(&format!("from {}", folder))
+                || message.contains(&format!("under {}", folder))
+                || message.contains(&format!("{}/", folder))
+        })
+        .cloned();
+
+    let filtered: Vec<_> = docs
+        .into_iter()
+        .filter(|doc| {
+            if doc.path == "_about.md" || doc.path.ends_with("/_about.md") {
+                return false;
+            }
+            if let Some(folder) = &requested_folder {
+                doc.path.starts_with(&format!("{}/", folder))
+            } else {
+                true
+            }
+        })
+        .collect();
+
+    let filtered_assets: Vec<_> = assets
+        .into_iter()
+        .filter(|(path, _)| {
+            if let Some(folder) = &requested_folder {
+                path.starts_with(&format!("{}/", folder))
+            } else {
+                true
+            }
+        })
+        .collect();
+
+    let scope = requested_folder
+        .as_ref()
+        .map(|folder| format!("`{}/`", folder))
+        .unwrap_or_else(|| "this project".to_string());
+
+    let content = if filtered.is_empty() && filtered_assets.is_empty() {
+        format!("No documents or assets found in {}.", scope)
+    } else {
+        let total = filtered.len() + filtered_assets.len();
+        let noun = if total == 1 { "item" } else { "items" };
+        let mut content = format!("Found {} {} in {}:\n\n", total, noun, scope);
+
+        if !filtered.is_empty() {
+            content.push_str("## Documents\n\n");
+            for (index, doc) in filtered.iter().enumerate() {
+                content.push_str(&format!(
+                    "{}. **{}** (`{}`)\n",
+                    index + 1,
+                    doc.front_matter.title,
+                    doc.path
+                ));
+            }
+        }
+
+        if !filtered_assets.is_empty() {
+            if !filtered.is_empty() {
+                content.push('\n');
+            }
+            content.push_str("## Assets\n\n");
+            for (index, (path, filename)) in filtered_assets.iter().enumerate() {
+                content.push_str(&format!(
+                    "{}. **{}** (`{}`)\n",
+                    index + 1,
+                    filename,
+                    path
+                ));
+            }
+        }
+        content
+    };
+
+    Ok(Some(slatevault_core::ai::AiChatResult {
+        content,
+        model: "slateVault direct tools".to_string(),
+        usage: None,
+        tool_calls: None,
+        tools_supported: true,
+        documents_written: Vec::new(),
+    }))
 }
 
 fn execute_tool_call(
@@ -1224,6 +1364,10 @@ fn execute_tool_call(
                 "Title: {}\nStatus: {:?}\n\n{}",
                 doc.front_matter.title, doc.front_matter.status, doc.content
             ))
+        }
+        "read_asset" => {
+            let path = args["path"].as_str().ok_or("Missing path")?;
+            read_asset_for_ai(vault, project, path)
         }
         "list_documents" => {
             let path_prefix = args["path_prefix"].as_str().map(|prefix| {
@@ -1286,6 +1430,92 @@ fn execute_tool_call(
             }
         }
         _ => Err(format!("Unknown tool: {}", tool_name)),
+    }
+}
+
+fn read_asset_for_ai(
+    vault: &slatevault_core::Vault,
+    project: &str,
+    path: &str,
+) -> std::result::Result<String, String> {
+    let project_obj = vault.open_project(project).map_err(|e| e.to_string())?;
+    let rel = sanitize_asset_path(path)?;
+    let full_path = project_obj.docs_dir().join(&rel);
+
+    if !full_path.exists() {
+        return Err(format!("Asset not found: {}/{}", project, path));
+    }
+    if !full_path.is_file() {
+        return Err(format!("Asset path is not a file: {}/{}", project, path));
+    }
+
+    let bytes = std::fs::read(&full_path).map_err(|e| e.to_string())?;
+    let ext = full_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let normalized_path = rel.to_string_lossy().replace('\\', "/");
+
+    if ext == "pdf" {
+        let text = pdf_extract::extract_text_from_mem(&bytes)
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        if text.is_empty() {
+            return Ok(format!(
+                "PDF `{}/{}` ({} bytes) has no extractable text. It may be scanned or image-only.",
+                project,
+                normalized_path,
+                bytes.len()
+            ));
+        }
+
+        let text: String = text.chars().take(30_000).collect();
+        return Ok(format!(
+            "# {}/{}\n\nPDF text content ({} bytes, truncated to 30000 chars if needed):\n\n{}",
+            project,
+            normalized_path,
+            bytes.len(),
+            text
+        ));
+    }
+
+    match std::str::from_utf8(&bytes) {
+        Ok(text) => {
+            let text: String = text.chars().take(30_000).collect();
+            Ok(format!(
+                "# {}/{}\n\nText asset content ({} bytes, truncated to 30000 chars if needed):\n\n{}",
+                project,
+                normalized_path,
+                bytes.len(),
+                text
+            ))
+        }
+        Err(_) => Ok(format!(
+            "Asset `{}/{}` is a binary {} file ({} bytes). Text extraction is not available for this file type.",
+            project,
+            normalized_path,
+            ext,
+            bytes.len()
+        )),
+    }
+}
+
+fn sanitize_asset_path(path: &str) -> std::result::Result<std::path::PathBuf, String> {
+    let mut cleaned = std::path::PathBuf::new();
+    for component in std::path::Path::new(path).components() {
+        match component {
+            std::path::Component::Normal(part) => cleaned.push(part),
+            std::path::Component::CurDir => {}
+            _ => return Err(format!("Invalid asset path: {}", path)),
+        }
+    }
+
+    if cleaned.as_os_str().is_empty() {
+        Err("Asset path cannot be empty".to_string())
+    } else {
+        Ok(cleaned)
     }
 }
 

@@ -178,6 +178,20 @@ pub fn vault_tools() -> Vec<ToolDefinition> {
         ToolDefinition {
             tool_type: "function".to_string(),
             function: FunctionDefinition {
+                name: "read_asset".to_string(),
+                description: "Read a non-markdown vault asset such as a PDF or text file. Use this when the user asks to summarize, review, inspect, or explain an asset path like 'specs/file.pdf'.".to_string(),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "path": { "type": "string", "description": "Asset path like 'specs/diagram.pdf' or 'prd/research.pdf'" }
+                    },
+                    "required": ["path"]
+                }),
+            },
+        },
+        ToolDefinition {
+            tool_type: "function".to_string(),
+            function: FunctionDefinition {
                 name: "search_documents".to_string(),
                 description: "Search vault documents to find relevant files before answering or writing updates.".to_string(),
                 parameters: serde_json::json!({

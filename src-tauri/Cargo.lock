@@ -4321,6 +4321,7 @@ dependencies = [
  "chrono",
  "dirs",
  "log",
+ "pdf-extract",
  "portable-pty",
  "serde",
  "serde_json",
