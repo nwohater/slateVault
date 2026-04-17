@@ -956,6 +956,46 @@ impl SlateVaultMcpServer {
         }
     }
 
+    #[tool(description = "Push committed vault changes to the remote (origin). Returns an error if the remote has diverged — pull first in that case.")]
+    fn git_push(&self) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        if vault.config.mcp.read_only {
+            return Err(McpError::internal_error(
+                "MCP server is in read-only mode. Write operations are disabled.".to_string(),
+                None,
+            ));
+        }
+
+        let root = vault.root.to_string_lossy().to_string();
+        let branch = vault.config.sync.remote_branch.clone();
+
+        // Ensure local branch name matches remote branch
+        let _ = std::process::Command::new("git")
+            .args(["-C", &root, "branch", "-M", &branch])
+            .output();
+
+        let output = std::process::Command::new("git")
+            .args(["-C", &root, "push", "-u", "origin", &branch])
+            .output()
+            .map_err(|e| McpError::internal_error(format!("Failed to run git: {}", e), None))?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let combined = format!("{}{}", stdout, stderr).trim().to_string();
+
+        if output.status.success() {
+            Ok(CallToolResult::success(vec![Content::text(format!(
+                "Pushed to origin/{}: {}", branch,
+                if combined.is_empty() { "Already up to date.".to_string() } else { combined }
+            ))]))
+        } else {
+            Err(McpError::internal_error(
+                format!("Push failed: {}", combined),
+                None,
+            ))
+        }
+    }
+
     #[tool(description = "Commit all staged changes in the vault with a message")]
     fn git_commit(
         &self,
