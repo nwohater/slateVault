@@ -934,6 +934,96 @@ impl SlateVaultMcpServer {
             ))])),
         }
     }
+
+    #[tool(description = "Set or clear the local source code folder for a project on this machine")]
+    fn set_project_source_folder(
+        &self,
+        Parameters(params): Parameters<SetProjectSourceFolderParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let mut local = slatevault_core::local_config::LocalConfig::load()
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        local.set_source_folder(&params.project, params.path.clone());
+        local.save().map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        match params.path {
+            Some(path) => Ok(CallToolResult::success(vec![Content::text(format!(
+                "Source folder for '{}' set to: {}", params.project, path
+            ))])),
+            None => Ok(CallToolResult::success(vec![Content::text(format!(
+                "Source folder for '{}' cleared.", params.project
+            ))])),
+        }
+    }
+
+    #[tool(description = "Commit all staged changes in the vault with a message")]
+    fn git_commit(
+        &self,
+        Parameters(params): Parameters<GitCommitParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        if vault.config.mcp.read_only {
+            return Err(McpError::internal_error(
+                "MCP server is in read-only mode. Write operations are disabled.".to_string(),
+                None,
+            ));
+        }
+        let oid = vault.commit(&params.message)
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(format!(
+            "Committed: {} ({})", params.message, &oid.to_string()[..8]
+        ))]))
+    }
+
+    #[tool(description = "Create a new project and optionally set its source folder and write an initial context document in one step")]
+    fn bootstrap_project(
+        &self,
+        Parameters(params): Parameters<BootstrapProjectParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        if vault.config.mcp.read_only {
+            return Err(McpError::internal_error(
+                "MCP server is in read-only mode. Write operations are disabled.".to_string(),
+                None,
+            ));
+        }
+
+        // Create the project
+        vault.create_project(
+            &params.name,
+            &params.description.clone().unwrap_or_default(),
+            params.tags.unwrap_or_default(),
+            None,
+        ).map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        let mut log = vec![format!("Project '{}' created.", params.name)];
+
+        // Set source folder if provided
+        if let Some(ref folder) = params.source_folder {
+            let mut local = slatevault_core::local_config::LocalConfig::load()
+                .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+            local.set_source_folder(&params.name, Some(folder.clone()));
+            local.save().map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+            log.push(format!("Source folder set to: {}", folder));
+        }
+
+        // Write initial context doc if provided
+        if let Some(context_content) = params.context {
+            let title = format!("{} — Overview", params.name);
+            vault.write_document(
+                &params.name,
+                "context/overview.md",
+                &title,
+                &context_content,
+                vec!["context".to_string(), "overview".to_string()],
+                Some("claude-code".to_string()),
+            ).map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+            log.push("Context document written to context/overview.md.".to_string());
+        }
+
+        Ok(CallToolResult::success(vec![Content::text(log.join("\n"))]))
+    }
 }
 
 fn collect_asset_paths(base: &std::path::Path, dir: &std::path::Path, out: &mut Vec<String>) {

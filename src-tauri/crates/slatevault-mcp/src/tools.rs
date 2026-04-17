@@ -227,3 +227,34 @@ pub struct GetProjectSourceFolderParams {
     #[schemars(description = "Project name")]
     pub project: String,
 }
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Set or clear the local source code folder for a project on this machine. Use this when the user tells you where their source code lives.")]
+pub struct SetProjectSourceFolderParams {
+    #[schemars(description = "Project name")]
+    pub project: String,
+    #[schemars(description = "Absolute path to the source folder, e.g. '/Users/alice/Dev/my-app'. Omit or pass null to clear.")]
+    pub path: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Commit all staged changes in the vault with a message")]
+pub struct GitCommitParams {
+    #[schemars(description = "Commit message describing what was changed")]
+    pub message: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Create a new project and optionally set its source folder and write an initial context document — bootstraps a project in one step")]
+pub struct BootstrapProjectParams {
+    #[schemars(description = "Project folder name in slug format (e.g. 'my-app')")]
+    pub name: String,
+    #[schemars(description = "Short description of the project")]
+    pub description: Option<String>,
+    #[schemars(description = "Initial tags for the project")]
+    pub tags: Option<Vec<String>>,
+    #[schemars(description = "Absolute path to the local source code folder, if known")]
+    pub source_folder: Option<String>,
+    #[schemars(description = "Initial context document content (markdown). If provided, written to context/overview.md")]
+    pub context: Option<String>,
+}
