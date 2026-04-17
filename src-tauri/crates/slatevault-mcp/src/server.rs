@@ -989,12 +989,12 @@ impl SlateVaultMcpServer {
             ));
         }
 
-        // Create the project
+        // Create the project with the specified template (or vault default)
         vault.create_project(
             &params.name,
             &params.description.clone().unwrap_or_default(),
             params.tags.unwrap_or_default(),
-            None,
+            params.template.as_deref(),
         ).map_err(|e| McpError::internal_error(format!("{}", e), None))?;
 
         let mut log = vec![format!("Project '{}' created.", params.name)];

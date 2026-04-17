@@ -253,6 +253,8 @@ pub struct BootstrapProjectParams {
     pub description: Option<String>,
     #[schemars(description = "Initial tags for the project")]
     pub tags: Option<Vec<String>>,
+    #[schemars(description = "Template to use for folder structure. Options: 'vibe-coding' (prd/todo/bugs/context/changelog/ideas/prompts), 'software-dev' (specs/features/decisions/guides/runbooks/notes), 'agile', 'minimal'. Defaults to vault default if omitted.")]
+    pub template: Option<String>,
     #[schemars(description = "Absolute path to the local source code folder, if known")]
     pub source_folder: Option<String>,
     #[schemars(description = "Initial context document content (markdown). If provided, written to context/overview.md")]
