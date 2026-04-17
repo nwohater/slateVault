@@ -272,6 +272,11 @@ fn collect_assets(
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        // Skip hidden/system files (.DS_Store, .gitkeep, etc.)
+        if name.starts_with('.') {
+            continue;
+        }
         if path.is_dir() {
             collect_assets(base, &path, out)?;
         } else if path.extension().map_or(true, |e| e != "md") {

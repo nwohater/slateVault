@@ -916,6 +916,24 @@ impl SlateVaultMcpServer {
             }
         }
     }
+
+    #[tool(description = "Get the local source code folder configured for a project on this machine")]
+    fn get_project_source_folder(
+        &self,
+        Parameters(params): Parameters<GetProjectSourceFolderParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let local = slatevault_core::local_config::LocalConfig::load()
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        match local.get_source_folder(&params.project) {
+            Some(folder) => Ok(CallToolResult::success(vec![Content::text(format!(
+                "Source folder for '{}': {}", params.project, folder
+            ))])),
+            None => Ok(CallToolResult::success(vec![Content::text(format!(
+                "No source folder configured for project '{}'.", params.project
+            ))])),
+        }
+    }
 }
 
 fn collect_asset_paths(base: &std::path::Path, dir: &std::path::Path, out: &mut Vec<String>) {

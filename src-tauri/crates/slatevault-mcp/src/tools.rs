@@ -220,3 +220,10 @@ pub struct ReadAssetParams {
     #[schemars(description = "Path relative to the project's docs/ folder, e.g. 'specs/diagram.json'")]
     pub path: String,
 }
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Get the local source code folder configured for a project — useful for understanding where the codebase lives on this machine")]
+pub struct GetProjectSourceFolderParams {
+    #[schemars(description = "Project name")]
+    pub project: String,
+}
