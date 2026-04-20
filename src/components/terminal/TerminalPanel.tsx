@@ -131,23 +131,35 @@ function TerminalInstance({
         });
     }
 
+    // Debounce resize: fire xterm fit immediately for visual smoothness,
+    // but only send the PTY resize after dragging settles (150ms quiet period).
+    // Without debouncing, rapid ResizeObserver callbacks flood Claude/TUI apps
+    // with SIGWINCH signals causing partial redraws and display corruption.
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     const observer = new ResizeObserver(() => {
       if (!activeRef.current || !showTerminalRef.current) return;
       try {
-        fit.fit();
-        const dims = fit.proposeDimensions();
-        if (dims) {
-          commands.resizeTerminal(id, dims.rows, dims.cols).catch(() => {});
+        fit.fit(); // update xterm.js visually on every frame
+      } catch { /* ignore */ }
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        try {
+          fit.fit();
+          const dims = fit.proposeDimensions();
+          if (dims) {
+            commands.resizeTerminal(id, dims.rows, dims.cols).catch(() => {});
+          }
+        } catch {
+          // ignore resize errors during teardown
         }
-      } catch {
-        // ignore resize errors during teardown
-      }
+      }, 150);
     });
     observer.observe(containerRef.current);
 
     return () => {
       onRegister(id, null);
       observer.disconnect();
+      if (resizeTimer) clearTimeout(resizeTimer);
       commands.closeTerminal(id).catch(() => {});
       term.dispose();
       termRef.current = null;
