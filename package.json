@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:macos-installer": "scripts/build-macos-installer.sh"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",
