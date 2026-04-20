@@ -57,7 +57,8 @@ function TerminalInstance({
       macOptionIsMeta: true,
       fontSize: 13,
       fontFamily:
-        "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
+        "'MesloLGS NF', 'Hack Nerd Font', 'FiraCode Nerd Font', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
+      overviewRulerWidth: 0, // disable scroll position markers (the ðð artifacts)
       theme: {
         background: "#0a0a0a",
         foreground: "#d4d4d4",
