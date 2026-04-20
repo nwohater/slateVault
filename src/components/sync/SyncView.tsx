@@ -186,53 +186,15 @@ export function SyncView() {
           </div>
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="workspace-section rounded-3xl p-2">
-            <div className="border-b border-neutral-800/60 px-3 py-3">
-              <h2 className="text-lg font-semibold text-neutral-100">Detailed sync tools</h2>
-              <p className="mt-1 text-xs text-neutral-500">
-                Manage changes, branch work, remote settings, and pull requests.
-              </p>
-            </div>
-            <div className="h-[680px] min-h-[480px]">
-              <GitPanel />
-            </div>
+        <section className="workspace-section rounded-3xl p-2">
+          <div className="border-b border-neutral-800/60 px-3 py-3">
+            <h2 className="text-lg font-semibold text-neutral-100">Sync tools</h2>
+            <p className="mt-1 text-xs text-neutral-500">
+              Manage changes, branches, remote settings, and pull requests.
+            </p>
           </div>
-
-          <div className="space-y-6">
-            <div className="workspace-section rounded-3xl p-5">
-              <h2 className="text-lg font-semibold text-neutral-100">Sync readiness</h2>
-              <div className="mt-4 space-y-3">
-                <div className="workspace-stat rounded-2xl p-4">
-                  <div className="workspace-stat-label">
-                    Remote URL
-                  </div>
-                  <div className="mt-2 break-all text-[12px] text-neutral-300">
-                    {remoteConfig?.remote_url || "No remote configured yet"}
-                  </div>
-                </div>
-                <div className="workspace-stat rounded-2xl p-4">
-                  <div className="workspace-stat-label">
-                    Auto sync options
-                  </div>
-                  <div className="mt-2 text-[12px] text-neutral-400">
-                    Pull on open: <span className="text-neutral-200">{remoteConfig?.pull_on_open ? "On" : "Off"}</span>
-                  </div>
-                  <div className="mt-1 text-[12px] text-neutral-400">
-                    Push on close: <span className="text-neutral-200">{remoteConfig?.push_on_close ? "On" : "Off"}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="workspace-section rounded-3xl p-5">
-              <h2 className="text-lg font-semibold text-neutral-100">Recommended flow</h2>
-              <ol className="mt-4 space-y-3 text-[12px] leading-5 text-neutral-400">
-                <li>1. Pull before editing if the vault is shared with a team.</li>
-                <li>2. Stage and commit documentation work in logical chunks.</li>
-                <li>3. Push branches or open a PR when changes should be reviewed.</li>
-              </ol>
-            </div>
+          <div className="h-[680px] min-h-[480px]">
+            <GitPanel />
           </div>
         </section>
       </div>

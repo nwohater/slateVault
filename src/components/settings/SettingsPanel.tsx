@@ -369,23 +369,7 @@ export function SettingsPanel() {
               className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
             />
           </div>
-          {settings && (
-            <>
-              <div>
-                <label className="block text-neutral-500 mb-1">Remote URL</label>
-                <div className="px-2 py-1 bg-neutral-800/50 rounded text-neutral-400 truncate">
-                  {settings.remote_url || "(not configured)"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-neutral-500 mb-1">Branch</label>
-                <div className="px-2 py-1 bg-neutral-800/50 rounded text-neutral-400">
-                  {settings.remote_branch || "main"}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+            </div>
       </div>
 
       {/* Credentials section */}
