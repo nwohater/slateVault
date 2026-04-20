@@ -10,7 +10,6 @@ import { MarkdownPreview } from "./preview/MarkdownPreview";
 import { SearchView } from "./search/SearchView";
 import { VaultHome } from "./home/VaultHome";
 import { StartSessionView } from "./session/StartSessionView";
-import { AgentAccessView } from "./agent/AgentAccessView";
 import { DocsHealthView } from "./health/DocsHealthView";
 import { SyncView } from "./sync/SyncView";
 import { TerminalPanel } from "./terminal/TerminalPanel";
@@ -50,9 +49,7 @@ export function AppShell() {
           ? "Search"
           : workspaceView === "start-session"
             ? "Start Session"
-            : workspaceView === "agent-access"
-              ? "Agent Access"
-              : workspaceView === "docs-health"
+            : workspaceView === "docs-health"
                 ? "Docs Health"
                 : workspaceView === "sync"
                   ? "Team Sync"
@@ -188,8 +185,6 @@ export function AppShell() {
               <SearchView />
             ) : workspaceView === "start-session" ? (
               <StartSessionView />
-            ) : workspaceView === "agent-access" ? (
-              <AgentAccessView />
             ) : workspaceView === "docs-health" ? (
               <DocsHealthView />
             ) : workspaceView === "sync" ? (

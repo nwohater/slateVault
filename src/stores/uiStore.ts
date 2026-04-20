@@ -6,7 +6,6 @@ export type WorkspaceView =
   | "documents"
   | "search"
   | "start-session"
-  | "agent-access"
   | "docs-health"
   | "sync"
   | "settings";

@@ -124,12 +124,12 @@ export function SyncView() {
                 </div>
               </button>
               <button
-                onClick={() => setWorkspaceView("agent-access")}
+                onClick={() => setWorkspaceView("start-session")}
                 className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors"
               >
-                <div className="text-xs font-medium text-neutral-200">Agent access</div>
+                <div className="text-xs font-medium text-neutral-200">Start session</div>
                 <div className="mt-1 text-[11px] text-neutral-500">
-                  Keep coding-agent workflows aligned with shared docs.
+                  Build a fresh context bundle after pulling shared updates.
                 </div>
               </button>
             </div>

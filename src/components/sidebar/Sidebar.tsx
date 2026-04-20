@@ -10,7 +10,6 @@ import { AiChatPanel } from "../ai/AiChatPanel";
 import { CreateProjectForm } from "@/components/shared/CreateProjectForm";
 import * as commands from "@/lib/commands";
 import {
-  AgentIcon,
   AiSparkIcon,
   BranchIcon,
   DocsHealthIcon,
@@ -23,7 +22,6 @@ type SidebarView =
   | "home"
   | "files"
   | "start-session"
-  | "agent-access"
   | "docs-health"
   | "git"
   | "ai"
@@ -33,7 +31,6 @@ const viewIcons: Record<SidebarView, React.ReactNode> = {
   home: <HomeIcon className="w-5 h-5" />,
   files: <FilesIcon className="w-5 h-5" />,
   "start-session": <SessionIcon className="w-5 h-5" />,
-  "agent-access": <AgentIcon className="w-5 h-5" />,
   "docs-health": <DocsHealthIcon className="w-5 h-5" />,
   git: <BranchIcon className="w-5 h-5" />,
   ai: <AiSparkIcon className="w-5 h-5" />,
@@ -94,9 +91,6 @@ export function Sidebar() {
     if (workspaceView === "start-session" && view !== "start-session") {
       setView("start-session");
     }
-    if (workspaceView === "agent-access" && view !== "agent-access") {
-      setView("agent-access");
-    }
     if (workspaceView === "docs-health" && view !== "docs-health") {
       setView("docs-health");
     }
@@ -115,8 +109,6 @@ export function Sidebar() {
       loadProjects();
     } else if (v === "start-session") {
       setWorkspaceView("start-session");
-    } else if (v === "agent-access") {
-      setWorkspaceView("agent-access");
     } else if (v === "docs-health") {
       setWorkspaceView("docs-health");
     } else if (v === "git") {
@@ -161,7 +153,7 @@ export function Sidebar() {
             <span className="absolute left-0 top-2 bottom-2 w-0.5 bg-cyan-400 rounded-r-full" />
           )}
         </button>
-        {(["home", "files", "start-session", "agent-access", "docs-health", "git"] as SidebarView[]).map((v) => (
+        {(["home", "files", "start-session", "docs-health", "git"] as SidebarView[]).map((v) => (
           <button
             key={v}
             onClick={() => switchView(v)}
@@ -172,13 +164,11 @@ export function Sidebar() {
                   ? "Documents"
                   : v === "start-session"
                     ? "Start Session"
-                    : v === "agent-access"
-                      ? "Agent Access"
-                      : v === "docs-health"
-                        ? "Docs Health"
-                  : v === "git"
-                    ? "Source Control"
-                    : "AI Chat"
+                    : v === "docs-health"
+                      ? "Docs Health"
+                      : v === "git"
+                        ? "Source Control"
+                        : "AI Chat"
             }
             className={`relative flex h-10 w-10 items-center justify-center rounded-2xl transition-colors ${
               view === v && view !== "settings" && !showOnboarding
@@ -236,15 +226,13 @@ export function Sidebar() {
             <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
               {view === "start-session"
                 ? "Start Session"
-                : view === "agent-access"
-                  ? "Agent Access"
                 : view === "docs-health"
                   ? "Docs Health"
-                : view === "git"
-                  ? "Source Control"
-                  : view === "ai"
-                    ? "AI Assistant"
-                    : "Settings"}
+                  : view === "git"
+                    ? "Source Control"
+                    : view === "ai"
+                      ? "AI Assistant"
+                      : "Settings"}
             </span>
           )}
           <div className="flex items-center gap-1">
@@ -340,33 +328,6 @@ export function Sidebar() {
               </div>
               <div className="mt-1 text-[11px] text-neutral-500">
                 Generate a project brief and recommended reading list.
-              </div>
-            </button>
-          </div>
-        )}
-
-        {view === "agent-access" && (
-          <div className="flex flex-col gap-3 p-3">
-            <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
-              <div className="text-xs font-medium text-neutral-200">
-                Connect agents safely
-              </div>
-              <p className="mt-1 text-[11px] leading-5 text-neutral-500">
-                Review MCP status, copy setup commands, and keep trusted docs at the center of agent work.
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setShowOnboarding(false);
-                setWorkspaceView("agent-access");
-              }}
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
-            >
-              <div className="text-xs font-medium text-neutral-200">
-                Open Agent Access
-              </div>
-              <div className="mt-1 text-[11px] text-neutral-500">
-                Manage MCP, setup steps, and agent-facing defaults.
               </div>
             </button>
           </div>

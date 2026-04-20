@@ -163,20 +163,6 @@ export function VaultHome() {
               <button
                 onClick={() => {
                   setShowOnboarding(false);
-                  setWorkspaceView("agent-access");
-                }}
-                className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors"
-              >
-                <div className="text-xs font-medium text-neutral-200">
-                  Agent access
-                </div>
-                <div className="mt-1 text-[11px] text-neutral-500">
-                  Connect coding agents to the active vault
-                </div>
-              </button>
-              <button
-                onClick={() => {
-                  setShowOnboarding(false);
                   setWorkspaceView("docs-health");
                 }}
                 className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors"
@@ -236,15 +222,15 @@ export function VaultHome() {
           </div>
           <div className="workspace-stat rounded-2xl p-4">
             <div className="workspace-stat-label">
-              Agent Access
+              MCP Server
             </div>
             <div className="mt-2 text-sm font-medium text-neutral-200">
               {stats?.mcp_enabled ? "Enabled" : "Disabled"}
             </div>
             <div className="mt-1 text-[11px] text-neutral-500">
               {stats?.mcp_enabled
-                ? `MCP available on port ${stats.mcp_port}`
-                : "Enable when you want agents to read the vault"}
+                ? `Available on port ${stats.mcp_port}`
+                : "Configure in Settings → MCP Server"}
             </div>
           </div>
         </section>
