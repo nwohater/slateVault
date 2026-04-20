@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUIStore } from "@/stores/uiStore";
-import { CreateProjectForm } from "@/components/shared/CreateProjectForm";
 import type { ProjectInfo } from "@/types";
 
 function formatPath(path: string | null) {
@@ -67,13 +66,10 @@ export function VaultHome() {
   const vaultPath = useVaultStore((s) => s.vaultPath);
   const projects = useVaultStore((s) => s.projects);
   const stats = useVaultStore((s) => s.stats);
-  const loadProjects = useVaultStore((s) => s.loadProjects);
-  const loadStats = useVaultStore((s) => s.loadStats);
   const toggleProject = useVaultStore((s) => s.toggleProject);
   const expandedProjects = useVaultStore((s) => s.expandedProjects);
   const setWorkspaceView = useUIStore((s) => s.setWorkspaceView);
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
-  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const sortedProjects = useMemo(
     () => [...projects].sort((a, b) => a.name.localeCompare(b.name)),
@@ -86,13 +82,6 @@ export function VaultHome() {
     }
     setShowOnboarding(false);
     setWorkspaceView("documents");
-  };
-
-  const handleProjectCreated = async (name: string) => {
-    await loadProjects();
-    await loadStats();
-    setShowCreateForm(false);
-    await openProject(name);
   };
 
   return (
@@ -235,69 +224,36 @@ export function VaultHome() {
           </div>
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="workspace-section rounded-3xl p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-neutral-100">
-                  Projects
-                </h2>
-                <p className="mt-1 text-xs text-neutral-500">
-                  Open a project workspace or start a new one.
-                </p>
-              </div>
+        <section className="workspace-section rounded-3xl p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-neutral-100">Projects</h2>
+              <p className="mt-1 text-xs text-neutral-500">
+                Open a project workspace to start editing docs.
+              </p>
             </div>
-
-            {sortedProjects.length === 0 ? (
-              <div className="workspace-empty rounded-2xl px-5 py-10 text-center">
-                <h3 className="text-sm font-medium text-neutral-200">
-                  Create your first project memory space
-                </h3>
-                <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-neutral-500">
-                  Start with architecture, decisions, runbooks, and handoff
-                  docs so future work has a reliable place to begin.
-                </p>
-              </div>
-            ) : (
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {sortedProjects.map((project) => (
-                  <ProjectCard
-                    key={project.name}
-                    project={project}
-                    onOpen={openProject}
-                  />
-                ))}
-              </div>
-            )}
           </div>
 
-          <div className="workspace-section rounded-3xl p-5">
-            <div className="flex items-center justify-between gap-3 mb-5">
-              <div>
-                <h2 className="text-lg font-semibold text-neutral-100">New project</h2>
-                <p className="mt-1 text-xs text-neutral-500">Add a project to this vault.</p>
-              </div>
-              {!showCreateForm && (
-                <button
-                  onClick={() => setShowCreateForm(true)}
-                  className="rounded-xl bg-cyan-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-500"
-                >
-                  + New
-                </button>
-              )}
+          {sortedProjects.length === 0 ? (
+            <div className="workspace-empty rounded-2xl px-5 py-10 text-center">
+              <h3 className="text-sm font-medium text-neutral-200">
+                No projects yet
+              </h3>
+              <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-neutral-500">
+                Use the onboarding flow to create your first project with a template, description, and source folder.
+              </p>
             </div>
-            {showCreateForm ? (
-              <CreateProjectForm
-                compact
-                onCreated={(name) => void handleProjectCreated(name)}
-                onCancel={() => setShowCreateForm(false)}
-              />
-            ) : (
-              <div className="workspace-empty rounded-2xl px-4 py-8 text-center text-xs text-neutral-600">
-                Click <span className="text-neutral-400">+ New</span> to create a project with a template, description, and source folder.
-              </div>
-            )}
-          </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {sortedProjects.map((project) => (
+                <ProjectCard
+                  key={project.name}
+                  project={project}
+                  onOpen={openProject}
+                />
+              ))}
+            </div>
+          )}
         </section>
       </div>
     </div>
