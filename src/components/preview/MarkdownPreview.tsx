@@ -275,6 +275,11 @@ export function MarkdownPreview() {
 
       {/* Preview content */}
       <div ref={previewRef} id="print-preview" className="flex-1 overflow-y-auto p-6">
+        {activePath?.endsWith(".json") ? (
+          <pre className="rounded-xl bg-neutral-900 p-4 text-xs leading-relaxed text-emerald-300 overflow-auto whitespace-pre-wrap break-words">
+            <code>{(() => { try { return JSON.stringify(JSON.parse(content), null, 2); } catch { return content; } })()}</code>
+          </pre>
+        ) : (
         <article className="prose prose-invert prose-sm max-w-none prose-headings:text-neutral-100 prose-p:text-neutral-300 prose-a:text-blue-400 prose-code:text-emerald-400 prose-code:bg-neutral-800 prose-code:px-1 prose-code:rounded prose-pre:bg-neutral-900 prose-strong:text-neutral-200">
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkFrontmatter]}
@@ -282,6 +287,7 @@ export function MarkdownPreview() {
             {content}
           </ReactMarkdown>
         </article>
+        )}
 
         {/* Related docs & backlinks */}
         {(relatedDocs.length > 0 || backlinks.length > 0) && (
