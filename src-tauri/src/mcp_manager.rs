@@ -2,6 +2,12 @@ use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 pub struct McpProcessState(Arc<Mutex<Option<McpProcess>>>);
 
 struct McpProcess {
@@ -96,11 +102,17 @@ pub fn start_mcp_server(
     let binary = find_mcp_binary()
         .ok_or("slatevault-mcp binary not found. Build it with: cargo build -p slatevault-mcp")?;
 
-    let child = Command::new(&binary)
+    let mut command = Command::new(&binary);
+    command
         .env("SLATEVAULT_PATH", &vault_path)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+
+    let child = command
         .spawn()
         .map_err(|e| format!("Failed to start MCP server: {}", e))?;
 
