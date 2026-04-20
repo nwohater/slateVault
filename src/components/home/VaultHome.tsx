@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUIStore } from "@/stores/uiStore";
+import { CreateProjectForm } from "@/components/shared/CreateProjectForm";
 import type { ProjectInfo } from "@/types";
 
 function formatPath(path: string | null) {
@@ -66,16 +67,13 @@ export function VaultHome() {
   const vaultPath = useVaultStore((s) => s.vaultPath);
   const projects = useVaultStore((s) => s.projects);
   const stats = useVaultStore((s) => s.stats);
-  const createProject = useVaultStore((s) => s.createProject);
   const loadProjects = useVaultStore((s) => s.loadProjects);
   const loadStats = useVaultStore((s) => s.loadStats);
   const toggleProject = useVaultStore((s) => s.toggleProject);
   const expandedProjects = useVaultStore((s) => s.expandedProjects);
   const setWorkspaceView = useUIStore((s) => s.setWorkspaceView);
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
-  const [isCreating, setIsCreating] = useState(false);
-  const [projectName, setProjectName] = useState("");
-  const [projectTemplate, setProjectTemplate] = useState("");
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const sortedProjects = useMemo(
     () => [...projects].sort((a, b) => a.name.localeCompare(b.name)),
@@ -90,21 +88,11 @@ export function VaultHome() {
     setWorkspaceView("documents");
   };
 
-  const handleCreateProject = async () => {
-    const name = projectName.trim();
-    if (!name || !projectTemplate) return;
-
-    setIsCreating(true);
-    try {
-      await createProject(name, undefined, undefined, projectTemplate);
-      await loadProjects();
-      await loadStats();
-      setProjectName("");
-      setProjectTemplate("");
-      await openProject(name);
-    } finally {
-      setIsCreating(false);
-    }
+  const handleProjectCreated = async (name: string) => {
+    await loadProjects();
+    await loadStats();
+    setShowCreateForm(false);
+    await openProject(name);
   };
 
   return (
@@ -298,123 +286,31 @@ export function VaultHome() {
           </div>
 
           <div className="workspace-section rounded-3xl p-5">
-            <h2 className="text-lg font-semibold text-neutral-100">
-              Quick actions
-            </h2>
-            <p className="mt-1 text-xs text-neutral-500">
-              Keep moving without dropping into low-level setup first.
-            </p>
-
-            <div className="mt-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 mb-5">
               <div>
-                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-neutral-500">
-                  Create project
-                </label>
-                <div className="flex flex-col gap-2">
-                  <input
-                    type="text"
-                    value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void handleCreateProject();
-                    }}
-                    placeholder="project-name"
-                    className="workspace-input rounded-xl px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
-                  />
-                  <select
-                    value={projectTemplate}
-                    onChange={(e) => setProjectTemplate(e.target.value)}
-                    className="workspace-input rounded-xl px-3 py-2 text-sm text-neutral-200 outline-none focus:border-cyan-600"
-                  >
-                    <option value="" disabled>Select a template…</option>
-                    <option value="vibe-coding">Vibe Coding — prd, todo, bugs, context, changelog, ideas, prompts</option>
-                    <option value="software-dev">Software Dev — specs, features, decisions, guides, runbooks, notes</option>
-                    <option value="agile">Agile — backlog, sprints, retrospectives, ceremonies, epics, definitions</option>
-                    <option value="minimal">Minimal — empty, no folders</option>
-                  </select>
-                  <button
-                    onClick={() => void handleCreateProject()}
-                    disabled={isCreating || !projectName.trim() || !projectTemplate}
-                    className="rounded-xl bg-cyan-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-500 disabled:bg-neutral-800 disabled:text-neutral-500"
-                  >
-                    {isCreating ? "Creating..." : "Create"}
-                  </button>
-                </div>
+                <h2 className="text-lg font-semibold text-neutral-100">New project</h2>
+                <p className="mt-1 text-xs text-neutral-500">Add a project to this vault.</p>
               </div>
-
-              <div className="space-y-2">
+              {!showCreateForm && (
                 <button
-                  onClick={() => {
-                    setShowOnboarding(false);
-                    setWorkspaceView("start-session");
-                  }}
-                  className="workspace-action w-full rounded-2xl px-4 py-3 text-left transition-colors"
+                  onClick={() => setShowCreateForm(true)}
+                  className="rounded-xl bg-cyan-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-500"
                 >
-                  <div className="text-xs font-medium text-neutral-200">
-                    Start Session
-                  </div>
-                  <div className="mt-1 text-[11px] text-neutral-500">
-                    Generate a project brief and recommended reading list.
-                  </div>
+                  + New
                 </button>
-                <button
-                  onClick={() => {
-                    setShowOnboarding(false);
-                    setWorkspaceView("agent-access");
-                  }}
-                  className="workspace-action w-full rounded-2xl px-4 py-3 text-left transition-colors"
-                >
-                  <div className="text-xs font-medium text-neutral-200">
-                    Open agent access
-                  </div>
-                  <div className="mt-1 text-[11px] text-neutral-500">
-                    Review MCP status, setup steps, and agent-safe defaults.
-                  </div>
-                </button>
-                <button
-                  onClick={() => {
-                    setShowOnboarding(false);
-                    setWorkspaceView("search");
-                  }}
-                  className="workspace-action w-full rounded-2xl px-4 py-3 text-left transition-colors"
-                >
-                  <div className="text-xs font-medium text-neutral-200">
-                    Search across the vault
-                  </div>
-                  <div className="mt-1 text-[11px] text-neutral-500">
-                    Find architecture notes, specs, and decisions quickly.
-                  </div>
-                </button>
-                <button
-                  onClick={() => {
-                    setShowOnboarding(false);
-                    setWorkspaceView("docs-health");
-                  }}
-                  className="workspace-action w-full rounded-2xl px-4 py-3 text-left transition-colors"
-                >
-                  <div className="text-xs font-medium text-neutral-200">
-                    Review docs health
-                  </div>
-                  <div className="mt-1 text-[11px] text-neutral-500">
-                    See stale docs, status mix, and project-level gaps.
-                  </div>
-                </button>
-                <button
-                  onClick={() => {
-                    setShowOnboarding(false);
-                    setWorkspaceView("sync");
-                  }}
-                  className="workspace-action w-full rounded-2xl px-4 py-3 text-left transition-colors"
-                >
-                  <div className="text-xs font-medium text-neutral-200">
-                    Open team sync
-                  </div>
-                  <div className="mt-1 text-[11px] text-neutral-500">
-                    Manage branches, commits, remotes, and pull requests.
-                  </div>
-                </button>
-              </div>
+              )}
             </div>
+            {showCreateForm ? (
+              <CreateProjectForm
+                compact
+                onCreated={(name) => void handleProjectCreated(name)}
+                onCancel={() => setShowCreateForm(false)}
+              />
+            ) : (
+              <div className="workspace-empty rounded-2xl px-4 py-8 text-center text-xs text-neutral-600">
+                Click <span className="text-neutral-400">+ New</span> to create a project with a template, description, and source folder.
+              </div>
+            )}
           </div>
         </section>
       </div>

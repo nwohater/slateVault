@@ -7,8 +7,8 @@ import { FileTree } from "./FileTree";
 import { SearchBar } from "./SearchBar";
 import { SettingsPanel } from "../settings/SettingsPanel";
 import { AiChatPanel } from "../ai/AiChatPanel";
+import { CreateProjectForm } from "@/components/shared/CreateProjectForm";
 import * as commands from "@/lib/commands";
-import type { TemplateInfo } from "@/types";
 import {
   AgentIcon,
   AiSparkIcon,
@@ -70,7 +70,6 @@ function OnboardingShieldIcon({ className = "w-5 h-5" }: { className?: string })
 export function Sidebar() {
   const vaultName = useVaultStore((s) => s.vaultName);
   const closeVault = useVaultStore((s) => s.closeVault);
-  const createProject = useVaultStore((s) => s.createProject);
   const expandedProjects = useVaultStore((s) => s.expandedProjects);
   const loadDocuments = useVaultStore((s) => s.loadDocuments);
   const workspaceView = useUIStore((s) => s.workspaceView);
@@ -78,21 +77,9 @@ export function Sidebar() {
   const setWorkspaceView = useUIStore((s) => s.setWorkspaceView);
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const [showNewProject, setShowNewProject] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectSourceFolder, setNewProjectSourceFolder] = useState<string | null>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
-  const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   const loadProjects = useVaultStore((s) => s.loadProjects);
   const [view, setView] = useState<SidebarView>("home");
   const [refreshingFiles, setRefreshingFiles] = useState(false);
-
-  useEffect(() => {
-    commands.listTemplates().then((t) => {
-      setTemplates(t);
-      const def = t.find((x) => x.is_default);
-      if (def) setSelectedTemplate(def.name);
-    }).catch(() => {});
-  }, []);
 
   useEffect(() => {
     if (view === "settings") {
@@ -137,30 +124,6 @@ export function Sidebar() {
     } else {
       setWorkspaceView("documents");
     }
-  };
-
-  const handleCreateProject = async () => {
-    if (!newProjectName.trim()) return;
-    await createProject(
-      newProjectName.trim(),
-      undefined,
-      undefined,
-      selectedTemplate || undefined
-    );
-    if (newProjectSourceFolder) {
-      await commands.setProjectSourceFolder(newProjectName.trim(), newProjectSourceFolder);
-    }
-    setNewProjectName("");
-    setNewProjectSourceFolder(null);
-    setShowNewProject(false);
-  };
-
-  const handleBrowseSourceFolder = async () => {
-    try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const folder = await open({ directory: true, title: "Select source folder for this project" });
-      if (folder) setNewProjectSourceFolder(folder as string);
-    } catch {}
   };
 
   const handleRefreshFiles = async () => {
@@ -466,72 +429,18 @@ export function Sidebar() {
         {view === "files" && (
           <>
             {showNewProject && (
-              <div className="px-3 py-2 border-b border-neutral-800/50 space-y-2">
-                <input
-                  type="text"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleCreateProject();
-                    if (e.key === "Escape") setShowNewProject(false);
+              <div className="px-3 py-3 border-b border-neutral-800/50">
+                <CreateProjectForm
+                  compact
+                  onCreated={async (name) => {
+                    await loadProjects();
+                    setShowNewProject(false);
+                    // Switch to files view to see the new project
+                    switchView("files");
+                    void name;
                   }}
-                  placeholder="project-name"
-                  className="w-full px-2 py-1 text-xs bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:border-blue-600"
-                  autoFocus
+                  onCancel={() => setShowNewProject(false)}
                 />
-                {templates.length > 0 && (
-                  <select
-                    value={selectedTemplate}
-                    onChange={(e) => setSelectedTemplate(e.target.value)}
-                    className="w-full px-2 py-1 text-xs bg-neutral-800 border border-neutral-700 rounded text-neutral-200 outline-none focus:border-blue-600"
-                  >
-                    {templates.map((t) => (
-                      <option key={t.name} value={t.name}>
-                        {t.label}{t.is_default ? " (default)" : ""}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <div>
-                  <div className="flex gap-1 mb-1">
-                    <div className="flex-1 px-2 py-1 text-xs bg-neutral-800 border border-neutral-700 rounded text-neutral-500 truncate">
-                      {newProjectSourceFolder
-                        ? newProjectSourceFolder.split("/").pop() || newProjectSourceFolder
-                        : "No source folder"}
-                    </div>
-                    {newProjectSourceFolder && (
-                      <button
-                        onClick={() => setNewProjectSourceFolder(null)}
-                        className="px-1.5 py-1 text-xs rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-500"
-                        title="Clear"
-                      >
-                        ×
-                      </button>
-                    )}
-                    <button
-                      onClick={() => void handleBrowseSourceFolder()}
-                      className="px-2 py-1 text-xs rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 whitespace-nowrap"
-                    >
-                      Browse
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-neutral-600">Source folder — optional</p>
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => void handleCreateProject()}
-                    disabled={!newProjectName.trim()}
-                    className="flex-1 px-2 py-1 text-xs rounded bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-medium"
-                  >
-                    Create
-                  </button>
-                  <button
-                    onClick={() => { setShowNewProject(false); setNewProjectName(""); setNewProjectSourceFolder(null); }}
-                    className="px-2 py-1 text-xs rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-400"
-                  >
-                    Cancel
-                  </button>
-                </div>
               </div>
             )}
             <SearchBar />

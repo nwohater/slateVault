@@ -42,7 +42,7 @@ export const useUIStore = create<UIState>((set) => ({
   showPreview: true,
   previewRatio: 0.5,
   activeView: "editor",
-  workspaceView: "home",
+  workspaceView: "documents",
   showOnboarding: false,
   showTerminal: false,
   terminalHeight: 200,

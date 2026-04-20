@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUIStore } from "@/stores/uiStore";
 import * as commands from "@/lib/commands";
-import type { McpServerStatus, RemoteConfig, TemplateInfo, VaultSettings } from "@/types";
+import { CreateProjectForm } from "@/components/shared/CreateProjectForm";
+import type { McpServerStatus, RemoteConfig, VaultSettings } from "@/types";
 
 type Step = "welcome" | "project" | "sync" | "agent" | "finish";
 type TemplateConfigMap = Record<
@@ -95,7 +96,6 @@ function StepRail({
 }
 
 export function Onboarding() {
-  const createProject = useVaultStore((s) => s.createProject);
   const loadProjects = useVaultStore((s) => s.loadProjects);
   const loadStats = useVaultStore((s) => s.loadStats);
   const projects = useVaultStore((s) => s.projects);
@@ -106,12 +106,6 @@ export function Onboarding() {
   const [step, setStep] = useState<Step>("welcome");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [projectName, setProjectName] = useState("");
-  const [projectDescription, setProjectDescription] = useState("");
-  const [workFolder, setWorkFolder] = useState<string | null>(null);
-  const [templates, setTemplates] = useState<TemplateInfo[]>([]);
-  const [templateConfig, setTemplateConfig] = useState<TemplateConfigMap>({});
-  const [selectedTemplate, setSelectedTemplate] = useState("");
   const [remoteConfig, setRemoteConfig] = useState<RemoteConfig | null>(null);
   const [connectRemote, setConnectRemote] = useState(false);
   const [remoteUrl, setRemoteUrl] = useState("");
@@ -124,23 +118,6 @@ export function Onboarding() {
   const projectCreated = projects.length > 0;
 
   useEffect(() => {
-    commands
-      .listTemplates()
-      .then((t) => {
-        setTemplates(t);
-        const def = t.find((x) => x.is_default);
-        if (def) setSelectedTemplate(def.name);
-      })
-      .catch(() => {});
-
-    commands
-      .getTemplatesConfig()
-      .then((raw) => {
-        const parsed = JSON.parse(raw) as { templates?: TemplateConfigMap };
-        setTemplateConfig(parsed.templates ?? {});
-      })
-      .catch(() => {});
-
     commands
       .gitRemoteConfig()
       .then((config) => {
@@ -170,78 +147,17 @@ export function Onboarding() {
     return () => window.clearInterval(statusInterval);
   }, []);
 
-  const selectedTemplateLabel = useMemo(
-    () => templates.find((t) => t.name === selectedTemplate)?.label ?? "Software Project",
-    [selectedTemplate, templates]
-  );
-  const selectedTemplateConfig = useMemo(
-    () => templateConfig[selectedTemplate],
-    [selectedTemplate, templateConfig]
-  );
-  const templatePreviewItems = useMemo(() => {
-    if (!selectedTemplateConfig) {
-      return [];
-    }
-
-    const folderItems = selectedTemplateConfig.folders.map((folder) => ({
-      key: folder,
-      label: `${folder}/`,
-      tone: "folder" as const,
-    }));
-    const fileItems = Object.keys(selectedTemplateConfig.files)
-      .sort()
-      .slice(0, 6)
-      .map((path) => ({
-        key: path,
-        label: path,
-        tone: "file" as const,
-      }));
-
-    return [...folderItems, ...fileItems];
-  }, [selectedTemplateConfig]);
-
-  const goToNext = () => {
-    const currentIndex = STEPS.findIndex((s) => s.id === step);
-    const next = STEPS[currentIndex + 1];
-    if (next) setStep(next.id);
-  };
-
   const goToPrevious = () => {
     const currentIndex = STEPS.findIndex((s) => s.id === step);
     const previous = STEPS[currentIndex - 1];
     if (previous) setStep(previous.id);
   };
 
-  const handleBrowseWorkFolder = async () => {
-    try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const folder = await open({ directory: true, title: "Select source folder for this project" });
-      if (folder) setWorkFolder(folder as string);
-    } catch {}
-  };
-
-  const handleCreateProject = async () => {
-    if (!projectName.trim()) return;
-    setLoading(true);
-    setError(null);
-    try {
-      await createProject(
-        projectName.trim(),
-        projectDescription.trim() || undefined,
-        undefined,
-        selectedTemplate || undefined
-      );
-      if (workFolder) {
-        await commands.setProjectSourceFolder(projectName.trim(), workFolder);
-      }
-      await loadProjects();
-      await loadStats();
-      setStep("sync");
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
+  const handleProjectCreated = async (name: string) => {
+    await loadProjects();
+    await loadStats();
+    setStep("sync");
+    void name;
   };
 
   const handleSaveSync = async () => {
@@ -268,7 +184,7 @@ export function Onboarding() {
     await loadProjects();
     await loadStats();
     setShowOnboarding(false);
-    setWorkspaceView("home");
+    setWorkspaceView("documents");
   };
 
   return (
@@ -337,170 +253,17 @@ export function Onboarding() {
           )}
 
           {step === "project" && (
-            <div className="mx-auto grid max-w-4xl gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-              <div>
-                <h2 className="text-2xl font-semibold text-neutral-100">
-                  Set up a new project
-                </h2>
-                <p className="mt-2 text-sm text-neutral-400">
-                  Name it, pick a template, and optionally link a source folder so
-                  terminals and AI chat know where your code lives.
-                </p>
-
-                <div className="mt-6 space-y-4">
-                  <div>
-                    <label className="mb-1.5 block text-xs text-neutral-400">
-                      Project name
-                    </label>
-                    <input
-                      type="text"
-                      value={projectName}
-                      onChange={(e) => setProjectName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") void handleCreateProject();
-                      }}
-                      placeholder="my-project"
-                    className="workspace-input w-full rounded-xl px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
-                      autoFocus
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-xs text-neutral-400">
-                      Description
-                    </label>
-                    <textarea
-                      value={projectDescription}
-                      onChange={(e) => setProjectDescription(e.target.value)}
-                      rows={3}
-                      placeholder="What is this project for?"
-                      className="workspace-input w-full rounded-xl px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-xs text-neutral-400">
-                      Template
-                    </label>
-                    <div className="space-y-2">
-                      {templates.map((t) => (
-                        <button
-                          key={t.name}
-                          onClick={() => setSelectedTemplate(t.name)}
-                          className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors ${
-                            selectedTemplate === t.name
-                              ? "border-cyan-500 bg-cyan-950/20 text-neutral-100"
-                              : "workspace-subsection text-neutral-400"
-                          }`}
-                        >
-                          <span
-                            className={`h-3.5 w-3.5 rounded-full border-2 ${
-                              selectedTemplate === t.name
-                                ? "border-cyan-400 bg-cyan-400"
-                                : "border-neutral-600"
-                            }`}
-                          />
-                          <span className="text-sm">{t.label}</span>
-                          {t.is_default && (
-                            <span className="ml-auto text-[10px] uppercase tracking-wide text-neutral-500">
-                              Default
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-xs text-neutral-400">
-                      Source folder{" "}
-                      <span className="text-neutral-600">— optional</span>
-                    </label>
-                    <div className="flex gap-2">
-                      <div className="workspace-input flex-1 truncate rounded-xl px-3 py-2.5 text-sm text-neutral-400">
-                        {workFolder
-                          ? workFolder.split("/").pop() || workFolder
-                          : "No folder selected"}
-                      </div>
-                      {workFolder && (
-                        <button
-                          onClick={() => setWorkFolder(null)}
-                          className="rounded-xl border border-neutral-700 px-3 py-2 text-xs text-neutral-500 hover:bg-neutral-800"
-                          title="Clear"
-                        >
-                          ×
-                        </button>
-                      )}
-                      <button
-                        onClick={() => void handleBrowseWorkFolder()}
-                        className="rounded-xl border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition-colors hover:bg-neutral-800"
-                      >
-                        Browse
-                      </button>
-                    </div>
-                    <p className="mt-1.5 text-[10px] text-neutral-600">
-                      Terminals and AI chat will default to this source folder for this project.
-                    </p>
-                  </div>
-
-                  {error && (
-                    <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-xs text-red-300">
-                      {error}
-                    </div>
-                  )}
-
-                  <div className="flex gap-3">
-                    <button
-                      onClick={goToPrevious}
-                      className="rounded-xl border border-neutral-700 px-4 py-2.5 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={() => void handleCreateProject()}
-                      disabled={loading || !projectName.trim()}
-                      className="rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-cyan-500 disabled:bg-neutral-800 disabled:text-neutral-500"
-                    >
-                      {loading ? "Creating..." : "Create project"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="workspace-subsection rounded-2xl p-4">
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-neutral-500">
-                  Preview
-                </p>
-                <p className="mt-3 text-sm font-medium text-neutral-200">
-                  {selectedTemplateLabel}
-                </p>
-                <div className="workspace-input mt-4 rounded-xl p-4 font-mono text-[11px] text-neutral-500">
-                  {templatePreviewItems.length > 0 ? (
-                    <>
-                      {templatePreviewItems.map((item) => (
-                        <div
-                          key={item.key}
-                          className={item.tone === "folder" ? "text-neutral-400" : "pl-3 text-neutral-600"}
-                        >
-                          {item.label}
-                        </div>
-                      ))}
-                      {Object.keys(selectedTemplateConfig?.files ?? {}).length > 6 && (
-                        <div className="pl-3 text-neutral-700">
-                          ...{Object.keys(selectedTemplateConfig?.files ?? {}).length - 6} more starter files
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-neutral-600">
-                      Minimal template starts empty so you can shape the project yourself.
-                    </div>
-                  )}
-                </div>
-                <p className="mt-4 text-[11px] leading-5 text-neutral-500">
-                  This preview is pulled from the actual template config the project will use.
-                </p>
-              </div>
+            <div className="mx-auto max-w-4xl">
+              <h2 className="text-2xl font-semibold text-neutral-100">Set up a new project</h2>
+              <p className="mt-2 mb-6 text-sm text-neutral-400">
+                Name it, pick a template, and optionally link a source folder so
+                terminals and AI chat know where your code lives.
+              </p>
+              <CreateProjectForm
+                onCreated={handleProjectCreated}
+                onBack={goToPrevious}
+                showPreview
+              />
             </div>
           )}
 
