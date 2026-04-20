@@ -75,6 +75,7 @@ export function VaultHome() {
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const [isCreating, setIsCreating] = useState(false);
   const [projectName, setProjectName] = useState("");
+  const [projectTemplate, setProjectTemplate] = useState("");
 
   const sortedProjects = useMemo(
     () => [...projects].sort((a, b) => a.name.localeCompare(b.name)),
@@ -91,14 +92,15 @@ export function VaultHome() {
 
   const handleCreateProject = async () => {
     const name = projectName.trim();
-    if (!name) return;
+    if (!name || !projectTemplate) return;
 
     setIsCreating(true);
     try {
-      await createProject(name);
+      await createProject(name, undefined, undefined, projectTemplate);
       await loadProjects();
       await loadStats();
       setProjectName("");
+      setProjectTemplate("");
       await openProject(name);
     } finally {
       setIsCreating(false);
@@ -308,7 +310,7 @@ export function VaultHome() {
                 <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-neutral-500">
                   Create project
                 </label>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2">
                   <input
                     type="text"
                     value={projectName}
@@ -317,11 +319,22 @@ export function VaultHome() {
                       if (e.key === "Enter") void handleCreateProject();
                     }}
                     placeholder="project-name"
-                    className="workspace-input flex-1 rounded-xl px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
+                    className="workspace-input rounded-xl px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
                   />
+                  <select
+                    value={projectTemplate}
+                    onChange={(e) => setProjectTemplate(e.target.value)}
+                    className="workspace-input rounded-xl px-3 py-2 text-sm text-neutral-200 outline-none focus:border-cyan-600"
+                  >
+                    <option value="" disabled>Select a template…</option>
+                    <option value="vibe-coding">Vibe Coding — prd, todo, bugs, context, changelog, ideas, prompts</option>
+                    <option value="software-dev">Software Dev — specs, features, decisions, guides, runbooks, notes</option>
+                    <option value="agile">Agile — backlog, sprints, retrospectives, ceremonies, epics, definitions</option>
+                    <option value="minimal">Minimal — empty, no folders</option>
+                  </select>
                   <button
                     onClick={() => void handleCreateProject()}
-                    disabled={isCreating || !projectName.trim()}
+                    disabled={isCreating || !projectName.trim() || !projectTemplate}
                     className="rounded-xl bg-cyan-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-500 disabled:bg-neutral-800 disabled:text-neutral-500"
                   >
                     {isCreating ? "Creating..." : "Create"}
