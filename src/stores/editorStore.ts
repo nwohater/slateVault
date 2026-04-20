@@ -56,7 +56,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       await state.saveDocument();
     }
 
-    const content = await commands.readVaultFile(path);
+    const raw = await commands.readVaultFile(path);
+    // Pretty-print JSON files so they're human-readable in the editor
+    let content = raw;
+    if (path.endsWith(".json")) {
+      try { content = JSON.stringify(JSON.parse(raw), null, 2); } catch { /* leave as-is if invalid */ }
+    }
     useUIStore.getState().setShowOnboarding(false);
     useUIStore.getState().setWorkspaceView("documents");
     set({
