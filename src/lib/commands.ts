@@ -196,7 +196,8 @@ export async function writeDocument(
   tags?: string[],
   ai_tool?: string,
   canonical?: boolean,
-  isProtected?: boolean
+  isProtected?: boolean,
+  status?: string
 ): Promise<string> {
   return invoke("write_document", {
     project,
@@ -207,6 +208,7 @@ export async function writeDocument(
     ai_tool,
     canonical,
     isProtected,
+    status,
   });
 }
 

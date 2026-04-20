@@ -150,40 +150,37 @@ pub fn write_document(
     ai_tool: Option<String>,
     canonical: Option<bool>,
     is_protected: Option<bool>,
+    status: Option<String>,
     state: State<'_, VaultState>,
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
         let mut doc = vault.write_document(&project, &path, &title, &content, tags.unwrap_or_default(), ai_tool)?;
-        // Apply canonical/protected if provided
-        if canonical.is_some() || is_protected.is_some() {
-            let mut needs_rewrite = false;
-            if let Some(c) = canonical {
-                if doc.front_matter.canonical != c {
-                    doc.front_matter.canonical = c;
-                    needs_rewrite = true;
-                }
-            }
-            if let Some(p) = is_protected {
-                if doc.front_matter.protected != p {
-                    doc.front_matter.protected = p;
-                    needs_rewrite = true;
-                }
-            }
-            if needs_rewrite {
-                let project_obj = vault.open_project(&project)?;
-                let file_path = resolve_inside(&project_obj.docs_dir(), &path)?;
-                std::fs::write(&file_path, doc.to_string()?)?;
-                vault.search.index_document(
-                    &project,
-                    &doc.path,
-                    &doc.front_matter.title,
-                    &doc.content,
-                    &doc.front_matter.tags,
-                    &format!("{:?}", doc.front_matter.author).to_lowercase(),
-                    &format!("{:?}", doc.front_matter.status).to_lowercase(),
-                    doc.front_matter.canonical,
-                )?;
-            }
+        // Apply canonical/protected/status if provided
+        let new_status = status.as_deref().map(|s| match s.to_lowercase().as_str() {
+            "review" => slatevault_core::document::DocStatus::Review,
+            "final"  => slatevault_core::document::DocStatus::Final,
+            _        => slatevault_core::document::DocStatus::Draft,
+        });
+        let needs_rewrite = canonical.map(|c| c != doc.front_matter.canonical).unwrap_or(false)
+            || is_protected.map(|p| p != doc.front_matter.protected).unwrap_or(false)
+            || new_status.as_ref().map(|s| s != &doc.front_matter.status).unwrap_or(false);
+        if needs_rewrite {
+            if let Some(c) = canonical { doc.front_matter.canonical = c; }
+            if let Some(p) = is_protected { doc.front_matter.protected = p; }
+            if let Some(s) = new_status { doc.front_matter.status = s; }
+            let project_obj = vault.open_project(&project)?;
+            let file_path = resolve_inside(&project_obj.docs_dir(), &path)?;
+            std::fs::write(&file_path, doc.to_string()?)?;
+            vault.search.index_document(
+                &project,
+                &doc.path,
+                &doc.front_matter.title,
+                &doc.content,
+                &doc.front_matter.tags,
+                &format!("{:?}", doc.front_matter.author).to_lowercase(),
+                &format!("{:?}", doc.front_matter.status).to_lowercase(),
+                doc.front_matter.canonical,
+            )?;
         }
         Ok(format!("Document written: {}/{}", project, path))
     })
@@ -228,7 +225,7 @@ pub fn list_documents(
                 title: d.front_matter.title,
                 path: d.path,
                 author: format!("{:?}", d.front_matter.author),
-                status: format!("{:?}", d.front_matter.status),
+                status: format!("{:?}", d.front_matter.status).to_lowercase(),
                 tags: d.front_matter.tags,
                 created: d.front_matter.created.to_rfc3339(),
                 modified: d.front_matter.modified.to_rfc3339(),

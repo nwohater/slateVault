@@ -17,6 +17,7 @@ interface EditorState {
   openVaultFile: (path: string) => Promise<void>;
   updateContent: (content: string) => void;
   saveDocument: () => Promise<void>;
+  updateStatus: (status: string) => Promise<void>;
   closeDocument: () => void;
 }
 
@@ -104,9 +105,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       frontMatter.tags,
       undefined,
       frontMatter.canonical,
-      frontMatter.protected
+      frontMatter.protected,
+      frontMatter.status,
     );
     set({ isDirty: false });
+  },
+
+  updateStatus: async (status: string) => {
+    const { activeProject, activePath, content, frontMatter } = get();
+    if (!activeProject || !activePath || !frontMatter) return;
+    const { content: body } = parseFrontMatter(content);
+    await commands.writeDocument(
+      activeProject,
+      activePath,
+      frontMatter.title,
+      body,
+      frontMatter.tags,
+      undefined,
+      frontMatter.canonical,
+      frontMatter.protected,
+      status,
+    );
+    // Update in-memory front matter so the bar re-renders immediately
+    set({ frontMatter: { ...frontMatter, status: status as "draft" | "review" | "final" } });
   },
 
   closeDocument: () => {

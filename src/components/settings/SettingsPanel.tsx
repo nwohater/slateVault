@@ -152,8 +152,8 @@ export function SettingsPanel() {
         </div>
       </div>
 
-      {/* AI Assistant section */}
-      <div className="p-3 border-b border-neutral-800">
+      {/* AI Assistant section — hidden, config still lives in vault settings */}
+      {false && <div className="p-3 border-b border-neutral-800">
         <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
           AI Assistant
         </h3>
@@ -249,7 +249,7 @@ export function SettingsPanel() {
             <label className="block text-neutral-500 mb-1">
               API Key
               {creds?.ai_api_key && (
-                <span className="ml-1 text-green-500">({creds.ai_api_key})</span>
+                <span className="ml-1 text-green-500">({creds?.ai_api_key})</span>
               )}
             </label>
             <input
@@ -273,7 +273,7 @@ export function SettingsPanel() {
             Works with Ollama, LM Studio, OpenAI, Anthropic, or any OpenAI-compatible endpoint.
           </p>
         </div>
-      </div>
+      </div>}
 
       {/* MCP section */}
       <div className="p-3 border-b border-neutral-800">

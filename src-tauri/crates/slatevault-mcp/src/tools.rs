@@ -71,6 +71,8 @@ pub struct WriteDocumentParams {
     pub tags: Option<Vec<String>>,
     #[schemars(description = "Name of the calling AI tool, e.g. 'claude-code'")]
     pub ai_tool: Option<String>,
+    #[schemars(description = "Document status: 'draft' (default), 'review', or 'final'")]
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]

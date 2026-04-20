@@ -132,7 +132,7 @@ impl SlateVaultMcpServer {
                 None,
             ));
         }
-        let doc = vault
+        let mut doc = vault
             .write_document(
                 &params.project,
                 &params.path,
@@ -142,6 +142,35 @@ impl SlateVaultMcpServer {
                 params.ai_tool,
             )
             .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+
+        // Apply status if provided
+        if let Some(s) = &params.status {
+            let new_status = match s.to_lowercase().as_str() {
+                "review" => slatevault_core::document::DocStatus::Review,
+                "final"  => slatevault_core::document::DocStatus::Final,
+                _        => slatevault_core::document::DocStatus::Draft,
+            };
+            if new_status != doc.front_matter.status {
+                doc.front_matter.status = new_status;
+                let project_obj = vault.open_project(&params.project)
+                    .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+                let file_path = project_obj.docs_dir().join(&params.path);
+                let rendered = doc.to_string()
+                    .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+                std::fs::write(&file_path, rendered)
+                    .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+                vault.search.index_document(
+                    &params.project,
+                    &doc.path,
+                    &doc.front_matter.title,
+                    &doc.content,
+                    &doc.front_matter.tags,
+                    &format!("{:?}", doc.front_matter.author).to_lowercase(),
+                    &format!("{:?}", doc.front_matter.status).to_lowercase(),
+                    doc.front_matter.canonical,
+                ).map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+            }
+        }
 
         let auto_staged = vault.config.mcp.auto_stage_ai_writes
             && doc.front_matter.ai_tool.is_some();

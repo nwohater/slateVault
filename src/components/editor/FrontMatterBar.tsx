@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { useEditorStore } from "@/stores/editorStore";
 
+const STATUS_CYCLE = ["draft", "review", "final"] as const;
+
 const statusColors: Record<string, string> = {
-  draft: "bg-yellow-900 text-yellow-300",
-  review: "bg-blue-900 text-blue-300",
-  final: "bg-green-900 text-green-300",
+  draft: "bg-yellow-900/70 text-yellow-300 hover:bg-yellow-800/70",
+  review: "bg-blue-900/70 text-blue-300 hover:bg-blue-800/70",
+  final: "bg-green-900/70 text-green-300 hover:bg-green-800/70",
 };
 
 const authorLabels: Record<string, string> = {
@@ -17,6 +20,20 @@ const authorLabels: Record<string, string> = {
 export function FrontMatterBar() {
   const fm = useEditorStore((s) => s.frontMatter);
   const isDirty = useEditorStore((s) => s.isDirty);
+  const updateStatus = useEditorStore((s) => s.updateStatus);
+  const [saving, setSaving] = useState(false);
+
+  const handleStatusClick = async () => {
+    if (!fm || saving) return;
+    const idx = STATUS_CYCLE.indexOf(fm.status as typeof STATUS_CYCLE[number]);
+    const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+    setSaving(true);
+    try {
+      await updateStatus(next);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (!fm) return null;
 
@@ -39,11 +56,14 @@ export function FrontMatterBar() {
           🔒 protected
         </span>
       )}
-      <span
-        className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[fm.status] || "bg-neutral-800 text-neutral-400"}`}
+      <button
+        onClick={handleStatusClick}
+        disabled={saving}
+        title="Click to cycle status: draft → review → final"
+        className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${statusColors[fm.status] || "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"}`}
       >
-        {fm.status}
-      </span>
+        {saving ? "saving…" : fm.status}
+      </button>
       <span className="text-neutral-500">
         {authorLabels[fm.author] || fm.author}
       </span>
