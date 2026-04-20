@@ -56,6 +56,8 @@ pub fn spawn_terminal(
 
     let mut cmd = CommandBuilder::new(&shell);
     cmd.cwd(&cwd);
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
 
     let child = pair
         .slave

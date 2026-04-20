@@ -53,6 +53,8 @@ function TerminalInstance({
 
     const term = new Terminal({
       cursorBlink: true,
+      allowProposedApi: true,
+      macOptionIsMeta: true,
       fontSize: 13,
       fontFamily:
         "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
