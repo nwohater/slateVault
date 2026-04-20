@@ -109,11 +109,22 @@ function TerminalInstance({
       commands
         .spawnTerminalSession(id, startPath)
         .then(() => {
-          fit.fit();
-          const dims = fit.proposeDimensions();
-          if (dims) {
-            commands.resizeTerminal(id, dims.rows, dims.cols).catch(() => {});
-          }
+          // Resize twice: once immediately, once after WKWebView has fully settled.
+          // Without the delay, proposeDimensions() often returns stale/wrong values
+          // and TUI apps (like Claude CLI) start up with the wrong column count.
+          const sendResize = () => {
+            try {
+              fit.fit();
+              const dims = fit.proposeDimensions();
+              if (dims) {
+                commands.resizeTerminal(id, dims.rows, dims.cols).catch(() => {});
+              }
+            } catch {
+              // ignore if disposed
+            }
+          };
+          sendResize();
+          setTimeout(sendResize, 150);
         })
         .catch((e) => {
           term.write(`\r\nFailed to spawn terminal: ${e}\r\n`);
