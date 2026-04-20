@@ -770,6 +770,30 @@ pub fn rename_project(
     })
 }
 
+#[tauri::command]
+pub fn update_project_meta(
+    name: String,
+    description: Option<String>,
+    tags: Option<Vec<String>>,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let safe_name = sanitize_single_component(&name)?;
+        let projects_dir = vault.projects_dir();
+        let project_path = resolve_inside(&projects_dir, &safe_name)?;
+        let toml_path = project_path.join("project.toml");
+        let toml_str = std::fs::read_to_string(&toml_path)?;
+        let mut config = toml::from_str::<slatevault_core::config::ProjectConfig>(&toml_str)
+            .map_err(|e| slatevault_core::CoreError::TomlParse(e))?;
+        if let Some(d) = description { config.project.description = d; }
+        if let Some(t) = tags { config.project.tags = t; }
+        let new_toml = toml::to_string_pretty(&config)
+            .map_err(slatevault_core::CoreError::TomlSerialize)?;
+        std::fs::write(&toml_path, new_toml)?;
+        Ok(format!("Updated project metadata for '{}'", name))
+    })
+}
+
 // -- Branch commands --
 
 #[tauri::command]

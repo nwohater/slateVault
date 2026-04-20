@@ -8,6 +8,7 @@ import * as commands from "@/lib/commands";
 import { parseFrontMatter } from "@/lib/frontmatter";
 import { TreeNode } from "./TreeNode";
 import { ProjectPdfExport } from "../preview/ProjectPdfExport";
+import { ProjectSettingsModal } from "@/components/shared/ProjectSettingsModal";
 
 import type { DocumentInfo, AssetInfo } from "@/types";
 
@@ -109,6 +110,7 @@ export function FileTree() {
   const [projectFolders, setProjectFolders] = useState<Record<string, string[]>>({});
   const [projectAssets, setProjectAssets] = useState<Record<string, AssetInfo[]>>({});
   const [exportingProject, setExportingProject] = useState<string | null>(null);
+  const [settingsProject, setSettingsProject] = useState<string | null>(null);
   const [sourceFolders, setSourceFolders] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
@@ -642,6 +644,15 @@ export function FileTree() {
                     >
                       Export to PDF
                     </button>
+                    <button
+                      onClick={() => {
+                        setSettingsProject(contextMenu.project);
+                        setContextMenu(null);
+                      }}
+                      className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                    >
+                      Project Settings
+                    </button>
                   </>
                 )}
                 {contextMenu.type !== "folder" && (
@@ -892,6 +903,13 @@ export function FileTree() {
         <ProjectPdfExport
           project={exportingProject}
           onClose={() => setExportingProject(null)}
+        />
+      )}
+
+      {settingsProject && (
+        <ProjectSettingsModal
+          projectName={settingsProject}
+          onClose={() => setSettingsProject(null)}
         />
       )}
     </>

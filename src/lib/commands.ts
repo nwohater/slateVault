@@ -384,6 +384,14 @@ export async function renameProject(
   return invoke("rename_project", { oldName, newName });
 }
 
+export async function updateProjectMeta(
+  name: string,
+  description?: string,
+  tags?: string[]
+): Promise<string> {
+  return invoke("update_project_meta", { name, description, tags });
+}
+
 export async function rebuildIndex(): Promise<number> {
   return invoke("rebuild_index");
 }

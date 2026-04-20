@@ -72,6 +72,7 @@ pub fn run() {
             commands::delete_project,
             commands::rename_document,
             commands::rename_project,
+            commands::update_project_meta,
             commands::ai_chat,
             commands::ai_test_tools,
             commands::ai_list_models,
