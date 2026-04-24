@@ -4,11 +4,36 @@ import { useEffect, useState } from "react";
 import * as commands from "@/lib/commands";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useEditorStore } from "@/stores/editorStore";
+import { useAppStore } from "@/stores/appStore";
 import type { VaultSettings, CredentialsMasked } from "@/types";
+
+function formatBundleType(bundleType: string | null): string {
+  if (!bundleType) return "dev";
+  if (bundleType === "appimage") return "AppImage";
+  return bundleType.toUpperCase();
+}
+
+function formatLastChecked(value: string | null): string {
+  if (!value) return "Not checked yet";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not checked yet";
+  return date.toLocaleString();
+}
 
 export function SettingsPanel() {
   const loadStats = useVaultStore((s) => s.loadStats);
   const openVaultFile = useEditorStore((s) => s.openVaultFile);
+  const version = useAppStore((s) => s.version);
+  const bundleType = useAppStore((s) => s.bundleType);
+  const channel = useAppStore((s) => s.channel);
+  const updateState = useAppStore((s) => s.updateState);
+  const updateVersion = useAppStore((s) => s.updateVersion);
+  const updateError = useAppStore((s) => s.updateError);
+  const updateBody = useAppStore((s) => s.updateBody);
+  const lastCheckedAt = useAppStore((s) => s.lastCheckedAt);
+  const initializeApp = useAppStore((s) => s.initialize);
+  const checkForUpdates = useAppStore((s) => s.checkForUpdates);
+  const installUpdate = useAppStore((s) => s.installUpdate);
   const [settings, setSettings] = useState<VaultSettings | null>(null);
   const [name, setName] = useState("");
   const [mcpEnabled, setMcpEnabled] = useState(true);
@@ -31,7 +56,8 @@ export function SettingsPanel() {
   useEffect(() => {
     loadSettings();
     loadCredentials();
-  }, []);
+    initializeApp().catch(() => {});
+    }, [initializeApp]);
 
   const loadSettings = async () => {
     try {
@@ -131,6 +157,86 @@ export function SettingsPanel() {
 
       <div className="p-3 border-b border-neutral-800">
         <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
+          App
+        </h3>
+        <div className="space-y-2">
+          <div>
+            <label className="block text-neutral-500 mb-1">Version</label>
+            <div className="px-2 py-1 bg-neutral-800/50 rounded text-neutral-300">
+              {version ? `v${version}` : "Unavailable"}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-neutral-500 mb-1">Channel</label>
+              <div className="px-2 py-1 bg-neutral-800/50 rounded text-neutral-300 capitalize">
+                {channel}
+              </div>
+            </div>
+            <div>
+              <label className="block text-neutral-500 mb-1">Package</label>
+              <div className="px-2 py-1 bg-neutral-800/50 rounded text-neutral-300">
+                {formatBundleType(bundleType)}
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="block text-neutral-500 mb-1">Update status</label>
+            <div className="px-2 py-1 bg-neutral-800/50 rounded text-neutral-300">
+              {updateState === "available" && updateVersion
+                ? `Update available: v${updateVersion}`
+                : updateState === "up-to-date"
+                  ? "You're on the latest version"
+                  : updateState === "checking"
+                    ? "Checking for updates..."
+                    : updateState === "downloading"
+                      ? "Downloading update..."
+                      : updateState === "installing"
+                        ? "Installing update..."
+                        : updateState === "installed"
+                          ? "Update downloaded. Restart SlateVault to finish installing."
+                          : updateState === "error"
+                            ? "Update check failed"
+                            : "Ready to check for updates"}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => void checkForUpdates(true)}
+              disabled={updateState === "checking" || updateState === "downloading" || updateState === "installing"}
+              className="flex-1 px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 disabled:text-neutral-600 text-neutral-300"
+            >
+              {updateState === "checking" ? "Checking..." : "Check for Updates"}
+            </button>
+            <button
+              onClick={() => void installUpdate()}
+              disabled={updateState !== "available"}
+              className="flex-1 px-2 py-1.5 rounded bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-600 text-white"
+            >
+              Install Update
+            </button>
+          </div>
+          <p className="text-neutral-600 text-[10px]">
+            Last checked: {formatLastChecked(lastCheckedAt)}
+          </p>
+          {updateError && (
+            <div className="rounded border border-amber-900/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-200">
+              {updateError}
+            </div>
+          )}
+          {updateBody && updateState === "available" && (
+            <div className="rounded border border-neutral-800 bg-neutral-900/50 px-2 py-1 text-[10px] text-neutral-400 whitespace-pre-wrap">
+              {updateBody}
+            </div>
+          )}
+          <p className="text-neutral-600 text-[10px]">
+            Version and update status come from the installed Tauri app, so this stays aligned with packaged installers.
+          </p>
+        </div>
+      </div>
+
+      <div className="p-3 border-b border-neutral-800">
+        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
           Workspace Files
         </h3>
         <div className="space-y-2">
@@ -152,7 +258,7 @@ export function SettingsPanel() {
         </div>
       </div>
 
-      {/* AI Assistant section — hidden, config still lives in vault settings */}
+      {/* AI Assistant section - hidden, config still lives in vault settings */}
       {false && <div className="p-3 border-b border-neutral-800">
         <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
           AI Assistant
@@ -265,7 +371,7 @@ export function SettingsPanel() {
                   } catch {}
                 }
               }}
-              placeholder="Optional — not needed for Ollama"
+              placeholder="Optional - not needed for Ollama"
               className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
             />
           </div>
@@ -518,3 +624,4 @@ export function SettingsPanel() {
     </div>
   );
 }
+

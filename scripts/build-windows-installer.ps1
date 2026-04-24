@@ -4,6 +4,11 @@ $RootDir = Resolve-Path (Join-Path $PSScriptRoot "..")
 $SrcTauriDir = Join-Path $RootDir "src-tauri"
 $Target = if ($env:TARGET) { $env:TARGET } else { "x86_64-pc-windows-msvc" }
 $TargetDir = Join-Path $SrcTauriDir "target\release"
+$SigningKeyPath = if ($env:TAURI_SIGNING_PRIVATE_KEY_PATH) {
+  $env:TAURI_SIGNING_PRIVATE_KEY_PATH
+} else {
+  "C:\Users\brand\.tauri\slatevault.key"
+}
 
 if ($Target -ne "x86_64-pc-windows-msvc") {
   $TargetDir = Join-Path $SrcTauriDir "target\$Target\release"
@@ -26,8 +31,10 @@ if ($args -contains "--help" -or $args -contains "-h") {
 Build a Windows NSIS installer for slateVault.
 
 Environment:
-  TARGET              Rust target triple. Defaults to x86_64-pc-windows-msvc.
-  SKIP_TAURI_BUILD    Set to 1 to only build/copy the MCP sidecar.
+  TARGET                         Rust target triple. Defaults to x86_64-pc-windows-msvc.
+  SKIP_TAURI_BUILD               Set to 1 to only build/copy the MCP sidecar.
+  TAURI_SIGNING_PRIVATE_KEY_PATH Path to updater private key. Defaults to C:\Users\brand\.tauri\slatevault.key.
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD Required if the updater private key is password protected.
 
 Examples:
   powershell -ExecutionPolicy Bypass -File scripts/build-windows-installer.ps1
@@ -62,7 +69,17 @@ if ($env:SKIP_TAURI_BUILD -eq "1") {
   exit 0
 }
 
-Write-Host "==> Building Tauri NSIS installer"
+if (-not (Test-Path $SigningKeyPath)) {
+  throw "Updater signing key not found: $SigningKeyPath"
+}
+
+if (-not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+  throw "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is required to build signed updater artifacts."
+}
+
+$env:TAURI_SIGNING_PRIVATE_KEY_PATH = $SigningKeyPath
+
+Write-Host "==> Building Tauri NSIS installer with updater artifacts"
 Push-Location $RootDir
 try {
   if ($Target -ne "x86_64-pc-windows-msvc") {
@@ -82,12 +99,29 @@ if (-not $Installer) {
   throw "Expected NSIS installer was not found in: $InstallerDir"
 }
 
+$Signature = Get-ChildItem -Path $InstallerDir -Filter "*.sig" -ErrorAction SilentlyContinue |
+  Sort-Object LastWriteTime -Descending |
+  Select-Object -First 1
+
+$LatestJson = Get-ChildItem -Path $InstallerDir -Filter "latest.json" -ErrorAction SilentlyContinue |
+  Sort-Object LastWriteTime -Descending |
+  Select-Object -First 1
+
 Write-Host ""
 Write-Host "Built installer:"
 Write-Host "  $($Installer.FullName)"
+if ($Signature) {
+  Write-Host "Updater signature:"
+  Write-Host "  $($Signature.FullName)"
+}
+if ($LatestJson) {
+  Write-Host "Updater manifest:"
+  Write-Host "  $($LatestJson.FullName)"
+}
 Write-Host ""
 Write-Host "Installer behavior:"
 Write-Host "  Installs slateVault app"
 Write-Host "  Installs bundled slatevault-mcp sidecar"
 Write-Host "  Creates slatevault-mcp.exe alias in install directory"
 Write-Host "  Adds install directory to current user's PATH"
+Write-Host "  Produces signed updater artifacts for GitHub Releases"

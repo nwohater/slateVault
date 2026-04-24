@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useEditorStore } from "@/stores/editorStore";
 import { useGitStore } from "@/stores/gitStore";
+import { useAppStore } from "@/stores/appStore";
 import * as commands from "@/lib/commands";
 import type { McpServerStatus } from "@/types";
 import { BranchIcon } from "@/components/icons/GitIcons";
@@ -17,6 +18,12 @@ export function StatusBar() {
   const frontMatter = useEditorStore((s) => s.frontMatter);
   const currentBranch = useGitStore((s) => s.currentBranch);
   const loadBranches = useGitStore((s) => s.loadBranches);
+  const version = useAppStore((s) => s.version);
+  const updateState = useAppStore((s) => s.updateState);
+  const updateVersion = useAppStore((s) => s.updateVersion);
+  const initializeApp = useAppStore((s) => s.initialize);
+  const checkForUpdates = useAppStore((s) => s.checkForUpdates);
+  const installUpdate = useAppStore((s) => s.installUpdate);
   const [mcpStatus, setMcpStatus] = useState<McpServerStatus | null>(null);
 
   useEffect(() => {
@@ -24,6 +31,8 @@ export function StatusBar() {
       commands.mcpServerStatus().then(setMcpStatus).catch(() => {});
     };
     check();
+    initializeApp().catch(() => {});
+    checkForUpdates().catch(() => {});
     loadBranches();
     const interval = setInterval(check, 5000);
     return () => clearInterval(interval);
@@ -31,6 +40,9 @@ export function StatusBar() {
 
   const mcpRunning = mcpStatus?.running ?? false;
   const mcpEnabled = stats?.mcp_enabled ?? false;
+  const updateReady = updateState === "available";
+  const updateBusy = updateState === "downloading" || updateState === "installing";
+  const versionLabel = updateReady && updateVersion ? `Update ${updateVersion}` : version ? `v${version}` : null;
 
   return (
     <div className="flex flex-shrink-0 items-center gap-3 border-t border-neutral-800/50 bg-[linear-gradient(180deg,rgba(8,12,17,0.96),rgba(11,16,22,0.92))] px-3 py-1.5 text-[10px] text-neutral-500 backdrop-blur-sm">
@@ -86,6 +98,30 @@ export function StatusBar() {
         }>
           {frontMatter.author}
         </span>
+      )}
+
+      {versionLabel && (
+        <button
+          type="button"
+          onClick={() => {
+            if (updateReady && !updateBusy) {
+              void installUpdate();
+            }
+          }}
+          disabled={!updateReady || updateBusy}
+          className={`rounded-full border px-2 py-0.5 text-neutral-300 transition-colors ${
+            updateReady
+              ? "border-emerald-700/60 bg-emerald-950/40 text-emerald-200 hover:bg-emerald-900/50"
+              : "border-neutral-800 bg-neutral-900/60 text-neutral-400"
+          } ${!updateReady ? "cursor-default" : "cursor-pointer"}`}
+          title={
+            updateReady
+              ? `Install update ${updateVersion}`
+              : "slateVault app version"
+          }
+        >
+          {versionLabel}
+        </button>
       )}
     </div>
   );

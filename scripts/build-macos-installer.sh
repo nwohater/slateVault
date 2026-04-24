@@ -19,9 +19,11 @@ fi
 PRODUCT_NAME="$(node -e "const c=require(process.argv[1]); process.stdout.write(c.productName)" "$SRC_TAURI_DIR/tauri.conf.json")"
 VERSION="$(node -e "const c=require(process.argv[1]); process.stdout.write(c.version)" "$SRC_TAURI_DIR/tauri.conf.json")"
 APP_BUNDLE="$TARGET_DIR/bundle/macos/$PRODUCT_NAME.app"
+UPDATER_ARCHIVE_PATTERN="$TARGET_DIR/bundle/macos/*.app.tar.gz"
 MCP_BINARY="$TARGET_DIR/slatevault-mcp"
 SIDECAR_BINARY="$SRC_TAURI_DIR/binaries/slatevault-mcp-$TARGET"
 PKG_PATH="$DIST_DIR/$PRODUCT_NAME-$VERSION-$TARGET.pkg"
+SIGNING_KEY_PATH="${TAURI_SIGNING_PRIVATE_KEY_PATH:-$HOME/.tauri/slatevault.key}"
 
 APP_SIGN_IDENTITY="${APP_SIGN_IDENTITY:-}"
 INSTALLER_SIGN_IDENTITY="${INSTALLER_SIGN_IDENTITY:-}"
@@ -32,16 +34,19 @@ usage() {
 Build a macOS .pkg installer for slateVault.
 
 Environment:
-  TARGET                    Rust target triple. Defaults to current host.
-  APP_SIGN_IDENTITY          Optional Developer ID Application identity.
-  INSTALLER_SIGN_IDENTITY    Optional Developer ID Installer identity.
-  SKIP_TAURI_BUILD           Set to 1 to package an existing Tauri build.
+  TARGET                         Rust target triple. Defaults to current host.
+  APP_SIGN_IDENTITY              Optional Developer ID Application identity.
+  INSTALLER_SIGN_IDENTITY        Optional Developer ID Installer identity.
+  SKIP_TAURI_BUILD               Set to 1 to package an existing Tauri build.
+  TAURI_SIGNING_PRIVATE_KEY_PATH Updater private key path. Defaults to ~/.tauri/slatevault.key.
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD Required if the updater private key is password protected.
 
 Examples:
   scripts/build-macos-installer.sh
   TARGET=aarch64-apple-darwin scripts/build-macos-installer.sh
-  APP_SIGN_IDENTITY="Developer ID Application: Example (TEAMID)" \\
-  INSTALLER_SIGN_IDENTITY="Developer ID Installer: Example (TEAMID)" \\
+  APP_SIGN_IDENTITY="Developer ID Application: Example (TEAMID)" \
+  INSTALLER_SIGN_IDENTITY="Developer ID Installer: Example (TEAMID)" \
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD="..." \
     scripts/build-macos-installer.sh
 EOF
 }
@@ -82,7 +87,19 @@ mkdir -p "$SRC_TAURI_DIR/binaries"
 install -m 755 "$MCP_BINARY" "$SIDECAR_BINARY"
 
 if [[ "$SKIP_TAURI_BUILD" != "1" ]]; then
-  echo "==> Building Tauri app bundle"
+  if [[ ! -f "$SIGNING_KEY_PATH" ]]; then
+    echo "Updater signing key not found: $SIGNING_KEY_PATH" >&2
+    exit 1
+  fi
+
+  if [[ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]]; then
+    echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is required to build signed updater artifacts." >&2
+    exit 1
+  fi
+
+  export TAURI_SIGNING_PRIVATE_KEY_PATH="$SIGNING_KEY_PATH"
+
+  echo "==> Building Tauri app bundle and updater artifacts"
   if [[ "$TARGET" != "$HOST_TARGET" ]]; then
     (cd "$ROOT_DIR" && npm run tauri build -- --bundles app "${BUILD_TARGET_ARGS[@]}")
   else
@@ -131,10 +148,28 @@ fi
 
 pkgbuild "${PKGBUILD_ARGS[@]}" "$PKG_PATH"
 
+UPDATER_ARCHIVE="$(compgen -G "$UPDATER_ARCHIVE_PATTERN" | head -n 1 || true)"
+UPDATER_SIGNATURE=""
+if [[ -n "$UPDATER_ARCHIVE" && -f "$UPDATER_ARCHIVE.sig" ]]; then
+  UPDATER_SIGNATURE="$UPDATER_ARCHIVE.sig"
+fi
+
 echo
+
 echo "Built installer:"
 echo "  $PKG_PATH"
+if [[ -n "$UPDATER_ARCHIVE" ]]; then
+  echo "Updater archive:"
+  echo "  $UPDATER_ARCHIVE"
+fi
+if [[ -n "$UPDATER_SIGNATURE" ]]; then
+  echo "Updater signature:"
+  echo "  $UPDATER_SIGNATURE"
+fi
+
 echo
+
 echo "Installs:"
 echo "  /Applications/$PRODUCT_NAME.app"
 echo "  /usr/local/bin/slatevault-mcp"
+echo "  Produces signed updater artifacts for GitHub Releases"

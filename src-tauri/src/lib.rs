@@ -4,13 +4,14 @@ mod terminal;
 
 use commands::VaultState;
 use mcp_manager::McpProcessState;
-use terminal::PtyState;
 use std::sync::Mutex;
 use tauri::Manager;
+use terminal::PtyState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(VaultState(Mutex::new(None)))
         .manage(PtyState::new())
         .manage(McpProcessState::new())
@@ -114,7 +115,8 @@ pub fn run() {
                 let state = window.state::<VaultState>();
                 if let Ok(guard) = state.0.lock() {
                     if let Some(ref vault) = *guard {
-                        if vault.config.sync.push_on_close && vault.config.sync.remote_url.is_some() {
+                        if vault.config.sync.push_on_close && vault.config.sync.remote_url.is_some()
+                        {
                             let branch = &vault.config.sync.remote_branch;
                             let root = vault.root.to_string_lossy().to_string();
                             let _ = std::process::Command::new("git")
