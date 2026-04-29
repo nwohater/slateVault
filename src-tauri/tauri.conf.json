@@ -20,7 +20,11 @@
         "resizable": true,
         "fullscreen": false,
         "center": true,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "theme": "Dark",
+        "backgroundColor": "#050505",
+        "titleBarStyle": "Transparent",
+        "hiddenTitle": true
       }
     ],
     "security": {
