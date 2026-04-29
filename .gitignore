@@ -33,4 +33,5 @@ src-tauri/target/
 # slatevault
 index.db
 dist/
+release-assets/
 src-tauri/binaries/

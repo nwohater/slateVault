@@ -18,6 +18,7 @@ fi
 
 PRODUCT_NAME="$(node -e "const c=require(process.argv[1]); process.stdout.write(c.productName)" "$SRC_TAURI_DIR/tauri.conf.json")"
 VERSION="$(node -e "const c=require(process.argv[1]); process.stdout.write(c.version)" "$SRC_TAURI_DIR/tauri.conf.json")"
+BUNDLE_IDENTIFIER="$(node -e "const c=require(process.argv[1]); process.stdout.write(c.identifier)" "$SRC_TAURI_DIR/tauri.conf.json")"
 APP_BUNDLE="$TARGET_DIR/bundle/macos/$PRODUCT_NAME.app"
 UPDATER_ARCHIVE_PATTERN="$TARGET_DIR/bundle/macos/*.app.tar.gz"
 MCP_BINARY="$TARGET_DIR/slatevault-mcp"
@@ -28,6 +29,7 @@ SIGNING_KEY_PATH="${TAURI_SIGNING_PRIVATE_KEY_PATH:-$HOME/.tauri/slatevault.key}
 APP_SIGN_IDENTITY="${APP_SIGN_IDENTITY:-}"
 INSTALLER_SIGN_IDENTITY="${INSTALLER_SIGN_IDENTITY:-}"
 SKIP_TAURI_BUILD="${SKIP_TAURI_BUILD:-0}"
+NOTARIZE="${NOTARIZE:-auto}"
 
 usage() {
   cat <<EOF
@@ -37,6 +39,10 @@ Environment:
   TARGET                         Rust target triple. Defaults to current host.
   APP_SIGN_IDENTITY              Optional Developer ID Application identity.
   INSTALLER_SIGN_IDENTITY        Optional Developer ID Installer identity.
+  NOTARIZE                       auto, 1, or 0. Defaults to auto when Apple API vars are set.
+  APPLE_API_KEY                  App Store Connect API key ID for notarization.
+  APPLE_API_ISSUER               App Store Connect issuer ID for notarization.
+  APPLE_API_KEY_PATH             Path to the App Store Connect .p8 key for notarization.
   SKIP_TAURI_BUILD               Set to 1 to package an existing Tauri build.
   TAURI_SIGNING_PRIVATE_KEY_PATH Updater private key path. Defaults to ~/.tauri/slatevault.key.
   TAURI_SIGNING_PRIVATE_KEY_PASSWORD Required if the updater private key is password protected.
@@ -70,6 +76,21 @@ require_command npm
 require_command pkgbuild
 require_command rustc
 
+should_notarize() {
+  case "$NOTARIZE" in
+    1|true|yes) return 0 ;;
+    0|false|no) return 1 ;;
+    auto)
+      [[ -n "${APPLE_API_KEY:-}" && -n "${APPLE_API_ISSUER:-}" && -n "${APPLE_API_KEY_PATH:-}" ]]
+      return
+      ;;
+    *)
+      echo "NOTARIZE must be one of: auto, 1, 0" >&2
+      exit 1
+      ;;
+  esac
+}
+
 echo "==> Building slatevault-mcp for $TARGET"
 cargo build \
   --manifest-path "$SRC_TAURI_DIR/Cargo.toml" \
@@ -98,6 +119,10 @@ if [[ "$SKIP_TAURI_BUILD" != "1" ]]; then
   fi
 
   export TAURI_SIGNING_PRIVATE_KEY_PATH="$SIGNING_KEY_PATH"
+  export TAURI_SIGNING_PRIVATE_KEY="$(<"$SIGNING_KEY_PATH")"
+  if [[ -n "$APP_SIGN_IDENTITY" && -z "${APPLE_SIGNING_IDENTITY:-}" ]]; then
+    export APPLE_SIGNING_IDENTITY="$APP_SIGN_IDENTITY"
+  fi
 
   echo "==> Building Tauri app bundle and updater artifacts"
   if [[ "$TARGET" != "$HOST_TARGET" ]]; then
@@ -135,7 +160,7 @@ echo "==> Building pkg"
 mkdir -p "$DIST_DIR"
 PKGBUILD_ARGS=(
   --root "$PKGROOT_DIR"
-  --identifier "dev.slatevault.app"
+  --identifier "$BUNDLE_IDENTIFIER"
   --version "$VERSION"
   --install-location /
 )
@@ -147,6 +172,28 @@ else
 fi
 
 pkgbuild "${PKGBUILD_ARGS[@]}" "$PKG_PATH"
+
+if should_notarize; then
+  require_command xcrun
+
+  if [[ ! -f "${APPLE_API_KEY_PATH:-}" ]]; then
+    echo "APPLE_API_KEY_PATH does not point to a file: ${APPLE_API_KEY_PATH:-}" >&2
+    exit 1
+  fi
+
+  echo "==> Submitting pkg for notarization"
+  xcrun notarytool submit "$PKG_PATH" \
+    --key "$APPLE_API_KEY_PATH" \
+    --key-id "$APPLE_API_KEY" \
+    --issuer "$APPLE_API_ISSUER" \
+    --wait
+
+  echo "==> Stapling notarization ticket"
+  xcrun stapler staple "$PKG_PATH"
+  xcrun stapler validate "$PKG_PATH"
+else
+  echo "==> Notarization skipped; set APPLE_API_KEY, APPLE_API_ISSUER, and APPLE_API_KEY_PATH to enable it"
+fi
 
 UPDATER_ARCHIVE="$(compgen -G "$UPDATER_ARCHIVE_PATTERN" | head -n 1 || true)"
 UPDATER_SIGNATURE=""
