@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { AiChatMessage, AssetInfo } from "@/types";
 import * as commands from "@/lib/commands";
+import { copyToClipboard } from "@/lib/clipboard";
 import { useEditorStore } from "@/stores/editorStore";
 
 interface Props {
@@ -30,8 +31,8 @@ export function AiMessageBubble({ message, project, assets = [] }: Props) {
     void commands.openAsset(project, path);
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(message.content);
+  const handleCopy = async () => {
+    await copyToClipboard(message.content);
   };
 
   const handleStartSave = () => {

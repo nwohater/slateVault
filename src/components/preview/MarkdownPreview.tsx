@@ -7,7 +7,44 @@ import remarkFrontmatter from "remark-frontmatter";
 import { useEditorStore } from "@/stores/editorStore";
 import { EmptyState } from "../shared/EmptyState";
 import * as commands from "@/lib/commands";
-import type { RelatedDocInfo, BacklinkInfo } from "@/types";
+import { copyToClipboard } from "@/lib/clipboard";
+import type { RelatedDocInfo, BacklinkInfo, FileHistoryEntry } from "@/types";
+
+function formatHistoryDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function normalizeHeading(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function stripMatchingLeadingHeading(body: string, title: string): string {
+  const lines = body.split("\n");
+  const firstContentIndex = lines.findIndex((line) => line.trim().length > 0);
+  if (firstContentIndex === -1) return body.trim();
+
+  const firstLine = lines[firstContentIndex].trim();
+  const match = firstLine.match(/^#\s+(.+)$/);
+  if (!match) return body.trim();
+
+  if (normalizeHeading(match[1]) !== normalizeHeading(title)) {
+    return body.trim();
+  }
+
+  return lines
+    .slice(0, firstContentIndex)
+    .concat(lines.slice(firstContentIndex + 1))
+    .join("\n")
+    .trim();
+}
 
 export function MarkdownPreview() {
   const content = useEditorStore((s) => s.content);
@@ -21,6 +58,10 @@ export function MarkdownPreview() {
   const [backlinks, setBacklinks] = useState<BacklinkInfo[]>([]);
   const [copied, setCopied] = useState(false);
   const [briefCopied, setBriefCopied] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<FileHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   useEffect(() => {
     if (activeProject && activePath) {
@@ -38,11 +79,17 @@ export function MarkdownPreview() {
     }
   }, [activeProject, activePath]);
 
+  useEffect(() => {
+    setShowHistory(false);
+    setHistory([]);
+    setHistoryError(null);
+  }, [activeProject, activePath]);
+
   if (!activePath) {
     return <EmptyState title="Preview" description="Open a document to preview" />;
   }
 
-  const handleCopyAsPrompt = () => {
+  const handleCopyAsPrompt = async () => {
     // Strip frontmatter, format as agent-ready context
     const lines = content.split("\n");
     let body = content;
@@ -53,8 +100,9 @@ export function MarkdownPreview() {
       }
     }
 
-    const prompt = `## ${frontMatter?.title || activePath}\n\n${body}`;
-    navigator.clipboard.writeText(prompt);
+    const title = frontMatter?.title || activePath;
+    const prompt = `## ${title}\n\n${stripMatchingLeadingHeading(body, title)}`;
+    await copyToClipboard(prompt);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -63,11 +111,28 @@ export function MarkdownPreview() {
     if (!activeProject) return;
     try {
       const brief = await commands.generateProjectBrief(activeProject);
-      navigator.clipboard.writeText(brief);
+      await copyToClipboard(brief);
       setBriefCopied(true);
       setTimeout(() => setBriefCopied(false), 2000);
     } catch (e) {
       console.error("Generate brief failed:", e);
+    }
+  };
+
+  const handleToggleHistory = async () => {
+    const nextVisible = !showHistory;
+    setShowHistory(nextVisible);
+    if (!nextVisible || !activeProject || history.length > 0 || historyLoading) return;
+
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const entries = await commands.gitFileHistory(activeProject, activePath, 25);
+      setHistory(entries);
+    } catch (e) {
+      setHistoryError(`Could not load history: ${e}`);
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -259,6 +324,23 @@ export function MarkdownPreview() {
             </svg>
             {briefCopied ? "Brief Copied!" : "Agent Brief"}
           </button>
+          {activeProject && (
+            <button
+              onClick={handleToggleHistory}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] rounded transition-colors ${
+                showHistory
+                  ? "bg-blue-950/50 text-blue-200 hover:bg-blue-900/50"
+                  : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200"
+              }`}
+              title="Show Git history for this document"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l3.75 2.25M21 12a9 9 0 1 1-2.64-6.36" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 3v5h-5" />
+              </svg>
+              History
+            </button>
+          )}
           <button
             onClick={handleExportPdf}
             disabled={exporting}
@@ -272,6 +354,64 @@ export function MarkdownPreview() {
           </button>
         </div>
       </div>
+
+      {showHistory && (
+        <div className="flex-shrink-0 border-b border-neutral-800 bg-neutral-950 px-4 py-3">
+          <div className="mb-2 flex items-center justify-between">
+            <div>
+              <div className="text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+                File History
+              </div>
+              <div className="mt-0.5 text-[10px] text-neutral-600">
+                {activeProject}/{activePath}
+              </div>
+            </div>
+            <button
+              onClick={() => setShowHistory(false)}
+              className="rounded px-2 py-1 text-[10px] text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300"
+            >
+              Close
+            </button>
+          </div>
+          {historyLoading ? (
+            <div className="rounded border border-neutral-800 bg-neutral-900/60 px-3 py-2 text-xs text-neutral-500">
+              Loading history...
+            </div>
+          ) : historyError ? (
+            <div className="rounded border border-red-950/70 bg-red-950/30 px-3 py-2 text-xs text-red-300">
+              {historyError}
+            </div>
+          ) : history.length === 0 ? (
+            <div className="rounded border border-neutral-800 bg-neutral-900/60 px-3 py-2 text-xs text-neutral-500">
+              No commits found for this file yet.
+            </div>
+          ) : (
+            <div className="max-h-56 overflow-y-auto rounded border border-neutral-800 bg-neutral-900/40">
+              {history.map((entry) => (
+                <div
+                  key={entry.full_oid}
+                  className="border-b border-neutral-800 px-3 py-2 last:border-b-0"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs text-neutral-200">
+                        {entry.message || "(no commit message)"}
+                      </div>
+                      <div className="mt-1 text-[10px] text-neutral-500">
+                        {entry.author}
+                        {entry.email ? ` <${entry.email}>` : ""} · {formatHistoryDate(entry.date)}
+                      </div>
+                    </div>
+                    <code className="rounded bg-neutral-950 px-1.5 py-0.5 text-[10px] text-cyan-300">
+                      {entry.oid}
+                    </code>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Preview content */}
       <div ref={previewRef} id="print-preview" className="flex-1 overflow-y-auto p-6">

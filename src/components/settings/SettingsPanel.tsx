@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import * as commands from "@/lib/commands";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
   detectMcpPlatform,
   getMcpInstallNote,
@@ -60,6 +61,7 @@ export function SettingsPanel() {
   const [adoPat, setAdoPat] = useState("");
   const [adoOrg, setAdoOrg] = useState("");
   const [adoProject, setAdoProject] = useState("");
+  const [showAzureDevOps, setShowAzureDevOps] = useState(false);
 
   useEffect(() => {
     setPlatform(detectMcpPlatform());
@@ -70,6 +72,9 @@ export function SettingsPanel() {
 
   const mcpSetupCards = getMcpSetupCards(platform);
   const selectedMcpCard = mcpSetupCards.find((card) => card.name === selectedMcpSetup) ?? mcpSetupCards[0];
+  const azureDevOpsConfigured = Boolean(
+    creds?.ado_pat || creds?.ado_organization || creds?.ado_project,
+  );
 
   const loadSettings = async () => {
     try {
@@ -463,8 +468,8 @@ export function SettingsPanel() {
                 {selectedMcpCard.command}
               </pre>
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(selectedMcpCard.command);
+                onClick={async () => {
+                  await copyToClipboard(selectedMcpCard.command);
                   setOutput(`Copied ${selectedMcpCard.name} setup!`);
                   setTimeout(() => setOutput(null), 2000);
                 }}
@@ -502,9 +507,12 @@ export function SettingsPanel() {
       {/* Credentials section */}
       <div className="p-3 border-b border-neutral-800">
         <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
-          PR Credentials
+          Pull Request Credentials
         </h3>
         <div className="space-y-2">
+          <p className="text-neutral-600 text-[10px]">
+            These are only used when SlateVault creates pull requests for you. MCP setup does not need them.
+          </p>
           <div>
             <label className="block text-neutral-500 mb-1">
               GitHub PAT
@@ -520,40 +528,60 @@ export function SettingsPanel() {
               className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
             />
           </div>
-          <div>
-            <label className="block text-neutral-500 mb-1">
-              Azure DevOps PAT
-              {creds?.ado_pat && (
-                <span className="ml-1 text-green-500">({creds.ado_pat})</span>
-              )}
-            </label>
-            <input
-              type="password"
-              value={adoPat}
-              onChange={(e) => setAdoPat(e.target.value)}
-              placeholder="PAT token..."
-              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
-            />
-          </div>
-          <div>
-            <label className="block text-neutral-500 mb-1">ADO Organization</label>
-            <input
-              type="text"
-              value={adoOrg}
-              onChange={(e) => setAdoOrg(e.target.value)}
-              placeholder="myorg"
-              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
-            />
-          </div>
-          <div>
-            <label className="block text-neutral-500 mb-1">ADO Project</label>
-            <input
-              type="text"
-              value={adoProject}
-              onChange={(e) => setAdoProject(e.target.value)}
-              placeholder="myproject"
-              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
-            />
+
+          <div className="rounded border border-neutral-800 bg-neutral-900/40">
+            <button
+              type="button"
+              onClick={() => setShowAzureDevOps((value) => !value)}
+              className="flex w-full items-center justify-between px-2 py-1.5 text-left text-neutral-400 hover:bg-neutral-800"
+            >
+              <span>Azure DevOps PR support</span>
+              <span className="text-[10px] text-neutral-600">
+                {azureDevOpsConfigured ? "Configured" : showAzureDevOps ? "Hide" : "Optional"}
+              </span>
+            </button>
+            {showAzureDevOps && (
+              <div className="space-y-2 border-t border-neutral-800 p-2">
+                <p className="text-neutral-600 text-[10px]">
+                  Only fill these in if this vault pushes to Azure DevOps and you want SlateVault to create PRs there.
+                </p>
+                <div>
+                  <label className="block text-neutral-500 mb-1">
+                    Azure DevOps PAT
+                    {creds?.ado_pat && (
+                      <span className="ml-1 text-green-500">({creds.ado_pat})</span>
+                    )}
+                  </label>
+                  <input
+                    type="password"
+                    value={adoPat}
+                    onChange={(e) => setAdoPat(e.target.value)}
+                    placeholder="PAT token..."
+                    className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-neutral-500 mb-1">ADO Organization</label>
+                  <input
+                    type="text"
+                    value={adoOrg}
+                    onChange={(e) => setAdoOrg(e.target.value)}
+                    placeholder="myorg"
+                    className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-neutral-500 mb-1">ADO Project</label>
+                  <input
+                    type="text"
+                    value={adoProject}
+                    onChange={(e) => setAdoProject(e.target.value)}
+                    placeholder="myproject"
+                    className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
+                  />
+                </div>
+              </div>
+            )}
           </div>
           <button
             onClick={handleSaveCredentials}

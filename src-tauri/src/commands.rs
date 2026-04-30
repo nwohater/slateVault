@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use slatevault_core::Vault;
 use slatevault_core::credentials::{Credentials, CredentialsMasked};
 use slatevault_core::pr::{self, PrCreateRequest, PrCreateResponse};
+use std::io::Write;
 use std::path::{Component, Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use tauri::State;
 
@@ -62,6 +64,61 @@ where
     let lock = state.0.lock().map_err(|e| e.to_string())?;
     let vault = lock.as_ref().ok_or("No vault is open")?;
     f(vault).map_err(|e| e.to_string())
+}
+
+fn write_to_clipboard_command(command: &str, args: &[&str], text: &str) -> CmdResult<()> {
+    let mut child = Command::new(command)
+        .args(args)
+        .stdin(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Could not start clipboard command '{}': {}", command, e))?;
+
+    {
+        let stdin = child
+            .stdin
+            .as_mut()
+            .ok_or_else(|| format!("Could not open stdin for clipboard command '{}'", command))?;
+        stdin
+            .write_all(text.as_bytes())
+            .map_err(|e| format!("Could not write clipboard text to '{}': {}", command, e))?;
+    }
+
+    let status = child
+        .wait()
+        .map_err(|e| format!("Clipboard command '{}' failed to finish: {}", command, e))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("Clipboard command '{}' exited with {}", command, status))
+    }
+}
+
+#[tauri::command]
+pub fn copy_to_clipboard(text: String) -> CmdResult<()> {
+    #[cfg(target_os = "macos")]
+    {
+        return write_to_clipboard_command("pbcopy", &[], &text);
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        return write_to_clipboard_command("clip", &[], &text);
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if write_to_clipboard_command("wl-copy", &[], &text).is_ok() {
+            return Ok(());
+        }
+        if write_to_clipboard_command("xclip", &["-selection", "clipboard"], &text).is_ok() {
+            return Ok(());
+        }
+        return write_to_clipboard_command("xsel", &["--clipboard", "--input"], &text);
+    }
+
+    #[allow(unreachable_code)]
+    Err("Clipboard copy is not supported on this platform.".to_string())
 }
 
 #[tauri::command]
@@ -376,6 +433,84 @@ pub fn git_log(
     state: State<'_, VaultState>,
 ) -> CmdResult<Vec<slatevault_core::CommitInfo>> {
     with_vault(&state, |vault| vault.log(limit.unwrap_or(50)))
+}
+
+#[derive(Serialize)]
+pub struct FileHistoryEntry {
+    pub oid: String,
+    pub full_oid: String,
+    pub message: String,
+    pub author: String,
+    pub email: String,
+    pub date: String,
+}
+
+#[tauri::command]
+pub fn git_file_history(
+    project: String,
+    path: String,
+    limit: Option<usize>,
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<FileHistoryEntry>> {
+    with_vault(&state, |vault| {
+        let project = sanitize_single_component(&project)?;
+        let doc_path = sanitize_relative_path(&path)?;
+        let git_path = PathBuf::from("projects")
+            .join(project)
+            .join("docs")
+            .join(doc_path);
+        let max_count = limit.unwrap_or(25).clamp(1, 200);
+
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(&vault.root)
+            .arg("log")
+            .arg("--follow")
+            .arg(format!("--max-count={}", max_count))
+            .arg("--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1e")
+            .arg("--")
+            .arg(git_path)
+            .output()
+            .map_err(|e| invalid_input(format!("Could not read file history: {}", e)))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(invalid_input(if stderr.is_empty() {
+                "Could not read file history".to_string()
+            } else {
+                stderr
+            }));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let entries = stdout
+            .split('\x1e')
+            .filter_map(|record| {
+                let record = record.trim();
+                if record.is_empty() {
+                    return None;
+                }
+                let mut parts = record.split('\x1f');
+                let full_oid = parts.next()?.to_string();
+                let author = parts.next().unwrap_or("unknown").to_string();
+                let email = parts.next().unwrap_or("").to_string();
+                let date = parts.next().unwrap_or("").to_string();
+                let message = parts.next().unwrap_or("").trim().to_string();
+                let oid = full_oid.chars().take(8).collect();
+
+                Some(FileHistoryEntry {
+                    oid,
+                    full_oid,
+                    message,
+                    author,
+                    email,
+                    date,
+                })
+            })
+            .collect();
+
+        Ok(entries)
+    })
 }
 
 #[derive(Serialize)]
@@ -1998,23 +2133,27 @@ pub fn generate_project_brief(
         let focus = focus.unwrap_or_default();
         let focus_trimmed = focus.trim();
 
-        let canonical: Vec<_> = docs.iter().filter(|d| d.front_matter.canonical).collect();
-        let protected_count = docs.iter().filter(|d| d.front_matter.protected).count();
-        let ai_count = docs.iter().filter(|d| format!("{:?}", d.front_matter.author).to_lowercase() == "ai").count();
-        let draft_count = docs.iter().filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "draft").count();
-        let final_count = docs.iter().filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "final").count();
+        let substantive_docs: Vec<_> = docs.iter().filter(|d| !is_about_doc(&d.path)).collect();
+        let canonical: Vec<_> = substantive_docs
+            .iter()
+            .copied()
+            .filter(|d| d.front_matter.canonical)
+            .collect();
+        let protected_count = substantive_docs.iter().filter(|d| d.front_matter.protected).count();
+        let ai_count = substantive_docs.iter().filter(|d| format!("{:?}", d.front_matter.author).to_lowercase() == "ai").count();
+        let draft_count = substantive_docs.iter().filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "draft").count();
+        let final_count = substantive_docs.iter().filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "final").count();
         let newest_modified = docs
             .iter()
             .map(|d| d.front_matter.modified)
             .max()
             .unwrap_or_else(chrono::Utc::now);
         let preferred_folders = infer_task_folders(focus_trimmed);
-        let substantive_docs: Vec<_> = docs.iter().filter(|d| !is_about_doc(&d.path)).collect();
         let greenfield_mode = substantive_docs.is_empty();
 
         // Group by folder
         let mut folder_counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
-        for doc in &docs {
+        for doc in &substantive_docs {
             let folder = doc.path.split('/').next().unwrap_or("root");
             let folder = if doc.path.contains('/') { folder } else { "(root)" };
             *folder_counts.entry(folder.to_string()).or_default() += 1;
@@ -2040,7 +2179,7 @@ pub fn generate_project_brief(
         brief.push_str("_This brief serves as an initialization context for AI agents entering this project. Read key documents first, respect constraints, and follow suggested actions._\n\n");
         brief.push_str(&format!(
             "- **Total documents:** {}\n- **Canonical (source of truth):** {}\n- **Protected:** {}\n- **AI-authored:** {}\n- **Drafts:** {} | **Final:** {}\n\n",
-            docs.len(), canonical.len(), protected_count, ai_count, draft_count, final_count
+            substantive_docs.len(), canonical.len(), protected_count, ai_count, draft_count, final_count
         ));
 
         // Folder breakdown
@@ -2090,7 +2229,10 @@ pub fn generate_project_brief(
 
         // If nothing to read first, suggest best starting docs
         if canonical.is_empty() {
-            let context_count = vault.get_project_context(&project).map(|c| c.len()).unwrap_or(0);
+            let context_count = vault
+                .get_project_context(&project)
+                .map(|c| c.iter().filter(|(path, _)| !is_about_doc(path)).count())
+                .unwrap_or(0);
             if context_count == 0 {
                 // Auto-detect best starting docs
                 let starters: Vec<_> = docs.iter()
@@ -2178,7 +2320,7 @@ pub fn generate_project_brief(
             if canonical.is_empty() && draft_count > 0 {
                 brief.push_str(&format!(
                     "**WARNING:** All {} documents are drafts and no canonical docs exist. This project has no established source of truth.\n\n",
-                    docs.len()
+                    substantive_docs.len()
                 ));
             }
             if canonical.is_empty() {
@@ -2187,10 +2329,10 @@ pub fn generate_project_brief(
             if draft_count > 0 {
                 brief.push_str(&format!("- {} document{} still in draft state\n", draft_count, if draft_count != 1 { "s" } else { "" }));
             }
-            if final_count == 0 && docs.len() > 0 {
+            if final_count == 0 && !substantive_docs.is_empty() {
                 brief.push_str("- No documents marked as final\n");
             }
-            if protected_count == 0 && docs.len() > 0 {
+            if protected_count == 0 && !substantive_docs.is_empty() {
                 brief.push_str("- No documents are protected from AI overwrites\n");
             }
             brief.push_str("\n");
@@ -2248,7 +2390,7 @@ pub fn generate_project_brief(
         let non_canonical: Vec<_> = docs
             .iter()
             .filter(|d| !d.front_matter.canonical)
-            .filter(|d| !greenfield_mode || !is_about_doc(&d.path))
+            .filter(|d| !is_about_doc(&d.path))
             .collect();
         if !non_canonical.is_empty() {
             brief.push_str("\n---\n\n## Document Index\n\n");

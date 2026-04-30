@@ -11,6 +11,10 @@ use slatevault_core::Vault;
 
 use crate::tools::*;
 
+fn is_about_doc(path: &str) -> bool {
+    path == "_about.md" || path.ends_with("/_about.md")
+}
+
 #[derive(Clone)]
 pub struct SlateVaultMcpServer {
     vault_path: PathBuf,
@@ -427,14 +431,19 @@ impl SlateVaultMcpServer {
             .open_project(&params.project)
             .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
 
-        let canonical: Vec<_> = docs.iter().filter(|d| d.front_matter.canonical).collect();
-        let protected_count = docs.iter().filter(|d| d.front_matter.protected).count();
-        let ai_count = docs.iter().filter(|d| format!("{:?}", d.front_matter.author).to_lowercase() == "ai").count();
-        let draft_count = docs.iter().filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "draft").count();
+        let substantive_docs: Vec<_> = docs.iter().filter(|d| !is_about_doc(&d.path)).collect();
+        let canonical: Vec<_> = substantive_docs
+            .iter()
+            .copied()
+            .filter(|d| d.front_matter.canonical)
+            .collect();
+        let protected_count = substantive_docs.iter().filter(|d| d.front_matter.protected).count();
+        let ai_count = substantive_docs.iter().filter(|d| format!("{:?}", d.front_matter.author).to_lowercase() == "ai").count();
+        let draft_count = substantive_docs.iter().filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "draft").count();
 
         // Folder counts
         let mut folder_counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
-        for doc in &docs {
+        for doc in &substantive_docs {
             let folder = if doc.path.contains('/') { doc.path.split('/').next().unwrap_or("root") } else { "(root)" };
             *folder_counts.entry(folder.to_string()).or_default() += 1;
         }
@@ -450,7 +459,7 @@ impl SlateVaultMcpServer {
         output.push_str("_This brief serves as an initialization context for AI agents entering this project. Read key documents first, respect constraints, and follow suggested actions._\n\n");
         output.push_str(&format!(
             "- **Documents:** {} ({} canonical, {} protected, {} AI-authored, {} drafts)\n",
-            docs.len(), canonical.len(), protected_count, ai_count, draft_count
+            substantive_docs.len(), canonical.len(), protected_count, ai_count, draft_count
         ));
         if !folder_counts.is_empty() {
             output.push_str("\n**Structure:**\n");
@@ -465,7 +474,9 @@ impl SlateVaultMcpServer {
         if !canonical.is_empty() {
             output.push_str("_These are canonical — they define the source of truth._\n\n");
             for doc in &canonical {
-                output.push_str(&format!("### {}\n\n{}\n\n", doc.front_matter.title, doc.content));
+                if !is_about_doc(&doc.path) {
+                    output.push_str(&format!("### {}\n\n{}\n\n", doc.front_matter.title, doc.content));
+                }
             }
         }
 
@@ -473,6 +484,7 @@ impl SlateVaultMcpServer {
         if let Ok(context) = vault.get_project_context(&params.project) {
             let new_ctx: Vec<_> = context.iter()
                 .filter(|(path, _)| !canonical.iter().any(|c| c.path == *path))
+                .filter(|(path, _)| !is_about_doc(path))
                 .collect();
             if !new_ctx.is_empty() {
                 if canonical.is_empty() {
@@ -485,10 +497,16 @@ impl SlateVaultMcpServer {
         }
 
         if canonical.is_empty() {
-            let ctx_count = vault.get_project_context(&params.project).map(|c| c.len()).unwrap_or(0);
+            let ctx_count = vault
+                .get_project_context(&params.project)
+                .map(|c| c.iter().filter(|(path, _)| !is_about_doc(path)).count())
+                .unwrap_or(0);
             if ctx_count == 0 {
                 let starters: Vec<_> = docs.iter()
                     .filter(|d| {
+                        if is_about_doc(&d.path) {
+                            return false;
+                        }
                         let p = d.path.to_lowercase();
                         let t = d.front_matter.title.to_lowercase();
                         p.contains("overview") || p.contains("architecture") || p.contains("readme")
@@ -529,7 +547,7 @@ impl SlateVaultMcpServer {
         }
 
         // 3. Current Focus (recently modified)
-        let mut recent: Vec<_> = docs.iter().collect();
+        let mut recent: Vec<_> = docs.iter().filter(|d| !is_about_doc(&d.path)).collect();
         recent.sort_by(|a, b| b.front_matter.modified.cmp(&a.front_matter.modified));
         let recent_5: Vec<_> = recent.into_iter().take(5).collect();
         output.push_str("---\n\n## Current Focus (Recently Modified)\n\n");
@@ -563,7 +581,7 @@ impl SlateVaultMcpServer {
             if canonical.is_empty() && draft_count > 0 {
                 output.push_str(&format!(
                     "**WARNING:** All {} documents are drafts and no canonical docs exist. This project has no established source of truth.\n\n",
-                    docs.len()
+                    substantive_docs.len()
                 ));
             }
             if canonical.is_empty() {
@@ -572,7 +590,7 @@ impl SlateVaultMcpServer {
             if draft_count > 0 {
                 output.push_str(&format!("- {} document{} still in draft state\n", draft_count, if draft_count != 1 { "s" } else { "" }));
             }
-            if protected_count == 0 && !docs.is_empty() {
+            if protected_count == 0 && !substantive_docs.is_empty() {
                 output.push_str("- No documents are protected from AI overwrites\n");
             }
             output.push_str("\n");
@@ -615,7 +633,11 @@ impl SlateVaultMcpServer {
         output.push_str("- Check for stale docs with `detect_stale_docs`\n\n");
 
         // Document index
-        let non_canonical: Vec<_> = docs.iter().filter(|d| !d.front_matter.canonical).collect();
+        let non_canonical: Vec<_> = docs
+            .iter()
+            .filter(|d| !d.front_matter.canonical)
+            .filter(|d| !is_about_doc(&d.path))
+            .collect();
         if !non_canonical.is_empty() {
             output.push_str("---\n\n## Document Index\n\n");
             for doc in &non_canonical {

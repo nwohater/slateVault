@@ -55,7 +55,7 @@ export function StartSessionView() {
   }, []);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(buildExportText());
+    await copyToClipboard(buildExportText());
     setCopiedBrief(true);
     window.setTimeout(() => setCopiedBrief(false), 1800);
   };
@@ -69,7 +69,7 @@ export function StartSessionView() {
   };
 
   const handleCopyMcpUse = async () => {
-    await navigator.clipboard.writeText(mcpUseText);
+    await copyToClipboard(mcpUseText);
     setCopiedMcpUse(true);
     window.setTimeout(() => setCopiedMcpUse(false), 1800);
   };

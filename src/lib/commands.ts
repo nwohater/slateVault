@@ -6,6 +6,7 @@ import type {
   SearchResultInfo,
   FileStatus,
   CommitInfo,
+  FileHistoryEntry,
   RemoteConfig,
   VaultSettings,
   VaultStatsInfo,
@@ -262,6 +263,14 @@ export async function gitUnstage(path: string): Promise<string> {
 
 export async function gitLog(limit?: number): Promise<CommitInfo[]> {
   return invoke("git_log", { limit });
+}
+
+export async function gitFileHistory(
+  project: string,
+  path: string,
+  limit?: number
+): Promise<FileHistoryEntry[]> {
+  return invoke("git_file_history", { project, path, limit });
 }
 
 export async function gitRemoteConfig(): Promise<RemoteConfig> {

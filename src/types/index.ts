@@ -57,6 +57,15 @@ export interface CommitInfo {
   date: string;
 }
 
+export interface FileHistoryEntry {
+  oid: string;
+  full_oid: string;
+  message: string;
+  author: string;
+  email: string;
+  date: string;
+}
+
 export interface RemoteConfig {
   remote_url: string | null;
   remote_branch: string;

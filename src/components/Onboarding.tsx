@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUIStore } from "@/stores/uiStore";
 import * as commands from "@/lib/commands";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
   detectMcpPlatform,
   getMcpInstallNote,
@@ -413,7 +414,7 @@ export function Onboarding() {
                           </p>
                         </div>
                         <button
-                          onClick={() => navigator.clipboard.writeText(agent.command)}
+                          onClick={() => copyToClipboard(agent.command)}
                           className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:bg-neutral-800"
                         >
                           Copy

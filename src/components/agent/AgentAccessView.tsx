@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUIStore } from "@/stores/uiStore";
 import * as commands from "@/lib/commands";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
   detectMcpPlatform,
   getMcpCommand,
@@ -121,7 +122,7 @@ export function AgentAccessView() {
 
   const handleCopy = async (text: string, label: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyToClipboard(text);
       setMessage(`${label} copied.`);
       setError(null);
       window.setTimeout(() => setMessage(null), 2200);
