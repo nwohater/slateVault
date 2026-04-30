@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import * as commands from "@/lib/commands";
 import {
   detectMcpPlatform,
-  getMcpCommand,
   getMcpInstallNote,
+  getMcpSetupCards,
   type McpPlatform,
 } from "@/lib/mcpSetup";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -52,6 +52,7 @@ export function SettingsPanel() {
   const [isTestingAi, setIsTestingAi] = useState(false);
   const [loading, setLoading] = useState(true);
   const [platform, setPlatform] = useState<McpPlatform>("unknown");
+  const [selectedMcpSetup, setSelectedMcpSetup] = useState("Claude Code");
 
   // Credentials state
   const [creds, setCreds] = useState<CredentialsMasked | null>(null);
@@ -67,8 +68,8 @@ export function SettingsPanel() {
     initializeApp().catch(() => {});
   }, [initializeApp]);
 
-  const mcpCommand = getMcpCommand(platform);
-  const claudeMcpCommand = `claude mcp add -s user slatevault -- ${mcpCommand}`;
+  const mcpSetupCards = getMcpSetupCards(platform);
+  const selectedMcpCard = mcpSetupCards.find((card) => card.name === selectedMcpSetup) ?? mcpSetupCards[0];
 
   const loadSettings = async () => {
     try {
@@ -445,25 +446,35 @@ export function SettingsPanel() {
             Compress context (AI shorthand)
           </label>
           <div className="pt-1">
-            <label className="block text-neutral-500 mb-1">Claude Code Setup</label>
+            <label className="block text-neutral-500 mb-1">AI tool setup</label>
+            <select
+              value={selectedMcpSetup}
+              onChange={(e) => setSelectedMcpSetup(e.target.value)}
+              className="mb-2 w-full rounded border border-neutral-700 bg-neutral-800 px-2 py-1 text-xs text-neutral-200 outline-none focus:border-blue-600"
+            >
+              {mcpSetupCards.map((card) => (
+                <option key={card.name} value={card.name}>
+                  {card.name}
+                </option>
+              ))}
+            </select>
             <div className="flex gap-1">
-              <code className="flex-1 px-2 py-1 bg-neutral-800 rounded text-neutral-400 text-[10px] truncate">
-                {claudeMcpCommand}
-              </code>
+              <pre className="max-h-32 flex-1 overflow-auto whitespace-pre-wrap rounded bg-neutral-800 px-2 py-2 font-mono text-[10px] text-neutral-400">
+                {selectedMcpCard.command}
+              </pre>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(claudeMcpCommand);
-                  setOutput("Copied MCP setup command!");
+                  navigator.clipboard.writeText(selectedMcpCard.command);
+                  setOutput(`Copied ${selectedMcpCard.name} setup!`);
                   setTimeout(() => setOutput(null), 2000);
                 }}
-                className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 rounded text-neutral-400 flex-shrink-0"
+                className="self-start rounded bg-neutral-800 px-2 py-1 text-neutral-400 hover:bg-neutral-700"
               >
                 Copy
               </button>
             </div>
-            <p className="text-neutral-600 mt-1">
-              Run this in a fresh terminal to connect Claude Code to slateVault.
-              {` ${getMcpInstallNote(platform)}`}
+            <p className="mt-1 text-neutral-600">
+              {selectedMcpCard.note} {getMcpInstallNote(platform)}
             </p>
           </div>
         </div>
