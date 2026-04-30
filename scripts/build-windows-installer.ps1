@@ -2,6 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $RootDir = Resolve-Path (Join-Path $PSScriptRoot "..")
 $SrcTauriDir = Join-Path $RootDir "src-tauri"
+$WindowsConfig = Join-Path $SrcTauriDir "tauri.windows.conf.json"
 $Target = if ($env:TARGET) { $env:TARGET } else { "x86_64-pc-windows-msvc" }
 $TargetDir = Join-Path $SrcTauriDir "target\release"
 $SigningKeyPath = if ($env:TAURI_SIGNING_PRIVATE_KEY_PATH) {
@@ -78,14 +79,15 @@ if (-not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
 }
 
 $env:TAURI_SIGNING_PRIVATE_KEY_PATH = $SigningKeyPath
+$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content -Raw $SigningKeyPath
 
 Write-Host "==> Building Tauri NSIS installer with updater artifacts"
 Push-Location $RootDir
 try {
   if ($Target -ne "x86_64-pc-windows-msvc") {
-    & npm.cmd run tauri build -- --target $Target
+    & npm.cmd run tauri build -- --config $WindowsConfig --target $Target
   } else {
-    & npm.cmd run tauri build
+    & npm.cmd run tauri build -- --config $WindowsConfig
   }
 } finally {
   Pop-Location
