@@ -61,6 +61,27 @@ export function getGenericMcpConfig(platform: McpPlatform): string {
   );
 }
 
+export function getVsCodeMcpConfig(platform: McpPlatform): string {
+  const command = getMcpCommand(platform);
+  return JSON.stringify(
+    {
+      servers: {
+        slatevault: {
+          command,
+          args: [],
+        },
+      },
+    },
+    null,
+    2
+  );
+}
+
+export function getAuggieMcpAddCommand(platform: McpPlatform): string {
+  const command = getMcpCommand(platform);
+  return `auggie mcp add slatevault -- ${command}`;
+}
+
 export function getMcpSetupCards(platform: McpPlatform): McpSetupCard[] {
   const command = getMcpCommand(platform);
 
@@ -69,6 +90,21 @@ export function getMcpSetupCards(platform: McpPlatform): McpSetupCard[] {
       name: "Claude Code",
       command: `claude mcp add -s user slatevault -- ${command}`,
       note: "Run this once in a fresh terminal, then restart Claude Code if it was already open.",
+    },
+    {
+      name: "GitHub Copilot in VS Code",
+      command: getVsCodeMcpConfig(platform),
+      note: "Add this to .vscode/mcp.json, start the server from the CodeLens, then use Copilot Chat in Agent mode.",
+    },
+    {
+      name: "Augment Code",
+      command: `Name: slatevault\nCommand: ${command}`,
+      note: "Use the Augment MCP settings panel shown in your screenshot. No environment variables are needed.",
+    },
+    {
+      name: "Auggie CLI",
+      command: getAuggieMcpAddCommand(platform),
+      note: "Run this once after installing Auggie. It persists the server in ~/.augment/settings.json.",
     },
     {
       name: "Generic MCP client",

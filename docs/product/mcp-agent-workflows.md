@@ -170,6 +170,130 @@ Generic MCP client config on Windows:
 }
 ```
 
+## GitHub Copilot And Augment Setup
+
+### GitHub Copilot in VS Code
+
+GitHub Copilot in VS Code supports local MCP servers through `.vscode/mcp.json`.
+Use VS Code 1.99 or later, open Copilot Chat in Agent mode, and make sure MCP is
+enabled by organization policy for Copilot Business or Enterprise users.
+
+For macOS:
+
+```json
+{
+  "servers": {
+    "slatevault": {
+      "command": "slatevault-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+For Windows:
+
+```json
+{
+  "servers": {
+    "slatevault": {
+      "command": "slatevault-mcp.exe",
+      "args": []
+    }
+  }
+}
+```
+
+After saving `.vscode/mcp.json`, VS Code should show a Start action above the
+server entry. Start the server, open Copilot Chat, switch to Agent mode, and
+confirm the slateVault tools appear in the tools list.
+
+### GitHub Copilot CLI
+
+Copilot CLI can add MCP servers interactively with `/mcp add` and manage them
+with `/mcp show`, `/mcp edit`, `/mcp disable`, and `/mcp delete`.
+
+Use the same local command name:
+
+```text
+slatevault-mcp
+```
+
+On Windows:
+
+```text
+slatevault-mcp.exe
+```
+
+### Augment Code extension
+
+Augment's MCP settings panel asks for a name and command. Use:
+
+```text
+Name: slatevault
+Command: slatevault-mcp
+```
+
+On Windows:
+
+```text
+Name: slatevault
+Command: slatevault-mcp.exe
+```
+
+No environment variables are needed for slateVault. If the command is not found
+on Windows, open a fresh terminal or restart the IDE after installing slateVault
+so the user PATH update is visible.
+
+Augment also supports importing JSON. For macOS:
+
+```json
+{
+  "mcpServers": {
+    "slatevault": {
+      "command": "slatevault-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+For Windows:
+
+```json
+{
+  "mcpServers": {
+    "slatevault": {
+      "command": "slatevault-mcp.exe",
+      "args": []
+    }
+  }
+}
+```
+
+### Auggie CLI
+
+Auggie can persist MCP servers in `~/.augment/settings.json`, and its CLI can add
+stdio servers directly.
+
+For macOS:
+
+```bash
+auggie mcp add slatevault -- slatevault-mcp
+```
+
+For Windows:
+
+```powershell
+auggie mcp add slatevault -- slatevault-mcp.exe
+```
+
+Users can verify with:
+
+```bash
+auggie mcp list
+```
+
 ## Recommended Write Safety Model
 
 ### Human-safe defaults
