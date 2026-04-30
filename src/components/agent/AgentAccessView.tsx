@@ -4,22 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUIStore } from "@/stores/uiStore";
 import * as commands from "@/lib/commands";
+import {
+  detectMcpPlatform,
+  getMcpCommand,
+  getMcpInstallNote,
+  getMcpSetupCards,
+  type McpPlatform,
+} from "@/lib/mcpSetup";
 import type { McpServerStatus, RemoteConfig, VaultSettings } from "@/types";
-
-const AGENT_COMMANDS = [
-  {
-    name: "Claude Code",
-    command: "claude mcp add -s user slatevault -- slatevault-mcp",
-    note:
-      "Best when you want local coding sessions to load trusted project context before implementation work starts.",
-  },
-  {
-    name: "Codex / other MCP clients",
-    command: "Register slatevault-mcp as a local MCP server in your agent client, then open this vault before starting work.",
-    note:
-      "Use when your coding agent should read canonical docs, recent changes, and session bundles from slateVault.",
-  },
-];
 
 function StatusPill({
   tone,
@@ -55,6 +47,7 @@ export function AgentAccessView() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [platform, setPlatform] = useState<McpPlatform>("unknown");
 
   const refresh = async () => {
     setLoading(true);
@@ -76,8 +69,12 @@ export function AgentAccessView() {
   };
 
   useEffect(() => {
+    setPlatform(detectMcpPlatform());
     void refresh();
   }, []);
+
+  const mcpCommand = getMcpCommand(platform);
+  const agentCommands = getMcpSetupCards(platform);
 
   const runningState = useMemo(() => {
     if (mcpStatus?.running) {
@@ -264,13 +261,35 @@ export function AgentAccessView() {
                     Connection setup
                   </h2>
                   <p className="mt-1 text-xs text-neutral-500">
-                    Give your coding agent a stable way to read from the active vault.
+                    Give your coding agent the local MCP command installed with slateVault.
                   </p>
                 </div>
               </div>
 
+              <div className="mt-5 rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-neutral-200">
+                      Installed MCP command
+                    </p>
+                    <p className="mt-1 text-[11px] leading-5 text-neutral-500">
+                      {getMcpInstallNote(platform)}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => void handleCopy(mcpCommand, "MCP command")}
+                    className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:bg-neutral-800"
+                  >
+                    Copy command
+                  </button>
+                </div>
+                <code className="mt-3 block rounded-xl bg-black px-3 py-3 text-[11px] text-cyan-300">
+                  {mcpCommand}
+                </code>
+              </div>
+
               <div className="mt-5 space-y-4">
-                {AGENT_COMMANDS.map((agent) => (
+                {agentCommands.map((agent) => (
                   <div
                     key={agent.name}
                     className="workspace-subsection rounded-2xl p-4"
@@ -291,9 +310,9 @@ export function AgentAccessView() {
                         Copy
                       </button>
                     </div>
-                    <code className="mt-3 block rounded-xl bg-neutral-950 px-3 py-3 text-[11px] text-cyan-300">
+                    <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-neutral-950 px-3 py-3 font-mono text-[11px] text-cyan-300">
                       {agent.command}
-                    </code>
+                    </pre>
                   </div>
                 ))}
               </div>

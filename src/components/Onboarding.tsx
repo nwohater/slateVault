@@ -4,6 +4,12 @@ import { useEffect, useState } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUIStore } from "@/stores/uiStore";
 import * as commands from "@/lib/commands";
+import {
+  detectMcpPlatform,
+  getMcpInstallNote,
+  getMcpSetupCards,
+  type McpPlatform,
+} from "@/lib/mcpSetup";
 import { CreateProjectForm } from "@/components/shared/CreateProjectForm";
 import type { McpServerStatus, RemoteConfig, VaultSettings } from "@/types";
 
@@ -23,19 +29,6 @@ const STEPS: { id: Step; label: string }[] = [
   { id: "sync", label: "Team Sync" },
   { id: "agent", label: "Agent Access" },
   { id: "finish", label: "Finish" },
-];
-
-const AGENT_COMMANDS = [
-  {
-    name: "Claude Code",
-    command: "claude mcp add -s user slatevault -- slatevault-mcp",
-    note: "Best for local coding sessions that should load trusted project context first.",
-  },
-  {
-    name: "Codex / local agent",
-    command: "Configure slatevault-mcp as an MCP server in your coding agent and point it at the active vault.",
-    note: "Use when your agent should read canonical docs, recent changes, and task bundles from slateVault.",
-  },
 ];
 
 function StepRail({
@@ -114,10 +107,14 @@ export function Onboarding() {
   const [pushOnClose, setPushOnClose] = useState(false);
   const [vaultConfig, setVaultConfig] = useState<VaultSettings | null>(null);
   const [mcpStatus, setMcpStatus] = useState<McpServerStatus | null>(null);
+  const [platform, setPlatform] = useState<McpPlatform>("unknown");
 
   const projectCreated = projects.length > 0;
+  const agentCommands = getMcpSetupCards(platform);
 
   useEffect(() => {
+    setPlatform(detectMcpPlatform());
+
     commands
       .gitRemoteConfig()
       .then((config) => {
@@ -395,7 +392,16 @@ export function Onboarding() {
 
               <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="space-y-4">
-                  {AGENT_COMMANDS.map((agent) => (
+                  <div className="workspace-subsection rounded-2xl p-4">
+                    <p className="text-xs font-medium text-neutral-200">
+                      How your AI tool finds slateVault
+                    </p>
+                    <p className="mt-2 text-[11px] leading-5 text-neutral-500">
+                      {getMcpInstallNote(platform)}
+                    </p>
+                  </div>
+
+                  {agentCommands.map((agent) => (
                     <div key={agent.name} className="workspace-subsection rounded-2xl p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div>
@@ -413,9 +419,9 @@ export function Onboarding() {
                           Copy
                         </button>
                       </div>
-                      <code className="mt-3 block rounded-xl bg-neutral-950 px-3 py-3 text-[11px] text-cyan-300">
+                      <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-neutral-950 px-3 py-3 font-mono text-[11px] text-cyan-300">
                         {agent.command}
-                      </code>
+                      </pre>
                     </div>
                   ))}
                 </div>

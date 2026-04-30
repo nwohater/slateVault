@@ -2,6 +2,12 @@
 
 import { useEffect, useState } from "react";
 import * as commands from "@/lib/commands";
+import {
+  detectMcpPlatform,
+  getMcpCommand,
+  getMcpInstallNote,
+  type McpPlatform,
+} from "@/lib/mcpSetup";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useEditorStore } from "@/stores/editorStore";
 import { useAppStore } from "@/stores/appStore";
@@ -45,6 +51,7 @@ export function SettingsPanel() {
   const [aiTestStatus, setAiTestStatus] = useState<"idle" | "success" | "error">("idle");
   const [isTestingAi, setIsTestingAi] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [platform, setPlatform] = useState<McpPlatform>("unknown");
 
   // Credentials state
   const [creds, setCreds] = useState<CredentialsMasked | null>(null);
@@ -54,10 +61,14 @@ export function SettingsPanel() {
   const [adoProject, setAdoProject] = useState("");
 
   useEffect(() => {
+    setPlatform(detectMcpPlatform());
     loadSettings();
     loadCredentials();
     initializeApp().catch(() => {});
-    }, [initializeApp]);
+  }, [initializeApp]);
+
+  const mcpCommand = getMcpCommand(platform);
+  const claudeMcpCommand = `claude mcp add -s user slatevault -- ${mcpCommand}`;
 
   const loadSettings = async () => {
     try {
@@ -437,12 +448,11 @@ export function SettingsPanel() {
             <label className="block text-neutral-500 mb-1">Claude Code Setup</label>
             <div className="flex gap-1">
               <code className="flex-1 px-2 py-1 bg-neutral-800 rounded text-neutral-400 text-[10px] truncate">
-                claude mcp add -s user slatevault -- slatevault-mcp
+                {claudeMcpCommand}
               </code>
               <button
                 onClick={() => {
-                  const cmd = `claude mcp add -s user slatevault -- slatevault-mcp`;
-                  navigator.clipboard.writeText(cmd);
+                  navigator.clipboard.writeText(claudeMcpCommand);
                   setOutput("Copied MCP setup command!");
                   setTimeout(() => setOutput(null), 2000);
                 }}
@@ -452,8 +462,8 @@ export function SettingsPanel() {
               </button>
             </div>
             <p className="text-neutral-600 mt-1">
-              Run this in your terminal to connect Claude Code to slateVault.
-              The MCP server automatically connects to whichever vault is open.
+              Run this in a fresh terminal to connect Claude Code to slateVault.
+              {` ${getMcpInstallNote(platform)}`}
             </p>
           </div>
         </div>
@@ -624,4 +634,3 @@ export function SettingsPanel() {
     </div>
   );
 }
-

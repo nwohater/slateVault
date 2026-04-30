@@ -106,6 +106,70 @@ Avoid:
 - Whether the server is read-only or writable
 - A one-click test prompt
 
+### Platform-specific command names
+macOS installs the MCP server at:
+
+```text
+/usr/local/bin/slatevault-mcp
+```
+
+macOS users can verify the command with:
+
+```bash
+which slatevault-mcp
+slatevault-mcp --help
+```
+
+Windows installs the MCP sidecar with the app, creates a stable
+`slatevault-mcp.exe` alias, and adds the install directory to the current
+user's PATH. Windows users may need to open a new terminal or restart their AI
+app after installing.
+
+Windows users can verify the command with:
+
+```powershell
+where slatevault-mcp.exe
+slatevault-mcp.exe --help
+```
+
+Claude Code setup:
+
+```bash
+claude mcp add -s user slatevault -- slatevault-mcp
+```
+
+Claude Code setup on Windows:
+
+```powershell
+claude mcp add -s user slatevault -- slatevault-mcp.exe
+```
+
+Generic MCP client config on macOS:
+
+```json
+{
+  "mcpServers": {
+    "slatevault": {
+      "command": "slatevault-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+Generic MCP client config on Windows:
+
+```json
+{
+  "mcpServers": {
+    "slatevault": {
+      "command": "slatevault-mcp.exe",
+      "args": []
+    }
+  }
+}
+```
+
 ## Recommended Write Safety Model
 
 ### Human-safe defaults
