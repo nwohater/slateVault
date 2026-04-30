@@ -144,9 +144,7 @@ fn split_front_matter(raw: &str) -> crate::error::Result<(&str, &str)> {
     let after_first = &trimmed[3..];
     let end = after_first
         .find("\n---")
-        .ok_or_else(|| {
-            crate::CoreError::InvalidFrontMatter("No closing --- found".to_string())
-        })?;
+        .ok_or_else(|| crate::CoreError::InvalidFrontMatter("No closing --- found".to_string()))?;
     let fm = &after_first[..end];
     let content = &after_first[end + 4..];
     let content = content.strip_prefix('\n').unwrap_or(content);

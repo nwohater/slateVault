@@ -207,12 +207,11 @@ pub fn vault_tools() -> Vec<ToolDefinition> {
 }
 
 /// Test if a model supports function/tool calling
-pub fn test_tool_support(
-    endpoint_url: &str,
-    api_key: Option<&str>,
-    model: &str,
-) -> bool {
-    let messages = vec![ChatMessage::text("user", "What is 2+2? Use the calculator tool.")];
+pub fn test_tool_support(endpoint_url: &str, api_key: Option<&str>, model: &str) -> bool {
+    let messages = vec![ChatMessage::text(
+        "user",
+        "What is 2+2? Use the calculator tool.",
+    )];
     let tools = vec![ToolDefinition {
         tool_type: "function".to_string(),
         function: FunctionDefinition {
@@ -314,9 +313,7 @@ pub fn chat_completion_with_tools(
         .build()
         .map_err(|e| crate::CoreError::Http(e.to_string()))?;
 
-    let mut req = client
-        .post(&url)
-        .header("Content-Type", "application/json");
+    let mut req = client.post(&url).header("Content-Type", "application/json");
 
     if let Some(key) = api_key {
         if !key.is_empty() {
@@ -342,15 +339,18 @@ pub fn chat_completion_with_tools(
         )));
     }
 
-    let response: ChatResponse =
-        serde_json::from_str(&text).map_err(|e| crate::CoreError::Http(format!("Invalid AI response: {}", e)))?;
+    let response: ChatResponse = serde_json::from_str(&text)
+        .map_err(|e| crate::CoreError::Http(format!("Invalid AI response: {}", e)))?;
 
     let choice = response.choices.first();
     let content = choice
         .and_then(|c| c.message.content.clone())
         .unwrap_or_default();
     let tool_calls = choice.and_then(|c| c.message.tool_calls.clone());
-    let has_tools = tool_calls.as_ref().map(|tc| !tc.is_empty()).unwrap_or(false);
+    let has_tools = tool_calls
+        .as_ref()
+        .map(|tc| !tc.is_empty())
+        .unwrap_or(false);
 
     Ok(AiChatResult {
         content,
@@ -393,11 +393,14 @@ pub fn list_models(endpoint_url: &str, api_key: Option<&str>) -> Result<Vec<Stri
         .map_err(|e| crate::CoreError::Http(e.to_string()))?;
 
     if !status.is_success() {
-        return Err(crate::CoreError::Http(format!("Models API error ({}): {}", status, text)));
+        return Err(crate::CoreError::Http(format!(
+            "Models API error ({}): {}",
+            status, text
+        )));
     }
 
-    let response: ModelsResponse =
-        serde_json::from_str(&text).map_err(|e| crate::CoreError::Http(format!("Invalid response: {}", e)))?;
+    let response: ModelsResponse = serde_json::from_str(&text)
+        .map_err(|e| crate::CoreError::Http(format!("Invalid response: {}", e)))?;
 
     // Handle both OpenAI format (data) and Ollama format (models)
     let mut models: Vec<String> = Vec::new();
@@ -424,7 +427,8 @@ pub fn assemble_context(
 
     // 1. FIRST: List all docs and assets so the AI knows what exists
     let all_docs = vault.list_documents(project, None).unwrap_or_default();
-    let real_docs: Vec<_> = all_docs.iter()
+    let real_docs: Vec<_> = all_docs
+        .iter()
         .filter(|d| !d.path.ends_with("/_about.md") && d.path != "_about.md")
         .collect();
     let all_assets = vault.list_assets(project).unwrap_or_default();
@@ -435,8 +439,15 @@ pub fn assemble_context(
         if !real_docs.is_empty() {
             context.push_str("### Documents\n\n");
             for doc in &real_docs {
-                let canonical = if doc.front_matter.canonical { " [CANONICAL]" } else { "" };
-                context.push_str(&format!("- **{}** (`{}`){}\\n", doc.front_matter.title, doc.path, canonical));
+                let canonical = if doc.front_matter.canonical {
+                    " [CANONICAL]"
+                } else {
+                    ""
+                };
+                context.push_str(&format!(
+                    "- **{}** (`{}`){}\\n",
+                    doc.front_matter.title, doc.path, canonical
+                ));
             }
             context.push('\n');
         }
@@ -452,7 +463,9 @@ pub fn assemble_context(
 
     // 2. Search-based relevant docs (skip _about.md template files)
     if let Ok(bundle) = vault.build_context_bundle(user_message, Some(project), Some(5)) {
-        let real_docs: Vec<_> = bundle.docs.iter()
+        let real_docs: Vec<_> = bundle
+            .docs
+            .iter()
             .filter(|d| !d.path.ends_with("/_about.md") && d.path != "_about.md")
             .take(3) // Limit for small context models
             .collect();
@@ -461,7 +474,10 @@ pub fn assemble_context(
             for doc in &real_docs {
                 // Truncate content for small models
                 let content: String = doc.content.chars().take(2000).collect();
-                context.push_str(&format!("### {} ({})\n{}\n\n", doc.title, doc.path, content));
+                context.push_str(&format!(
+                    "### {} ({})\n{}\n\n",
+                    doc.title, doc.path, content
+                ));
             }
         }
     }
@@ -488,21 +504,58 @@ pub fn assemble_context(
 // -- Source code reader --
 
 const SKIP_DIRS: &[&str] = &[
-    "node_modules", "target", ".git", "dist", "build", "__pycache__",
-    ".next", "out", ".cache", ".turbo", "vendor", "coverage",
-    ".svelte-kit", ".nuxt", ".output",
+    "node_modules",
+    "target",
+    ".git",
+    "dist",
+    "build",
+    "__pycache__",
+    ".next",
+    "out",
+    ".cache",
+    ".turbo",
+    "vendor",
+    "coverage",
+    ".svelte-kit",
+    ".nuxt",
+    ".output",
 ];
 
 const SOURCE_EXTENSIONS: &[&str] = &[
-    "rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "kt",
-    "toml", "yaml", "yml", "css", "scss",
-    "html", "sql", "sh", "bash", "dockerfile", "svelte", "vue",
+    "rs",
+    "ts",
+    "tsx",
+    "js",
+    "jsx",
+    "py",
+    "go",
+    "java",
+    "kt",
+    "toml",
+    "yaml",
+    "yml",
+    "css",
+    "scss",
+    "html",
+    "sql",
+    "sh",
+    "bash",
+    "dockerfile",
+    "svelte",
+    "vue",
 ];
 
 const SKIP_FILES: &[&str] = &[
-    "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "Cargo.lock",
-    "bun.lockb", "composer.lock", "Gemfile.lock", "poetry.lock",
-    ".DS_Store", "thumbs.db",
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "Cargo.lock",
+    "bun.lockb",
+    "composer.lock",
+    "Gemfile.lock",
+    "poetry.lock",
+    ".DS_Store",
+    "thumbs.db",
 ];
 
 fn read_source_files(root: &Path, max_chars: usize) -> String {

@@ -383,7 +383,7 @@ export function MarkdownPreview() {
             </div>
           ) : history.length === 0 ? (
             <div className="rounded border border-neutral-800 bg-neutral-900/60 px-3 py-2 text-xs text-neutral-500">
-              No commits found for this file yet.
+              No commit history yet.
             </div>
           ) : (
             <div className="max-h-56 overflow-y-auto rounded border border-neutral-800 bg-neutral-900/40">

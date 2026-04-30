@@ -102,10 +102,7 @@ pub fn create_github_pr(
     pat: &str,
     request: &PrCreateRequest,
 ) -> Result<PrCreateResponse> {
-    let url = format!(
-        "https://api.github.com/repos/{}/{}/pulls",
-        owner, repo
-    );
+    let url = format!("https://api.github.com/repos/{}/{}/pulls", owner, repo);
 
     let body = serde_json::json!({
         "title": request.title,
@@ -140,10 +137,7 @@ pub fn create_github_pr(
         serde_json::from_str(&text).map_err(|e| crate::CoreError::Http(e.to_string()))?;
 
     Ok(PrCreateResponse {
-        url: json["html_url"]
-            .as_str()
-            .unwrap_or("")
-            .to_string(),
+        url: json["html_url"].as_str().unwrap_or("").to_string(),
         number: json["number"].as_u64().unwrap_or(0),
         platform: "github".to_string(),
     })

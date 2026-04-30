@@ -153,10 +153,7 @@ pub fn resize_terminal(
 }
 
 #[tauri::command]
-pub fn close_terminal(
-    terminal_id: String,
-    state: State<'_, PtyState>,
-) -> Result<String, String> {
+pub fn close_terminal(terminal_id: String, state: State<'_, PtyState>) -> Result<String, String> {
     let mut lock = state.0.lock().map_err(|e| e.to_string())?;
     if let Some(mut session) = lock.remove(&terminal_id) {
         let _ = session.child.kill();

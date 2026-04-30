@@ -1,11 +1,11 @@
 use std::path::{Component, Path, PathBuf};
 
-use crate::config::{VaultConfig, VaultMeta, McpConfig, SyncConfig};
-use crate::template::TemplateConfig;
+use crate::config::{McpConfig, SyncConfig, VaultConfig, VaultMeta};
 use crate::document::Document;
 use crate::error::Result;
 use crate::project::Project;
 use crate::search::SearchIndex;
+use crate::template::TemplateConfig;
 
 pub struct Vault {
     pub root: PathBuf,
@@ -64,9 +64,7 @@ impl Vault {
     pub fn open(root: &Path) -> Result<Self> {
         let toml_path = root.join("vault.toml");
         if !toml_path.exists() {
-            return Err(crate::CoreError::VaultNotFound(
-                root.display().to_string(),
-            ));
+            return Err(crate::CoreError::VaultNotFound(root.display().to_string()));
         }
 
         let toml_str = std::fs::read_to_string(&toml_path)?;
@@ -381,8 +379,14 @@ impl Vault {
         canonical_only: bool,
         limit: Option<usize>,
     ) -> Result<Vec<crate::search::SearchResult>> {
-        self.search
-            .search_filtered(query, project, author, status, canonical_only, limit.unwrap_or(20))
+        self.search.search_filtered(
+            query,
+            project,
+            author,
+            status,
+            canonical_only,
+            limit.unwrap_or(20),
+        )
     }
 
     pub fn get_project_context(&self, project_name: &str) -> Result<Vec<(String, String)>> {
@@ -403,9 +407,7 @@ impl Vault {
     // -- Git operations --
 
     pub fn stage_file(&self, path: &Path) -> Result<()> {
-        let relative = path
-            .strip_prefix(&self.root)
-            .unwrap_or(path);
+        let relative = path.strip_prefix(&self.root).unwrap_or(path);
         let mut index = self.repo.index()?;
         if path.exists() {
             index.add_path(relative)?;
@@ -507,9 +509,9 @@ impl Vault {
             Ok(h) => h,
             Err(_) => return Ok(commits), // No commits yet
         };
-        let oid = head.target().ok_or_else(|| {
-            crate::CoreError::Git(git2::Error::from_str("HEAD has no target"))
-        })?;
+        let oid = head
+            .target()
+            .ok_or_else(|| crate::CoreError::Git(git2::Error::from_str("HEAD has no target")))?;
 
         let mut revwalk = self.repo.revwalk()?;
         revwalk.push(oid)?;
@@ -539,24 +541,22 @@ impl Vault {
         let tree_oid = index.write_tree()?;
         let tree = self.repo.find_tree(tree_oid)?;
 
-        let sig = self.repo.signature().or_else(|_| {
-            git2::Signature::now("slateVault User", "user@slatevault.local")
-        })?;
+        let sig = self
+            .repo
+            .signature()
+            .or_else(|_| git2::Signature::now("slateVault User", "user@slatevault.local"))?;
 
-        let parent = self.repo.head().ok().and_then(|head| {
-            head.peel_to_commit().ok()
-        });
+        let parent = self
+            .repo
+            .head()
+            .ok()
+            .and_then(|head| head.peel_to_commit().ok());
 
         let parents: Vec<&git2::Commit> = parent.as_ref().map_or(vec![], |p| vec![p]);
 
-        let oid = self.repo.commit(
-            Some("HEAD"),
-            &sig,
-            &sig,
-            message,
-            &tree,
-            &parents,
-        )?;
+        let oid = self
+            .repo
+            .commit(Some("HEAD"), &sig, &sig, message, &tree, &parents)?;
 
         Ok(oid)
     }
@@ -615,14 +615,7 @@ impl Vault {
             .map(|d| d.content.clone());
 
         // Write the proposed update
-        let _doc = self.write_document(
-            project_name,
-            path,
-            title,
-            content,
-            tags,
-            ai_tool,
-        )?;
+        let _doc = self.write_document(project_name, path, title, content, tags, ai_tool)?;
 
         // Stage and commit
         let project_obj = self.open_project(project_name)?;
@@ -715,9 +708,11 @@ impl Vault {
 
         // Sort: canonical docs first, then by search rank
         docs.sort_by(|a, b| {
-            b.canonical
-                .cmp(&a.canonical)
-                .then(a.rank.partial_cmp(&b.rank).unwrap_or(std::cmp::Ordering::Equal))
+            b.canonical.cmp(&a.canonical).then(
+                a.rank
+                    .partial_cmp(&b.rank)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            )
         });
 
         // Build the bundle text
@@ -730,7 +725,11 @@ impl Vault {
 
         for doc in &docs {
             let markers = [
-                if doc.canonical { Some("[canonical]") } else { None },
+                if doc.canonical {
+                    Some("[canonical]")
+                } else {
+                    None
+                },
                 Some(&format!("[{}]", doc.status) as &str),
             ]
             .into_iter()
@@ -795,12 +794,7 @@ impl Vault {
         let mut stale = Vec::new();
 
         let projects = if let Some(p) = project {
-            vec![self
-                .open_project(p)?
-                .config
-                .project
-                .name
-                .clone()]
+            vec![self.open_project(p)?.config.project.name.clone()]
         } else {
             self.list_projects()?
                 .into_iter()
@@ -812,8 +806,8 @@ impl Vault {
             if let Ok(docs) = self.list_documents(proj_name, None) {
                 for doc in &docs {
                     if doc.front_matter.modified < cutoff {
-                        let days_since = (chrono::Utc::now() - doc.front_matter.modified)
-                            .num_days();
+                        let days_since =
+                            (chrono::Utc::now() - doc.front_matter.modified).num_days();
                         stale.push(StaleDoc {
                             project: proj_name.clone(),
                             path: doc.path.clone(),
@@ -862,10 +856,7 @@ impl Vault {
 
     pub fn current_branch(&self) -> Result<String> {
         match self.repo.head() {
-            Ok(head) => Ok(head
-                .shorthand()
-                .unwrap_or("HEAD (detached)")
-                .to_string()),
+            Ok(head) => Ok(head.shorthand().unwrap_or("HEAD (detached)").to_string()),
             Err(_) => Ok("main".to_string()), // No commits yet
         }
     }
@@ -933,9 +924,7 @@ impl Vault {
             ));
         }
 
-        let mut branch = self
-            .repo
-            .find_branch(name, git2::BranchType::Local)?;
+        let mut branch = self.repo.find_branch(name, git2::BranchType::Local)?;
         branch.delete()?;
         Ok(())
     }
@@ -947,16 +936,9 @@ impl Vault {
         diff_opts.pathspec(path);
 
         let diff = if staged {
-            let head_tree = self
-                .repo
-                .head()
-                .ok()
-                .and_then(|h| h.peel_to_tree().ok());
-            self.repo.diff_tree_to_index(
-                head_tree.as_ref(),
-                None,
-                Some(&mut diff_opts),
-            )?
+            let head_tree = self.repo.head().ok().and_then(|h| h.peel_to_tree().ok());
+            self.repo
+                .diff_tree_to_index(head_tree.as_ref(), None, Some(&mut diff_opts))?
         } else {
             self.repo
                 .diff_index_to_workdir(None, Some(&mut diff_opts))?
@@ -1124,14 +1106,7 @@ mod tests {
             .create_project("demo", "Demo project", Vec::new(), None)
             .expect("create project");
         vault
-            .write_document(
-                "demo",
-                "notes.md",
-                "Notes",
-                "staletoken",
-                Vec::new(),
-                None,
-            )
+            .write_document("demo", "notes.md", "Notes", "staletoken", Vec::new(), None)
             .expect("write document");
 
         let initial_results = vault
@@ -1139,8 +1114,15 @@ mod tests {
             .expect("search before delete");
         assert_eq!(initial_results.len(), 1);
 
-        std::fs::remove_file(temp_dir.path().join("projects").join("demo").join("docs").join("notes.md"))
-            .expect("delete markdown file");
+        std::fs::remove_file(
+            temp_dir
+                .path()
+                .join("projects")
+                .join("demo")
+                .join("docs")
+                .join("notes.md"),
+        )
+        .expect("delete markdown file");
 
         let _ = vault.rebuild_index().expect("rebuild index");
 

@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
-use slatevault_core::Vault;
 use slatevault_core::credentials::{Credentials, CredentialsMasked};
 use slatevault_core::pr::{self, PrCreateRequest, PrCreateResponse};
 use std::io::Write;
+use slatevault_core::Vault;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
@@ -27,7 +27,10 @@ fn sanitize_relative_path(path: &str) -> Result<PathBuf, slatevault_core::CoreEr
             Component::Normal(part) => cleaned.push(part),
             Component::CurDir => {}
             Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
-                return Err(invalid_input(format!("Path escapes the allowed root: {}", path)));
+                return Err(invalid_input(format!(
+                    "Path escapes the allowed root: {}",
+                    path
+                )));
             }
         }
     }
@@ -51,7 +54,9 @@ fn sanitize_single_component(name: &str) -> Result<String, slatevault_core::Core
         .ok_or_else(|| invalid_input("Path cannot be empty"))?;
 
     if !matches!(first, Component::Normal(_)) || components.next().is_some() {
-        return Err(invalid_input("Value must be a single relative path segment"));
+        return Err(invalid_input(
+            "Value must be a single relative path segment",
+        ));
     }
 
     Ok(name.to_string())
@@ -146,7 +151,10 @@ pub fn open_vault(path: String, state: State<'_, VaultState>) -> CmdResult<Strin
     if let Some(home) = dirs::home_dir() {
         let active_dir = home.join(".slatevault");
         let _ = std::fs::create_dir_all(&active_dir);
-        let _ = std::fs::write(active_dir.join("active-vault"), root.to_string_lossy().as_bytes());
+        let _ = std::fs::write(
+            active_dir.join("active-vault"),
+            root.to_string_lossy().as_bytes(),
+        );
     }
 
     let mut lock = state.0.lock().map_err(|e| e.to_string())?;
@@ -211,20 +219,40 @@ pub fn write_document(
     state: State<'_, VaultState>,
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
-        let mut doc = vault.write_document(&project, &path, &title, &content, tags.unwrap_or_default(), ai_tool)?;
+        let mut doc = vault.write_document(
+            &project,
+            &path,
+            &title,
+            &content,
+            tags.unwrap_or_default(),
+            ai_tool,
+        )?;
         // Apply canonical/protected/status if provided
         let new_status = status.as_deref().map(|s| match s.to_lowercase().as_str() {
             "review" => slatevault_core::document::DocStatus::Review,
-            "final"  => slatevault_core::document::DocStatus::Final,
-            _        => slatevault_core::document::DocStatus::Draft,
+            "final" => slatevault_core::document::DocStatus::Final,
+            _ => slatevault_core::document::DocStatus::Draft,
         });
-        let needs_rewrite = canonical.map(|c| c != doc.front_matter.canonical).unwrap_or(false)
-            || is_protected.map(|p| p != doc.front_matter.protected).unwrap_or(false)
-            || new_status.as_ref().map(|s| s != &doc.front_matter.status).unwrap_or(false);
+        let needs_rewrite = canonical
+            .map(|c| c != doc.front_matter.canonical)
+            .unwrap_or(false)
+            || is_protected
+                .map(|p| p != doc.front_matter.protected)
+                .unwrap_or(false)
+            || new_status
+                .as_ref()
+                .map(|s| s != &doc.front_matter.status)
+                .unwrap_or(false);
         if needs_rewrite {
-            if let Some(c) = canonical { doc.front_matter.canonical = c; }
-            if let Some(p) = is_protected { doc.front_matter.protected = p; }
-            if let Some(s) = new_status { doc.front_matter.status = s; }
+            if let Some(c) = canonical {
+                doc.front_matter.canonical = c;
+            }
+            if let Some(p) = is_protected {
+                doc.front_matter.protected = p;
+            }
+            if let Some(s) = new_status {
+                doc.front_matter.status = s;
+            }
             let project_obj = vault.open_project(&project)?;
             let file_path = resolve_inside(&project_obj.docs_dir(), &path)?;
             std::fs::write(&file_path, doc.to_string()?)?;
@@ -344,7 +372,10 @@ fn collect_assets(
                 .and_then(|n| n.to_str())
                 .unwrap_or("")
                 .to_string();
-            out.push(AssetInfo { path: rel, filename });
+            out.push(AssetInfo {
+                path: rel,
+                filename,
+            });
         }
     }
     Ok(())
@@ -388,10 +419,7 @@ pub fn get_project_context(
 }
 
 #[tauri::command]
-pub fn git_commit(
-    message: String,
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn git_commit(message: String, state: State<'_, VaultState>) -> CmdResult<String> {
     with_vault(&state, |vault| {
         let oid = vault.commit(&message)?;
         Ok(format!("Committed: {}", oid))
@@ -399,17 +427,12 @@ pub fn git_commit(
 }
 
 #[tauri::command]
-pub fn git_status(
-    state: State<'_, VaultState>,
-) -> CmdResult<Vec<slatevault_core::FileStatus>> {
+pub fn git_status(state: State<'_, VaultState>) -> CmdResult<Vec<slatevault_core::FileStatus>> {
     with_vault(&state, |vault| vault.status())
 }
 
 #[tauri::command]
-pub fn git_stage(
-    path: String,
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn git_stage(path: String, state: State<'_, VaultState>) -> CmdResult<String> {
     with_vault(&state, |vault| {
         vault.stage_path(&path)?;
         Ok(format!("Staged: {}", path))
@@ -417,10 +440,7 @@ pub fn git_stage(
 }
 
 #[tauri::command]
-pub fn git_unstage(
-    path: String,
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn git_unstage(path: String, state: State<'_, VaultState>) -> CmdResult<String> {
     with_vault(&state, |vault| {
         vault.unstage_file(&path)?;
         Ok(format!("Unstaged: {}", path))
@@ -475,6 +495,14 @@ pub fn git_file_history(
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let stderr_lower = stderr.to_lowercase();
+            if stderr_lower.contains("does not have any commits yet")
+                || stderr_lower.contains("your current branch")
+                    && stderr_lower.contains("does not have any commits yet")
+                || stderr_lower.contains("has no commits yet")
+            {
+                return Ok(Vec::new());
+            }
             return Err(invalid_input(if stderr.is_empty() {
                 "Could not read file history".to_string()
             } else {
@@ -522,9 +550,7 @@ pub struct RemoteConfig {
 }
 
 #[tauri::command]
-pub fn git_remote_config(
-    state: State<'_, VaultState>,
-) -> CmdResult<RemoteConfig> {
+pub fn git_remote_config(state: State<'_, VaultState>) -> CmdResult<RemoteConfig> {
     with_vault(&state, |vault| {
         Ok(RemoteConfig {
             remote_url: vault.config.sync.remote_url.clone(),
@@ -576,7 +602,11 @@ pub fn git_set_remote_config(
 #[tauri::command]
 pub fn git_clone(url: String, path: String) -> CmdResult<String> {
     let dest = PathBuf::from(&path);
-    if dest.exists() && std::fs::read_dir(&dest).map(|mut d| d.next().is_some()).unwrap_or(false) {
+    if dest.exists()
+        && std::fs::read_dir(&dest)
+            .map(|mut d| d.next().is_some())
+            .unwrap_or(false)
+    {
         return Err("Destination directory already exists and is not empty".to_string());
     }
     let output = std::process::Command::new("git")
@@ -592,9 +622,7 @@ pub fn git_clone(url: String, path: String) -> CmdResult<String> {
 }
 
 #[tauri::command]
-pub fn git_push(
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn git_push(state: State<'_, VaultState>) -> CmdResult<String> {
     let lock = state.0.lock().map_err(|e| e.to_string())?;
     let vault = lock.as_ref().ok_or("No vault is open")?;
     let branch = &vault.config.sync.remote_branch;
@@ -603,7 +631,14 @@ pub fn git_push(
         .args(["-C", &vault.root.to_string_lossy(), "branch", "-M", branch])
         .output();
     let output = std::process::Command::new("git")
-        .args(["-C", &vault.root.to_string_lossy(), "push", "-u", "origin", branch])
+        .args([
+            "-C",
+            &vault.root.to_string_lossy(),
+            "push",
+            "-u",
+            "origin",
+            branch,
+        ])
         .output()
         .map_err(|e| format!("Failed to run git: {}", e))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -616,14 +651,18 @@ pub fn git_push(
 }
 
 #[tauri::command]
-pub fn git_pull(
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn git_pull(state: State<'_, VaultState>) -> CmdResult<String> {
     let lock = state.0.lock().map_err(|e| e.to_string())?;
     let vault = lock.as_ref().ok_or("No vault is open")?;
     let branch = &vault.config.sync.remote_branch;
     let output = std::process::Command::new("git")
-        .args(["-C", &vault.root.to_string_lossy(), "pull", "origin", branch])
+        .args([
+            "-C",
+            &vault.root.to_string_lossy(),
+            "pull",
+            "origin",
+            branch,
+        ])
         .output()
         .map_err(|e| format!("Failed to run git: {}", e))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -652,9 +691,7 @@ pub struct VaultSettings {
 }
 
 #[tauri::command]
-pub fn get_vault_config(
-    state: State<'_, VaultState>,
-) -> CmdResult<VaultSettings> {
+pub fn get_vault_config(state: State<'_, VaultState>) -> CmdResult<VaultSettings> {
     with_vault(&state, |vault| {
         Ok(VaultSettings {
             name: vault.config.vault.name.clone(),
@@ -755,9 +792,7 @@ pub fn show_in_folder(
         #[cfg(target_os = "linux")]
         {
             let parent = full_path.parent().unwrap_or(&full_path);
-            std::process::Command::new("xdg-open")
-                .arg(parent)
-                .spawn()?;
+            std::process::Command::new("xdg-open").arg(parent).spawn()?;
         }
 
         Ok(())
@@ -765,11 +800,7 @@ pub fn show_in_folder(
 }
 
 #[tauri::command]
-pub fn open_asset(
-    project: String,
-    path: String,
-    state: State<'_, VaultState>,
-) -> CmdResult<()> {
+pub fn open_asset(project: String, path: String, state: State<'_, VaultState>) -> CmdResult<()> {
     with_vault(&state, |vault| {
         let project_obj = vault.open_project(&project)?;
         let full_path = resolve_inside(&project_obj.docs_dir(), &path)?;
@@ -811,16 +842,18 @@ pub fn delete_document(
         let project_obj = vault.open_project(&project)?;
         let file_path = resolve_inside(&project_obj.docs_dir(), &path)?;
         std::fs::remove_file(&file_path)?;
-        vault.search.remove_document(&project, &sanitize_relative_path(&path)?.to_string_lossy().replace('\\', "/"))?;
+        vault.search.remove_document(
+            &project,
+            &sanitize_relative_path(&path)?
+                .to_string_lossy()
+                .replace('\\', "/"),
+        )?;
         Ok(format!("Deleted: {}/{}", project, path))
     })
 }
 
 #[tauri::command]
-pub fn delete_project(
-    name: String,
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn delete_project(name: String, state: State<'_, VaultState>) -> CmdResult<String> {
     with_vault(&state, |vault| {
         let name = sanitize_single_component(&name)?;
         let project_path = resolve_inside(&vault.projects_dir(), &name)?;
@@ -850,13 +883,22 @@ pub fn rename_document(
         }
         std::fs::rename(&old_full, &new_full)?;
         // Stage both old (delete) and new (add) paths for git
-        let old_repo_path = vault.projects_dir().join(&project).join("docs").join(&old_rel);
-        let new_repo_path = vault.projects_dir().join(&project).join("docs").join(&new_rel);
+        let old_repo_path = vault
+            .projects_dir()
+            .join(&project)
+            .join("docs")
+            .join(&old_rel);
+        let new_repo_path = vault
+            .projects_dir()
+            .join(&project)
+            .join("docs")
+            .join(&new_rel);
         let _ = vault.stage_file(&old_repo_path);
         let _ = vault.stage_file(&new_repo_path);
         let old_index_path = old_rel.to_string_lossy().replace('\\', "/");
         vault.search.remove_document(&project, &old_index_path)?;
-        let renamed = vault.read_document(&project, &new_rel.to_string_lossy().replace('\\', "/"))?;
+        let renamed =
+            vault.read_document(&project, &new_rel.to_string_lossy().replace('\\', "/"))?;
         vault.search.index_document(
             &project,
             &renamed.path,
@@ -884,7 +926,9 @@ pub fn rename_project(
         let old_path = resolve_inside(&projects_dir, &old_name)?;
         let new_path = resolve_inside(&projects_dir, &new_name)?;
         if new_path.exists() {
-            return Err(slatevault_core::CoreError::ProjectAlreadyExists(new_name.clone()));
+            return Err(slatevault_core::CoreError::ProjectAlreadyExists(
+                new_name.clone(),
+            ));
         }
         std::fs::rename(&old_path, &new_path)?;
         vault.search.remove_project(&old_name)?;
@@ -892,7 +936,9 @@ pub fn rename_project(
         let toml_path = new_path.join("project.toml");
         if toml_path.exists() {
             if let Ok(toml_str) = std::fs::read_to_string(&toml_path) {
-                if let Ok(mut config) = toml::from_str::<slatevault_core::config::ProjectConfig>(&toml_str) {
+                if let Ok(mut config) =
+                    toml::from_str::<slatevault_core::config::ProjectConfig>(&toml_str)
+                {
                     config.project.name = new_name.clone();
                     if let Ok(new_toml) = toml::to_string_pretty(&config) {
                         let _ = std::fs::write(&toml_path, new_toml);
@@ -920,10 +966,14 @@ pub fn update_project_meta(
         let toml_str = std::fs::read_to_string(&toml_path)?;
         let mut config = toml::from_str::<slatevault_core::config::ProjectConfig>(&toml_str)
             .map_err(|e| slatevault_core::CoreError::TomlParse(e))?;
-        if let Some(d) = description { config.project.description = d; }
-        if let Some(t) = tags { config.project.tags = t; }
-        let new_toml = toml::to_string_pretty(&config)
-            .map_err(slatevault_core::CoreError::TomlSerialize)?;
+        if let Some(d) = description {
+            config.project.description = d;
+        }
+        if let Some(t) = tags {
+            config.project.tags = t;
+        }
+        let new_toml =
+            toml::to_string_pretty(&config).map_err(slatevault_core::CoreError::TomlSerialize)?;
         std::fs::write(&toml_path, new_toml)?;
         Ok(format!("Updated project metadata for '{}'", name))
     })
@@ -932,9 +982,7 @@ pub fn update_project_meta(
 // -- Branch commands --
 
 #[tauri::command]
-pub fn git_current_branch(
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn git_current_branch(state: State<'_, VaultState>) -> CmdResult<String> {
     with_vault(&state, |vault| vault.current_branch())
 }
 
@@ -946,10 +994,7 @@ pub fn git_list_branches(
 }
 
 #[tauri::command]
-pub fn git_create_branch(
-    name: String,
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn git_create_branch(name: String, state: State<'_, VaultState>) -> CmdResult<String> {
     with_vault(&state, |vault| {
         vault.create_branch(&name)?;
         Ok(format!("Branch '{}' created", name))
@@ -957,10 +1002,7 @@ pub fn git_create_branch(
 }
 
 #[tauri::command]
-pub fn git_switch_branch(
-    name: String,
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn git_switch_branch(name: String, state: State<'_, VaultState>) -> CmdResult<String> {
     with_vault(&state, |vault| {
         vault.switch_branch(&name)?;
         Ok(format!("Switched to branch '{}'", name))
@@ -968,10 +1010,7 @@ pub fn git_switch_branch(
 }
 
 #[tauri::command]
-pub fn git_delete_branch(
-    name: String,
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn git_delete_branch(name: String, state: State<'_, VaultState>) -> CmdResult<String> {
     with_vault(&state, |vault| {
         vault.delete_branch(&name)?;
         Ok(format!("Branch '{}' deleted", name))
@@ -1031,9 +1070,7 @@ pub fn git_create_pr(
 }
 
 #[tauri::command]
-pub fn git_detect_platform(
-    state: State<'_, VaultState>,
-) -> CmdResult<Option<String>> {
+pub fn git_detect_platform(state: State<'_, VaultState>) -> CmdResult<Option<String>> {
     with_vault(&state, |vault| {
         Ok(vault
             .config
@@ -1081,14 +1118,18 @@ pub fn git_load_credentials() -> CmdResult<CredentialsMasked> {
 // -- Push with branch parameter --
 
 #[tauri::command]
-pub fn git_push_branch(
-    branch: String,
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn git_push_branch(branch: String, state: State<'_, VaultState>) -> CmdResult<String> {
     let lock = state.0.lock().map_err(|e| e.to_string())?;
     let vault = lock.as_ref().ok_or("No vault is open")?;
     let output = std::process::Command::new("git")
-        .args(["-C", &vault.root.to_string_lossy(), "push", "-u", "origin", &branch])
+        .args([
+            "-C",
+            &vault.root.to_string_lossy(),
+            "push",
+            "-u",
+            "origin",
+            &branch,
+        ])
         .output()
         .map_err(|e| format!("Failed to run git: {}", e))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -1128,7 +1169,9 @@ pub async fn ai_chat(
             return Err("AI is not enabled. Configure in Settings > AI Assistant.".to_string());
         }
         if vault.config.ai.model.is_empty() {
-            return Err("No AI model configured. Set a model in Settings > AI Assistant.".to_string());
+            return Err(
+                "No AI model configured. Set a model in Settings > AI Assistant.".to_string(),
+            );
         }
 
         let credentials = slatevault_core::credentials::Credentials::load().unwrap_or_default();
@@ -1180,7 +1223,10 @@ pub async fn ai_chat(
             Be concise and helpful.", args.project, context
         )
     };
-    messages.push(slatevault_core::ai::ChatMessage::text("system", &system_msg));
+    messages.push(slatevault_core::ai::ChatMessage::text(
+        "system",
+        &system_msg,
+    ));
 
     // History
     for msg in &args.history {
@@ -1188,7 +1234,10 @@ pub async fn ai_chat(
     }
 
     // Current user message
-    messages.push(slatevault_core::ai::ChatMessage::text("user", &args.message));
+    messages.push(slatevault_core::ai::ChatMessage::text(
+        "user",
+        &args.message,
+    ));
 
     // Try with tools first
     let tools = Some(slatevault_core::ai::vault_tools());
@@ -1220,7 +1269,11 @@ pub async fn ai_chat(
 
     // If the model returned nothing AND called no tools, it probably doesn't support
     // tool calling (e.g. small local models like gemma3:4b). Retry without tools.
-    let tool_calls_empty = result.tool_calls.as_ref().map(|tc| tc.is_empty()).unwrap_or(true);
+    let tool_calls_empty = result
+        .tool_calls
+        .as_ref()
+        .map(|tc| tc.is_empty())
+        .unwrap_or(true);
     if result.content.trim().is_empty() && tool_calls_empty {
         let endpoint_url_notool = endpoint_url.clone();
         let model_notool = model.clone();
@@ -1263,7 +1316,9 @@ pub async fn ai_chat(
         let mut round_tool_results: Vec<(String, String)> = Vec::new();
         for tc in tool_calls {
             if tc.function.name == "write_document" {
-                if let Ok(tool_args) = serde_json::from_str::<serde_json::Value>(&tc.function.arguments) {
+                if let Ok(tool_args) =
+                    serde_json::from_str::<serde_json::Value>(&tc.function.arguments)
+                {
                     if let Some(path) = tool_args["path"].as_str() {
                         documents_written.push(path.to_string());
                     }
@@ -1331,7 +1386,7 @@ pub async fn ai_chat(
                     parts.push(format!("**Search results:**\n\n{}", tool_output.trim()));
                 }
                 "write_document" => {
-                    parts.push(format!("✓ {}", tool_output.trim()));
+                    parts.push(format!("Ã¢Å“â€œ {}", tool_output.trim()));
                 }
                 _ => {
                     parts.push(tool_output.trim().to_string());
@@ -1391,7 +1446,11 @@ fn try_direct_document_list_response(
 
     let mut folders: Vec<String> = docs
         .iter()
-        .filter_map(|doc| doc.path.split_once('/').map(|(folder, _)| folder.to_string()))
+        .filter_map(|doc| {
+            doc.path
+                .split_once('/')
+                .map(|(folder, _)| folder.to_string())
+        })
         .collect();
     folders.extend(
         assets
@@ -1470,12 +1529,7 @@ fn try_direct_document_list_response(
             }
             content.push_str("## Assets\n\n");
             for (index, (path, filename)) in filtered_assets.iter().enumerate() {
-                content.push_str(&format!(
-                    "{}. **{}** (`{}`)\n",
-                    index + 1,
-                    filename,
-                    path
-                ));
+                content.push_str(&format!("{}. **{}** (`{}`)\n", index + 1, filename, path));
             }
         }
         content
@@ -1509,18 +1563,31 @@ fn execute_tool_call(
             let content = normalize_ai_written_content(content);
             let tags: Vec<String> = args["tags"]
                 .as_array()
-                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
                 .unwrap_or_default();
 
             vault
-                .write_document(project, path, title, &content, tags, Some("ai-chat".to_string()))
+                .write_document(
+                    project,
+                    path,
+                    title,
+                    &content,
+                    tags,
+                    Some("ai-chat".to_string()),
+                )
                 .map_err(|e| e.to_string())?;
 
             Ok(format!("Document written: {}/{}", project, path))
         }
         "read_document" => {
             let path = args["path"].as_str().ok_or("Missing path")?;
-            let doc = vault.read_document(project, path).map_err(|e| e.to_string())?;
+            let doc = vault
+                .read_document(project, path)
+                .map_err(|e| e.to_string())?;
             Ok(format!(
                 "Title: {}\nStatus: {:?}\n\n{}",
                 doc.front_matter.title, doc.front_matter.status, doc.content
@@ -1532,7 +1599,11 @@ fn execute_tool_call(
         }
         "list_documents" => {
             let path_prefix = args["path_prefix"].as_str().map(|prefix| {
-                let normalized = prefix.replace('\\', "/").trim().trim_matches('/').to_string();
+                let normalized = prefix
+                    .replace('\\', "/")
+                    .trim()
+                    .trim_matches('/')
+                    .to_string();
                 if normalized.is_empty() {
                     String::new()
                 } else {
@@ -1563,10 +1634,7 @@ fn execute_tool_call(
             } else {
                 let mut out = String::new();
                 for doc in filtered.iter().take(50) {
-                    out.push_str(&format!(
-                        "- {} ({})\n",
-                        doc.front_matter.title, doc.path
-                    ));
+                    out.push_str(&format!("- {} ({})\n", doc.front_matter.title, doc.path));
                 }
                 if filtered.len() > 50 {
                     out.push_str(&format!("...and {} more\n", filtered.len() - 50));
@@ -1728,12 +1796,20 @@ fn extract_markdown_paths(text: &str) -> Vec<String> {
         }
 
         let candidate = text[begin..end]
-            .trim_matches(|c: char| matches!(c, '"' | '\'' | '`' | '(' | ')' | '[' | ']' | '{' | '}' | '<' | '>' | ',' | ';'))
+            .trim_matches(|c: char| {
+                matches!(
+                    c,
+                    '"' | '\'' | '`' | '(' | ')' | '[' | ']' | '{' | '}' | '<' | '>' | ',' | ';'
+                )
+            })
             .trim();
 
         if candidate.contains('/') || candidate.contains('\\') {
             let normalized = candidate.replace('\\', "/");
-            if !paths.iter().any(|p: &String| p.eq_ignore_ascii_case(&normalized)) {
+            if !paths
+                .iter()
+                .any(|p: &String| p.eq_ignore_ascii_case(&normalized))
+            {
                 paths.push(normalized);
             }
         }
@@ -1745,7 +1821,10 @@ fn extract_markdown_paths(text: &str) -> Vec<String> {
 }
 
 fn normalize_doc_path(path: &str) -> String {
-    path.replace('\\', "/").trim().trim_matches('/').to_ascii_lowercase()
+    path.replace('\\', "/")
+        .trim()
+        .trim_matches('/')
+        .to_ascii_lowercase()
 }
 
 fn normalize_ai_written_content(content: &str) -> String {
@@ -1774,9 +1853,7 @@ fn decode_common_entities(content: &str) -> String {
 }
 
 #[tauri::command]
-pub fn ai_test_tools(
-    state: State<'_, VaultState>,
-) -> CmdResult<bool> {
+pub fn ai_test_tools(state: State<'_, VaultState>) -> CmdResult<bool> {
     let lock = state.0.lock().map_err(|e| e.to_string())?;
     let vault = lock.as_ref().ok_or("No vault is open")?;
     let credentials = slatevault_core::credentials::Credentials::load().unwrap_or_default();
@@ -1790,9 +1867,7 @@ pub fn ai_test_tools(
 }
 
 #[tauri::command]
-pub fn ai_list_models(
-    state: State<'_, VaultState>,
-) -> CmdResult<Vec<String>> {
+pub fn ai_list_models(state: State<'_, VaultState>) -> CmdResult<Vec<String>> {
     let lock = state.0.lock().map_err(|e| e.to_string())?;
     let vault = lock.as_ref().ok_or("No vault is open")?;
 
@@ -1809,8 +1884,8 @@ pub fn set_project_source_folder(
     source_folder: Option<String>,
     _state: State<'_, VaultState>,
 ) -> CmdResult<String> {
-    let mut local = slatevault_core::local_config::LocalConfig::load()
-        .map_err(|e| e.to_string())?;
+    let mut local =
+        slatevault_core::local_config::LocalConfig::load().map_err(|e| e.to_string())?;
     let label = source_folder.as_deref().unwrap_or("cleared").to_string();
     local.set_source_folder(&project, source_folder);
     local.save().map_err(|e| e.to_string())?;
@@ -1822,8 +1897,7 @@ pub fn get_project_source_folder(
     project: String,
     _state: State<'_, VaultState>,
 ) -> CmdResult<Option<String>> {
-    let local = slatevault_core::local_config::LocalConfig::load()
-        .map_err(|e| e.to_string())?;
+    let local = slatevault_core::local_config::LocalConfig::load().map_err(|e| e.to_string())?;
     Ok(local.get_source_folder(&project))
 }
 
@@ -1837,9 +1911,7 @@ pub struct PlaybookInfo {
 }
 
 #[tauri::command]
-pub fn list_playbooks(
-    state: State<'_, VaultState>,
-) -> CmdResult<Vec<PlaybookInfo>> {
+pub fn list_playbooks(state: State<'_, VaultState>) -> CmdResult<Vec<PlaybookInfo>> {
     with_vault(&state, |vault| {
         let config = slatevault_core::playbook::PlaybookConfig::load(&vault.root)?;
         Ok(config
@@ -1966,10 +2038,7 @@ fn feature_doc_slug(task_focus: &str) -> String {
         return "feature-spec".to_string();
     }
 
-    let mut parts: Vec<String> = task_keywords(task_focus)
-        .into_iter()
-        .take(4)
-        .collect();
+    let mut parts: Vec<String> = task_keywords(task_focus).into_iter().take(4).collect();
     if parts.is_empty() {
         parts.push("core-feature".to_string());
     }
@@ -1997,7 +2066,8 @@ fn recommended_first_docs(task_focus: &str) -> Vec<(String, String)> {
     if focus.contains("ios") || focus.contains("swiftui") {
         docs.push((
             "context/ios-architecture.md".to_string(),
-            "Outline app structure, SwiftUI state flow, persistence, and platform constraints.".to_string(),
+            "Outline app structure, SwiftUI state flow, persistence, and platform constraints."
+                .to_string(),
         ));
     }
 
@@ -2060,7 +2130,10 @@ fn score_doc_for_task(
         score += 18;
     }
 
-    if let Some(index) = preferred_folders.iter().position(|candidate| *candidate == folder) {
+    if let Some(index) = preferred_folders
+        .iter()
+        .position(|candidate| *candidate == folder)
+    {
         score += 24 - (index as i32 * 3);
     }
 
@@ -2155,7 +2228,11 @@ pub fn generate_project_brief(
         let mut folder_counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
         for doc in &substantive_docs {
             let folder = doc.path.split('/').next().unwrap_or("root");
-            let folder = if doc.path.contains('/') { folder } else { "(root)" };
+            let folder = if doc.path.contains('/') {
+                folder
+            } else {
+                "(root)"
+            };
             *folder_counts.entry(folder.to_string()).or_default() += 1;
         }
 
@@ -2164,7 +2241,9 @@ pub fn generate_project_brief(
         brief.push_str("## Agent Rules\n\n");
         brief.push_str("- Use the SlateVault MCP for documentation discovery, reading, and writing whenever possible.\n");
         brief.push_str("- Prefer SlateVault document tools over direct filesystem edits for docs that live in the vault.\n");
-        brief.push_str("- Treat canonical SlateVault docs as the source of truth when they exist.\n\n");
+        brief.push_str(
+            "- Treat canonical SlateVault docs as the source of truth when they exist.\n\n",
+        );
 
         if !focus_trimmed.is_empty() {
             brief.push_str("## Current Task\n\n");
@@ -2186,34 +2265,45 @@ pub fn generate_project_brief(
         if !folder_counts.is_empty() {
             brief.push_str("**Structure:**\n");
             for (folder, count) in &folder_counts {
-                brief.push_str(&format!("- `{}/` — {} doc{}\n", folder, count, if *count != 1 { "s" } else { "" }));
+                brief.push_str(&format!(
+                    "- `{}/` Ã¢â‚¬â€ {} doc{}\n",
+                    folder,
+                    count,
+                    if *count != 1 { "s" } else { "" }
+                ));
             }
             brief.push_str("\n");
         }
 
-        // 2. Key Documents (Read First) — canonical + high-signal docs
+        // 2. Key Documents (Read First) Ã¢â‚¬â€ canonical + high-signal docs
         if greenfield_mode {
             brief.push_str("---\n\n## Greenfield Status\n\n");
-            brief.push_str("No substantive project docs exist yet beyond starter folder descriptions.\n\n");
+            brief.push_str(
+                "No substantive project docs exist yet beyond starter folder descriptions.\n\n",
+            );
             brief.push_str("## Recommended First Docs\n\n");
             for (path, reason) in recommended_first_docs(focus_trimmed) {
-                brief.push_str(&format!("- `{}` â€” {}\n", path, reason));
+                brief.push_str(&format!("- `{}` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â {}\n", path, reason));
             }
             brief.push_str("\n");
         }
         brief.push_str("---\n\n## Key Documents (Read First)\n\n");
         if !canonical.is_empty() {
-            brief.push_str("_These are canonical — they define the source of truth._\n\n");
+            brief.push_str("_These are canonical Ã¢â‚¬â€ they define the source of truth._\n\n");
             for doc in &canonical {
                 if !is_about_doc(&doc.path) {
-                    brief.push_str(&format!("### {}\n\n{}\n\n", doc.front_matter.title, doc.content));
+                    brief.push_str(&format!(
+                        "### {}\n\n{}\n\n",
+                        doc.front_matter.title, doc.content
+                    ));
                 }
             }
         }
 
         // Context files (not already included as canonical)
         if let Ok(context) = vault.get_project_context(&project) {
-            let new_context: Vec<_> = context.iter()
+            let new_context: Vec<_> = context
+                .iter()
                 .filter(|(path, _)| !canonical.iter().any(|c| c.path == *path))
                 .filter(|(path, _)| !is_about_doc(path))
                 .collect();
@@ -2235,23 +2325,32 @@ pub fn generate_project_brief(
                 .unwrap_or(0);
             if context_count == 0 {
                 // Auto-detect best starting docs
-                let starters: Vec<_> = docs.iter()
+                let starters: Vec<_> = docs
+                    .iter()
                     .filter(|d| {
                         if is_about_doc(&d.path) {
                             return false;
                         }
                         let p = d.path.to_lowercase();
                         let t = d.front_matter.title.to_lowercase();
-                        p.contains("overview") || p.contains("architecture") || p.contains("readme")
-                            || t.contains("overview") || t.contains("architecture")
+                        p.contains("overview")
+                            || p.contains("architecture")
+                            || p.contains("readme")
+                            || t.contains("overview")
+                            || t.contains("architecture")
                     })
                     .take(3)
                     .collect();
 
                 if !starters.is_empty() {
-                    brief.push_str("_No canonical or pinned context docs exist yet. Start by reviewing:_\n\n");
+                    brief.push_str(
+                        "_No canonical or pinned context docs exist yet. Start by reviewing:_\n\n",
+                    );
                     for doc in &starters {
-                        brief.push_str(&format!("- **{}** (`{}`)\n", doc.front_matter.title, doc.path));
+                        brief.push_str(&format!(
+                            "- **{}** (`{}`)\n",
+                            doc.front_matter.title, doc.path
+                        ));
                     }
                     brief.push_str("\n");
                 } else {
@@ -2264,10 +2363,18 @@ pub fn generate_project_brief(
             let mut focus_docs: Vec<_> = docs
                 .iter()
                 .filter(|d| !is_about_doc(&d.path))
-                .map(|doc| (score_doc_for_task(doc, focus_trimmed, &preferred_folders, newest_modified), doc))
+                .map(|doc| {
+                    (
+                        score_doc_for_task(doc, focus_trimmed, &preferred_folders, newest_modified),
+                        doc,
+                    )
+                })
                 .filter(|(score, _)| *score > 0)
                 .collect();
-            focus_docs.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.front_matter.modified.cmp(&a.1.front_matter.modified)));
+            focus_docs.sort_by(|a, b| {
+                b.0.cmp(&a.0)
+                    .then_with(|| b.1.front_matter.modified.cmp(&a.1.front_matter.modified))
+            });
             if !focus_docs.is_empty() {
                 brief.push_str("## Task-Relevant Docs\n\n");
                 brief.push_str("_These documents appear most relevant to the current task._\n\n");
@@ -2291,8 +2398,10 @@ pub fn generate_project_brief(
             for doc in &recent_5 {
                 let status = format!("{:?}", doc.front_matter.status).to_lowercase();
                 brief.push_str(&format!(
-                    "- **{}** [{}] — {}\n",
-                    doc.front_matter.title, status, doc.front_matter.modified.format("%Y-%m-%d")
+                    "- **{}** [{}] Ã¢â‚¬â€ {}\n",
+                    doc.front_matter.title,
+                    status,
+                    doc.front_matter.modified.format("%Y-%m-%d")
                 ));
             }
             brief.push_str("\n");
@@ -2303,18 +2412,33 @@ pub fn generate_project_brief(
         if canonical.is_empty() {
             brief.push_str("No documents are currently marked as canonical. ");
             brief.push_str("Establishing canonical documents (architecture, key specs, core decisions) should be prioritized. ");
-            brief.push_str("Mark docs as canonical by adding `canonical: true` to their frontmatter.\n\n");
+            brief.push_str(
+                "Mark docs as canonical by adding `canonical: true` to their frontmatter.\n\n",
+            );
         } else {
-            brief.push_str(&format!("{} canonical document{} established:\n", canonical.len(), if canonical.len() != 1 { "s" } else { "" }));
+            brief.push_str(&format!(
+                "{} canonical document{} established:\n",
+                canonical.len(),
+                if canonical.len() != 1 { "s" } else { "" }
+            ));
             for doc in &canonical {
-                brief.push_str(&format!("- **{}** (`{}`)\n", doc.front_matter.title, doc.path));
+                brief.push_str(&format!(
+                    "- **{}** (`{}`)\n",
+                    doc.front_matter.title, doc.path
+                ));
             }
             brief.push_str("\n");
         }
 
         // Known gaps with urgency
-        let gap_count = [canonical.is_empty(), draft_count > 0 && final_count == 0, protected_count == 0]
-            .iter().filter(|&&x| x).count();
+        let gap_count = [
+            canonical.is_empty(),
+            draft_count > 0 && final_count == 0,
+            protected_count == 0,
+        ]
+        .iter()
+        .filter(|&&x| x)
+        .count();
         if gap_count > 0 {
             brief.push_str("## Known Gaps\n\n");
             if canonical.is_empty() && draft_count > 0 {
@@ -2327,7 +2451,11 @@ pub fn generate_project_brief(
                 brief.push_str("- No canonical documents established yet\n");
             }
             if draft_count > 0 {
-                brief.push_str(&format!("- {} document{} still in draft state\n", draft_count, if draft_count != 1 { "s" } else { "" }));
+                brief.push_str(&format!(
+                    "- {} document{} still in draft state\n",
+                    draft_count,
+                    if draft_count != 1 { "s" } else { "" }
+                ));
             }
             if final_count == 0 && !substantive_docs.is_empty() {
                 brief.push_str("- No documents marked as final\n");
@@ -2340,11 +2468,13 @@ pub fn generate_project_brief(
 
         // 4. Constraints & Rules
         brief.push_str("---\n\n## Constraints & Rules\n\n");
-        brief.push_str("- Do NOT overwrite protected documents — use `propose_doc_update` or `append_to_doc`\n");
-        brief.push_str("- Canonical docs are the source of truth — prioritize over drafts\n");
+        brief.push_str("- Do NOT overwrite protected documents Ã¢â‚¬â€ use `propose_doc_update` or `append_to_doc`\n");
+        brief.push_str("- Canonical docs are the source of truth Ã¢â‚¬â€ prioritize over drafts\n");
         brief.push_str("- AI-authored docs are tagged `author: ai` and auto-staged for git\n");
         brief.push_str("- Use `convert_to_spec` to structure messy notes into clean specs\n");
-        brief.push_str("- Use `build_context_bundle` to gather focused context before major changes\n\n");
+        brief.push_str(
+            "- Use `build_context_bundle` to gather focused context before major changes\n\n",
+        );
 
         // Compression instructions
         if vault.config.mcp.compress_context {
@@ -2352,37 +2482,56 @@ pub fn generate_project_brief(
             brief.push_str("When writing session summaries, changelogs, and notes, use compressed shorthand to maximize context density:\n");
             brief.push_str("- Drop articles (a, the, an) and filler words\n");
             brief.push_str("- Abbreviate common terms: config, impl, auth, func, param, req, res, db, repo, deps, env, init, msg, err, ctx\n");
-            brief.push_str("- Use symbols: → (leads to), + (added), - (removed), = (equals/set to), ~ (approximately), @ (at/regarding)\n");
-            brief.push_str("- Use shorthand paths: `specs/auth.md` not `the auth specification document`\n");
-            brief.push_str("- Skip obvious context — don't restate what's in the project summary\n");
+            brief.push_str("- Use symbols: Ã¢â€ â€™ (leads to), + (added), - (removed), = (equals/set to), ~ (approximately), @ (at/regarding)\n");
+            brief.push_str(
+                "- Use shorthand paths: `specs/auth.md` not `the auth specification document`\n",
+            );
+            brief
+                .push_str("- Skip obvious context Ã¢â‚¬â€ don't restate what's in the project summary\n");
             brief.push_str("- For code refs: `fn:handleAuth` not `the handleAuth function`\n");
             brief.push_str("- Dates: `04-06` not `April 6th, 2026`\n\n");
             brief.push_str("Example compressed changelog:\n");
-            brief.push_str("```\n+ auth flow spec → specs/auth.md (draft)\n+ ADR-003 JWT over sessions → decisions/003-jwt.md\n~ refactored db schema docs, updated er diagram\n- removed deprecated api-v1 refs from guides/\nnext: impl rate limiting spec, review stale docs\n```\n\n");
+            brief.push_str("```\n+ auth flow spec Ã¢â€ â€™ specs/auth.md (draft)\n+ ADR-003 JWT over sessions Ã¢â€ â€™ decisions/003-jwt.md\n~ refactored db schema docs, updated er diagram\n- removed deprecated api-v1 refs from guides/\nnext: impl rate limiting spec, review stale docs\n```\n\n");
         }
 
         // 5. Suggested Actions (context-aware)
         brief.push_str("## Suggested Actions\n\n");
         if greenfield_mode {
             brief.push_str("- Create `prd/product-requirements.md` to define product scope, target user, and success criteria\n");
-            brief.push_str("- Draft the first feature spec with the core user flow and acceptance criteria\n");
-            if focus_trimmed.to_lowercase().contains("dry") || focus_trimmed.to_lowercase().contains("tracker") {
+            brief.push_str(
+                "- Draft the first feature spec with the core user flow and acceptance criteria\n",
+            );
+            if focus_trimmed.to_lowercase().contains("dry")
+                || focus_trimmed.to_lowercase().contains("tracker")
+            {
                 brief.push_str("- Define exactly what counts as a dry day, how logging works, and how streak/history should behave\n");
             }
-            if focus_trimmed.to_lowercase().contains("ios") || focus_trimmed.to_lowercase().contains("swiftui") {
+            if focus_trimmed.to_lowercase().contains("ios")
+                || focus_trimmed.to_lowercase().contains("swiftui")
+            {
                 brief.push_str("- Decide SwiftUI app structure, state management, and local persistence approach before implementation\n");
             }
-            brief.push_str("- Break the initial build into concrete tasks in `todo/initial-build.md`\n");
+            brief.push_str(
+                "- Break the initial build into concrete tasks in `todo/initial-build.md`\n",
+            );
         } else {
             if canonical.is_empty() {
                 brief.push_str("- **Identify and promote key documents to canonical status** (architecture, specs, decisions)\n");
             }
             if draft_count > 0 {
-                brief.push_str(&format!("- Review and finalize {} draft document{}\n", draft_count, if draft_count != 1 { "s" } else { "" }));
+                brief.push_str(&format!(
+                    "- Review and finalize {} draft document{}\n",
+                    draft_count,
+                    if draft_count != 1 { "s" } else { "" }
+                ));
             }
             brief.push_str("- Propose structural improvements via `propose_doc_update`\n");
-            brief.push_str("- Generate implementation specs from feature docs with `convert_to_spec`\n");
-            brief.push_str("- Use `build_context_bundle` for focused analysis before major changes\n");
+            brief.push_str(
+                "- Generate implementation specs from feature docs with `convert_to_spec`\n",
+            );
+            brief.push_str(
+                "- Use `build_context_bundle` for focused analysis before major changes\n",
+            );
             brief.push_str("- Check for stale docs with `detect_stale_docs`\n");
         }
 
@@ -2418,8 +2567,18 @@ pub fn generate_project_brief(
                 "---\n\n## Canonical Strategy\n\n",
             )
             .replace("Ã¢â‚¬â€", "-")
-            .replace("â€”", "-")
-            .replace("â†’", "->");
+            .replace("ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â", "-")
+            .replace("ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â", "-")
+            .replace("-", "-")
+            .replace("Ã¢â€ â€™", "->")
+            .replace("ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢", "->")
+            .replace("->", "->")
+            .replace("Ã¢â‚¬Â¢", "-")
+            .replace("ΓÇö", "-")
+            .replace("ΓåÆ", "->")
+            .replace("ΓÇô", "-")
+            .replace("Jan- Dec", "Jan-Dec")
+            .replace("0- 100", "0-100");
 
         Ok(brief)
     })
@@ -2638,15 +2797,13 @@ pub fn export_project_docs(
 // -- Backup / Restore / Import --
 
 #[tauri::command]
-pub fn backup_vault(
-    dest_path: String,
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn backup_vault(dest_path: String, state: State<'_, VaultState>) -> CmdResult<String> {
     let lock = state.0.lock().map_err(|e| e.to_string())?;
     let vault = lock.as_ref().ok_or("No vault is open")?;
     let vault_root = &vault.root;
 
-    let file = std::fs::File::create(&dest_path).map_err(|e| format!("Failed to create zip: {}", e))?;
+    let file =
+        std::fs::File::create(&dest_path).map_err(|e| format!("Failed to create zip: {}", e))?;
     let mut zip = zip::ZipWriter::new(file);
     let options = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
@@ -2661,7 +2818,11 @@ pub fn backup_vault(
         for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
             let entry = entry.map_err(|e| e.to_string())?;
             let path = entry.path();
-            let rel = path.strip_prefix(base).unwrap_or(&path).to_string_lossy().replace('\\', "/");
+            let rel = path
+                .strip_prefix(base)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .replace('\\', "/");
 
             // Skip index.db, .git, and target directories
             if rel.starts_with(".git") || rel.starts_with("index.db") || rel.starts_with("target") {
@@ -2669,7 +2830,8 @@ pub fn backup_vault(
             }
 
             if path.is_dir() {
-                zip.add_directory(&format!("{}/", rel), options).map_err(|e| e.to_string())?;
+                zip.add_directory(&format!("{}/", rel), options)
+                    .map_err(|e| e.to_string())?;
                 count += add_dir(zip, base, &path, options)?;
             } else {
                 zip.start_file(&rel, options).map_err(|e| e.to_string())?;
@@ -2682,16 +2844,14 @@ pub fn backup_vault(
     }
 
     let count = add_dir(&mut zip, vault_root, vault_root, options)?;
-    zip.finish().map_err(|e| format!("Failed to finalize zip: {}", e))?;
+    zip.finish()
+        .map_err(|e| format!("Failed to finalize zip: {}", e))?;
 
     Ok(format!("Backup complete: {} files archived", count))
 }
 
 #[tauri::command]
-pub fn restore_vault(
-    zip_path: String,
-    dest_path: String,
-) -> CmdResult<String> {
+pub fn restore_vault(zip_path: String, dest_path: String) -> CmdResult<String> {
     fn zip_entry_destination(dest: &Path, entry_name: &str) -> Result<PathBuf, String> {
         let mut relative = PathBuf::new();
 
@@ -2706,7 +2866,10 @@ pub fn restore_vault(
         }
 
         if relative.as_os_str().is_empty() {
-            return Err(format!("Archive entry has no safe relative path: {}", entry_name));
+            return Err(format!(
+                "Archive entry has no safe relative path: {}",
+                entry_name
+            ));
         }
 
         Ok(dest.join(relative))
@@ -2773,7 +2936,10 @@ pub fn import_markdown_folder(
                 if path.is_dir() {
                     std::fs::create_dir_all(&dest)?;
                     import_dir(&path, src_base, dest_base, count)?;
-                } else if path.extension().map_or(false, |e| e == "md" || e == "markdown") {
+                } else if path
+                    .extension()
+                    .map_or(false, |e| e == "md" || e == "markdown")
+                {
                     if let Some(parent) = dest.parent() {
                         std::fs::create_dir_all(parent)?;
                     }
@@ -2786,7 +2952,8 @@ pub fn import_markdown_folder(
                         std::fs::write(&dest, &content)?;
                     } else {
                         // Add frontmatter
-                        let filename = path.file_stem()
+                        let filename = path
+                            .file_stem()
                             .map(|s| s.to_string_lossy().to_string())
                             .unwrap_or_default();
                         let title = filename.replace(['-', '_'], " ");
@@ -2809,7 +2976,10 @@ pub fn import_markdown_folder(
         // Rebuild index to pick up imported docs
         let _ = vault.rebuild_index();
 
-        Ok(format!("Imported {} markdown files into project '{}'", count, project))
+        Ok(format!(
+            "Imported {} markdown files into project '{}'",
+            count, project
+        ))
     })
 }
 
@@ -2822,7 +2992,7 @@ pub struct ImportFileArg {
 }
 
 /// Returns the destination path inside `dir` that doesn't conflict with an
-/// existing file.  E.g. "notes.md" → "notes (1).md" → "notes (2).md" …
+/// existing file.  E.g. "notes.md" Ã¢â€ â€™ "notes (1).md" Ã¢â€ â€™ "notes (2).md" Ã¢â‚¬Â¦
 fn unique_file_path(dir: &std::path::Path, filename: &str) -> std::path::PathBuf {
     let candidate = dir.join(filename);
     if !candidate.exists() {
@@ -2914,7 +3084,7 @@ pub fn import_files_to_project(
                 };
 
                 if has_front_matter {
-                    // Raw write — vault already can parse it
+                    // Raw write Ã¢â‚¬â€ vault already can parse it
                     std::fs::write(&dest_check, &data)?;
                     let _ = vault.stage_file(&dest_check);
                     if let Ok(doc) = vault.read_document(&project, &vault_rel) {
@@ -2931,17 +3101,11 @@ pub fn import_files_to_project(
                     }
                     imported.push(vault_rel);
                 } else {
-                    // No front matter — let vault.write_document add it so the
+                    // No front matter Ã¢â‚¬â€ let vault.write_document add it so the
                     // file parses correctly and appears in the tree / search.
                     let title = extract_md_title(&text, &final_name);
-                    let doc = vault.write_document(
-                        &project,
-                        &vault_rel,
-                        &title,
-                        &text,
-                        vec![],
-                        None,
-                    )?;
+                    let doc =
+                        vault.write_document(&project, &vault_rel, &title, &text, vec![], None)?;
                     imported.push(doc.path);
                 }
             } else {
@@ -2977,10 +3141,7 @@ pub fn write_binary_file(path: String, data_base64: String) -> CmdResult<String>
 // -- Raw file commands (for vault-root files like templates.json) --
 
 #[tauri::command]
-pub fn read_vault_file(
-    path: String,
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn read_vault_file(path: String, state: State<'_, VaultState>) -> CmdResult<String> {
     with_vault(&state, |vault| {
         let full = resolve_inside(&vault.root, &path)?;
         let content = std::fs::read_to_string(&full)?;
@@ -3014,9 +3175,7 @@ pub fn list_templates(
 }
 
 #[tauri::command]
-pub fn get_templates_config(
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn get_templates_config(state: State<'_, VaultState>) -> CmdResult<String> {
     with_vault(&state, |vault| {
         let path = vault.root.join("templates.json");
         let content = std::fs::read_to_string(&path)?;
@@ -3025,10 +3184,7 @@ pub fn get_templates_config(
 }
 
 #[tauri::command]
-pub fn save_templates_config(
-    json: String,
-    state: State<'_, VaultState>,
-) -> CmdResult<String> {
+pub fn save_templates_config(json: String, state: State<'_, VaultState>) -> CmdResult<String> {
     with_vault(&state, |vault| {
         // Validate JSON before saving
         let _: slatevault_core::template::TemplateConfig =
@@ -3044,10 +3200,7 @@ pub fn save_templates_config(
 }
 
 #[tauri::command]
-pub fn list_folders(
-    project: String,
-    state: State<'_, VaultState>,
-) -> CmdResult<Vec<String>> {
+pub fn list_folders(project: String, state: State<'_, VaultState>) -> CmdResult<Vec<String>> {
     with_vault(&state, |vault| {
         let project_obj = vault.open_project(&project)?;
         let docs_dir = project_obj.docs_dir();
@@ -3138,15 +3291,13 @@ pub fn create_folder(
 }
 
 #[tauri::command]
-pub fn rebuild_index(
-    state: State<'_, VaultState>,
-) -> CmdResult<usize> {
+pub fn rebuild_index(state: State<'_, VaultState>) -> CmdResult<usize> {
     with_vault(&state, |vault| vault.rebuild_index())
 }
 
 #[tauri::command]
-pub fn vault_stats(
-    state: State<'_, VaultState>,
-) -> CmdResult<slatevault_core::VaultStats> {
+pub fn vault_stats(state: State<'_, VaultState>) -> CmdResult<slatevault_core::VaultStats> {
     with_vault(&state, |vault| vault.stats())
 }
+
+

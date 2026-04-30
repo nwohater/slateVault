@@ -9,7 +9,12 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn create(projects_dir: &Path, name: &str, description: &str, tags: Vec<String>) -> Result<Self> {
+    pub fn create(
+        projects_dir: &Path,
+        name: &str,
+        description: &str,
+        tags: Vec<String>,
+    ) -> Result<Self> {
         validate_project_name(name)?;
         let root = projects_dir.join(name);
         if root.exists() {

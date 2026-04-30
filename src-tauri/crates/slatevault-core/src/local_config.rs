@@ -16,9 +16,7 @@ pub struct LocalConfig {
 impl LocalConfig {
     fn path() -> Result<PathBuf> {
         let home = dirs::home_dir().ok_or_else(|| {
-            crate::CoreError::CredentialsNotFound(
-                "Cannot determine home directory".to_string(),
-            )
+            crate::CoreError::CredentialsNotFound("Cannot determine home directory".to_string())
         })?;
         Ok(home.join(".slatevault").join("local.toml"))
     }

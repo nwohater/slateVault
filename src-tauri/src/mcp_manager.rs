@@ -58,7 +58,9 @@ fn find_mcp_binary() -> Option<String> {
         if let Ok(entries) = std::fs::read_dir(dir) {
             for entry in entries.flatten() {
                 let name = entry.file_name().to_string_lossy().to_string();
-                if name.starts_with("slatevault-mcp-") && (name.ends_with(".exe") || !name.contains('.')) {
+                if name.starts_with("slatevault-mcp-")
+                    && (name.ends_with(".exe") || !name.contains('.'))
+                {
                     return Some(entry.path().to_string_lossy().to_string());
                 }
             }
@@ -129,9 +131,7 @@ pub fn start_mcp_server(
 }
 
 #[tauri::command]
-pub fn stop_mcp_server(
-    state: State<'_, McpProcessState>,
-) -> Result<String, String> {
+pub fn stop_mcp_server(state: State<'_, McpProcessState>) -> Result<String, String> {
     let mut lock = state.0.lock().map_err(|e| e.to_string())?;
     if let Some(mut proc) = lock.take() {
         let _ = proc.child.kill();
@@ -151,9 +151,7 @@ pub struct McpServerStatus {
 }
 
 #[tauri::command]
-pub fn mcp_server_status(
-    state: State<'_, McpProcessState>,
-) -> Result<McpServerStatus, String> {
+pub fn mcp_server_status(state: State<'_, McpProcessState>) -> Result<McpServerStatus, String> {
     let lock = state.0.lock().map_err(|e| e.to_string())?;
     let binary_found = find_mcp_binary().is_some();
 

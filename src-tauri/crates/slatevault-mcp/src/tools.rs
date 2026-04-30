@@ -60,7 +60,9 @@ pub struct GetProjectContextParams {
 pub struct WriteDocumentParams {
     #[schemars(description = "Target project name")]
     pub project: String,
-    #[schemars(description = "Path relative to the project's docs/ folder (e.g. 'api-spec.md' or 'decisions/001-use-tauri.md')")]
+    #[schemars(
+        description = "Path relative to the project's docs/ folder (e.g. 'api-spec.md' or 'decisions/001-use-tauri.md')"
+    )]
     pub path: String,
     #[schemars(description = "Document title (used in front matter)")]
     pub title: String,
@@ -111,7 +113,9 @@ pub struct SearchDocumentsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[schemars(description = "Propose an update to a document by writing it on a new branch. The human reviews the diff and merges via PR. Use this instead of write_document for existing protected or canonical docs.")]
+#[schemars(
+    description = "Propose an update to a document by writing it on a new branch. The human reviews the diff and merges via PR. Use this instead of write_document for existing protected or canonical docs."
+)]
 pub struct ProposeDocUpdateParams {
     #[schemars(description = "Project name")]
     pub project: String,
@@ -163,18 +167,24 @@ pub struct DetectStaleDocsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[schemars(description = "Generate a structured agent brief for a project or topic. Assembles canonical docs, recent changes, key constraints, and relevant context into a single prompt-ready briefing.")]
+#[schemars(
+    description = "Generate a structured agent brief for a project or topic. Assembles canonical docs, recent changes, key constraints, and relevant context into a single prompt-ready briefing."
+)]
 pub struct GenerateAgentBriefParams {
     #[schemars(description = "Project name")]
     pub project: String,
-    #[schemars(description = "Optional focus query to scope the brief (e.g. 'authentication', 'API design')")]
+    #[schemars(
+        description = "Optional focus query to scope the brief (e.g. 'authentication', 'API design')"
+    )]
     pub focus: Option<String>,
     #[schemars(description = "Maximum number of docs to include (default 10)")]
     pub max_docs: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[schemars(description = "Get a summary of recent changes in the vault — what docs were modified, added, or updated. Useful for session resumption and understanding what happened since last visit.")]
+#[schemars(
+    description = "Get a summary of recent changes in the vault — what docs were modified, added, or updated. Useful for session resumption and understanding what happened since last visit."
+)]
 pub struct GetRecentChangesParams {
     #[schemars(description = "Scope to a single project")]
     pub project: Option<String>,
@@ -183,7 +193,9 @@ pub struct GetRecentChangesParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[schemars(description = "Read a scratchpad/note and return its content with a structured spec template. Use write_document to save the structured output.")]
+#[schemars(
+    description = "Read a scratchpad/note and return its content with a structured spec template. Use write_document to save the structured output."
+)]
 pub struct ConvertToSpecParams {
     #[schemars(description = "Project name")]
     pub project: String,
@@ -192,7 +204,9 @@ pub struct ConvertToSpecParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[schemars(description = "Get all canonical (source-of-truth) documents for a project — fast path for loading critical context")]
+#[schemars(
+    description = "Get all canonical (source-of-truth) documents for a project — fast path for loading critical context"
+)]
 pub struct GetCanonicalContextParams {
     #[schemars(description = "Project name")]
     pub project: String,
@@ -208,34 +222,46 @@ pub struct SummarizeBranchDiffParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[schemars(description = "List non-markdown files (assets) in a project — PDFs, images, config files, etc.")]
+#[schemars(
+    description = "List non-markdown files (assets) in a project — PDFs, images, config files, etc."
+)]
 pub struct ListProjectAssetsParams {
     #[schemars(description = "Project name")]
     pub project: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[schemars(description = "Read the raw content of a non-markdown asset file (text files only; binary files will report their size)")]
+#[schemars(
+    description = "Read the raw content of a non-markdown asset file (text files only; binary files will report their size)"
+)]
 pub struct ReadAssetParams {
     #[schemars(description = "Project name")]
     pub project: String,
-    #[schemars(description = "Path relative to the project's docs/ folder, e.g. 'specs/diagram.json'")]
+    #[schemars(
+        description = "Path relative to the project's docs/ folder, e.g. 'specs/diagram.json'"
+    )]
     pub path: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[schemars(description = "Get the local source code folder configured for a project — useful for understanding where the codebase lives on this machine")]
+#[schemars(
+    description = "Get the local source code folder configured for a project — useful for understanding where the codebase lives on this machine"
+)]
 pub struct GetProjectSourceFolderParams {
     #[schemars(description = "Project name")]
     pub project: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[schemars(description = "Set or clear the local source code folder for a project on this machine. Use this when the user tells you where their source code lives.")]
+#[schemars(
+    description = "Set or clear the local source code folder for a project on this machine. Use this when the user tells you where their source code lives."
+)]
 pub struct SetProjectSourceFolderParams {
     #[schemars(description = "Project name")]
     pub project: String,
-    #[schemars(description = "Absolute path to the source folder, e.g. '/Users/alice/Dev/my-app'. Omit or pass null to clear.")]
+    #[schemars(
+        description = "Absolute path to the source folder, e.g. '/Users/alice/Dev/my-app'. Omit or pass null to clear."
+    )]
     pub path: Option<String>,
 }
 
@@ -247,7 +273,9 @@ pub struct GitCommitParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[schemars(description = "Create a new project and optionally set its source folder and write an initial context document — bootstraps a project in one step")]
+#[schemars(
+    description = "Create a new project and optionally set its source folder and write an initial context document — bootstraps a project in one step"
+)]
 pub struct BootstrapProjectParams {
     #[schemars(description = "Project folder name in slug format (e.g. 'my-app')")]
     pub name: String,
@@ -255,10 +283,14 @@ pub struct BootstrapProjectParams {
     pub description: Option<String>,
     #[schemars(description = "Initial tags for the project")]
     pub tags: Option<Vec<String>>,
-    #[schemars(description = "Template to use for folder structure. Options: 'vibe-coding' (prd/todo/bugs/context/changelog/ideas/prompts), 'software-dev' (specs/features/decisions/guides/runbooks/notes), 'agile', 'minimal'. Defaults to vault default if omitted.")]
+    #[schemars(
+        description = "Template to use for folder structure. Options: 'vibe-coding' (prd/todo/bugs/context/changelog/ideas/prompts), 'software-dev' (specs/features/decisions/guides/runbooks/notes), 'agile', 'minimal'. Defaults to vault default if omitted."
+    )]
     pub template: Option<String>,
     #[schemars(description = "Absolute path to the local source code folder, if known")]
     pub source_folder: Option<String>,
-    #[schemars(description = "Initial context document content (markdown). If provided, written to context/overview.md")]
+    #[schemars(
+        description = "Initial context document content (markdown). If provided, written to context/overview.md"
+    )]
     pub context: Option<String>,
 }

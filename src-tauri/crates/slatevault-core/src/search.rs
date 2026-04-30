@@ -137,8 +137,7 @@ impl SearchIndex {
         limit: usize,
     ) -> Result<Vec<SearchResult>> {
         let mut conditions = vec!["documents_fts MATCH ?1".to_string()];
-        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> =
-            vec![Box::new(query.to_string())];
+        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(query.to_string())];
         let mut idx = 2;
 
         if let Some(p) = project {

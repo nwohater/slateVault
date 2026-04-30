@@ -335,7 +335,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   error: null,
   hasGenerated: false,
 
-  setSelectedProject: (project) => set({ selectedProject: project }),
+  setSelectedProject: (project) => set({ selectedProject: project, error: null }),
   setTaskPrompt: (prompt) => set({ taskPrompt: prompt }),
   setIncludeCanonical: (value) => set({ includeCanonical: value }),
   setIncludeRecentChanges: (value) => set({ includeRecentChanges: value }),

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use rmcp::{ServiceExt, transport::stdio};
+use rmcp::{transport::stdio, ServiceExt};
 use slatevault_mcp::SlateVaultMcpServer;
 
 /// Read the active vault path from ~/.slatevault/active-vault
@@ -43,7 +43,10 @@ async fn main() -> anyhow::Result<()> {
         slatevault_core::Vault::create(&vault_path, "default")?;
     }
 
-    tracing::info!("Starting slateVault MCP server (vault: {})", vault_path.display());
+    tracing::info!(
+        "Starting slateVault MCP server (vault: {})",
+        vault_path.display()
+    );
 
     let server = SlateVaultMcpServer::new(vault_path)
         .serve(stdio())

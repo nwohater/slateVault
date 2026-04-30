@@ -1,10 +1,9 @@
 use std::path::PathBuf;
 
 use rmcp::{
-    ErrorData as McpError, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::*,
-    tool, tool_handler, tool_router,
+    tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
 };
 
 use slatevault_core::Vault;
@@ -30,9 +29,8 @@ impl SlateVaultMcpServer {
     }
 
     fn open_vault(&self) -> Result<Vault, McpError> {
-        Vault::open(&self.vault_path).map_err(|e| {
-            McpError::internal_error(format!("Failed to open vault: {}", e), None)
-        })
+        Vault::open(&self.vault_path)
+            .map_err(|e| McpError::internal_error(format!("Failed to open vault: {}", e), None))
     }
 }
 
@@ -99,7 +97,9 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
-    #[tool(description = "Return content of all ai_context_files for a project — call this first in every session")]
+    #[tool(
+        description = "Return content of all ai_context_files for a project — call this first in every session"
+    )]
     fn get_project_context(
         &self,
         Parameters(params): Parameters<GetProjectContextParams>,
@@ -151,33 +151,38 @@ impl SlateVaultMcpServer {
         if let Some(s) = &params.status {
             let new_status = match s.to_lowercase().as_str() {
                 "review" => slatevault_core::document::DocStatus::Review,
-                "final"  => slatevault_core::document::DocStatus::Final,
-                _        => slatevault_core::document::DocStatus::Draft,
+                "final" => slatevault_core::document::DocStatus::Final,
+                _ => slatevault_core::document::DocStatus::Draft,
             };
             if new_status != doc.front_matter.status {
                 doc.front_matter.status = new_status;
-                let project_obj = vault.open_project(&params.project)
+                let project_obj = vault
+                    .open_project(&params.project)
                     .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
                 let file_path = project_obj.docs_dir().join(&params.path);
-                let rendered = doc.to_string()
+                let rendered = doc
+                    .to_string()
                     .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
                 std::fs::write(&file_path, rendered)
                     .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
-                vault.search.index_document(
-                    &params.project,
-                    &doc.path,
-                    &doc.front_matter.title,
-                    &doc.content,
-                    &doc.front_matter.tags,
-                    &format!("{:?}", doc.front_matter.author).to_lowercase(),
-                    &format!("{:?}", doc.front_matter.status).to_lowercase(),
-                    doc.front_matter.canonical,
-                ).map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+                vault
+                    .search
+                    .index_document(
+                        &params.project,
+                        &doc.path,
+                        &doc.front_matter.title,
+                        &doc.content,
+                        &doc.front_matter.tags,
+                        &format!("{:?}", doc.front_matter.author).to_lowercase(),
+                        &format!("{:?}", doc.front_matter.status).to_lowercase(),
+                        doc.front_matter.canonical,
+                    )
+                    .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
             }
         }
 
-        let auto_staged = vault.config.mcp.auto_stage_ai_writes
-            && doc.front_matter.ai_tool.is_some();
+        let auto_staged =
+            vault.config.mcp.auto_stage_ai_writes && doc.front_matter.ai_tool.is_some();
 
         let msg = format!(
             "Document written: {}/docs/{}\n- ID: {}\n- Author: {:?}\n- Status: {:?}{}",
@@ -252,7 +257,9 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
-    #[tool(description = "Full-text search across the vault or a single project (FTS5 syntax supported)")]
+    #[tool(
+        description = "Full-text search across the vault or a single project (FTS5 syntax supported)"
+    )]
     fn search_documents(
         &self,
         Parameters(params): Parameters<SearchDocumentsParams>,
@@ -297,7 +304,9 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
-    #[tool(description = "Propose an update to a document by writing it on a new branch. Returns the diff for human review. The human merges via PR when ready. Use this for protected or canonical docs, or anytime you want human approval before changes take effect.")]
+    #[tool(
+        description = "Propose an update to a document by writing it on a new branch. Returns the diff for human review. The human merges via PR when ready. Use this for protected or canonical docs, or anytime you want human approval before changes take effect."
+    )]
     fn propose_doc_update(
         &self,
         Parameters(params): Parameters<ProposeDocUpdateParams>,
@@ -344,24 +353,24 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
-    #[tool(description = "Build a context bundle from relevant documents — searches, ranks, and concatenates docs into a single briefing optimized for AI agents. Canonical docs are prioritized.")]
+    #[tool(
+        description = "Build a context bundle from relevant documents — searches, ranks, and concatenates docs into a single briefing optimized for AI agents. Canonical docs are prioritized."
+    )]
     fn build_context_bundle(
         &self,
         Parameters(params): Parameters<BuildContextBundleParams>,
     ) -> Result<CallToolResult, McpError> {
         let vault = self.open_vault()?;
         let bundle = vault
-            .build_context_bundle(
-                &params.query,
-                params.project.as_deref(),
-                params.max_docs,
-            )
+            .build_context_bundle(&params.query, params.project.as_deref(), params.max_docs)
             .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
 
         Ok(CallToolResult::success(vec![Content::text(bundle.content)]))
     }
 
-    #[tool(description = "Append content to an existing document without overwriting. Respects document protection — fails on protected docs.")]
+    #[tool(
+        description = "Append content to an existing document without overwriting. Respects document protection — fails on protected docs."
+    )]
     fn append_to_doc(
         &self,
         Parameters(params): Parameters<AppendToDocParams>,
@@ -418,7 +427,9 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
-    #[tool(description = "Generate a structured, actionable agent brief for a project. Includes project summary, key documents, current focus, constraints, and suggested actions. Use this at the start of any complex task.")]
+    #[tool(
+        description = "Generate a structured, actionable agent brief for a project. Includes project summary, key documents, current focus, constraints, and suggested actions. Use this at the start of any complex task."
+    )]
     fn generate_agent_brief(
         &self,
         Parameters(params): Parameters<GenerateAgentBriefParams>,
@@ -464,7 +475,12 @@ impl SlateVaultMcpServer {
         if !folder_counts.is_empty() {
             output.push_str("\n**Structure:**\n");
             for (folder, count) in &folder_counts {
-                output.push_str(&format!("- `{}/` — {} doc{}\n", folder, count, if *count != 1 { "s" } else { "" }));
+                output.push_str(&format!(
+                    "- `{}/` — {} doc{}\n",
+                    folder,
+                    count,
+                    if *count != 1 { "s" } else { "" }
+                ));
             }
         }
         output.push_str("\n");
@@ -482,7 +498,8 @@ impl SlateVaultMcpServer {
 
         // Pinned context files
         if let Ok(context) = vault.get_project_context(&params.project) {
-            let new_ctx: Vec<_> = context.iter()
+            let new_ctx: Vec<_> = context
+                .iter()
                 .filter(|(path, _)| !canonical.iter().any(|c| c.path == *path))
                 .filter(|(path, _)| !is_about_doc(path))
                 .collect();
@@ -502,23 +519,32 @@ impl SlateVaultMcpServer {
                 .map(|c| c.iter().filter(|(path, _)| !is_about_doc(path)).count())
                 .unwrap_or(0);
             if ctx_count == 0 {
-                let starters: Vec<_> = docs.iter()
+                let starters: Vec<_> = docs
+                    .iter()
                     .filter(|d| {
                         if is_about_doc(&d.path) {
                             return false;
                         }
                         let p = d.path.to_lowercase();
                         let t = d.front_matter.title.to_lowercase();
-                        p.contains("overview") || p.contains("architecture") || p.contains("readme")
-                            || t.contains("overview") || t.contains("architecture")
+                        p.contains("overview")
+                            || p.contains("architecture")
+                            || p.contains("readme")
+                            || t.contains("overview")
+                            || t.contains("architecture")
                     })
                     .take(3)
                     .collect();
 
                 if !starters.is_empty() {
-                    output.push_str("_No canonical or pinned context docs exist yet. Start by reviewing:_\n\n");
+                    output.push_str(
+                        "_No canonical or pinned context docs exist yet. Start by reviewing:_\n\n",
+                    );
                     for doc in &starters {
-                        output.push_str(&format!("- **{}** (`{}`)\n", doc.front_matter.title, doc.path));
+                        output.push_str(&format!(
+                            "- **{}** (`{}`)\n",
+                            doc.front_matter.title, doc.path
+                        ));
                     }
                     output.push_str("\n");
                 } else {
@@ -530,14 +556,18 @@ impl SlateVaultMcpServer {
         // Focused context (if query provided)
         if let Some(ref focus) = params.focus {
             let max = params.max_docs.unwrap_or(10);
-            if let Ok(bundle) = vault.build_context_bundle(focus, Some(&params.project), Some(max)) {
-                let new_docs: Vec<_> = bundle.docs.iter()
+            if let Ok(bundle) = vault.build_context_bundle(focus, Some(&params.project), Some(max))
+            {
+                let new_docs: Vec<_> = bundle
+                    .docs
+                    .iter()
                     .filter(|d| !canonical.iter().any(|c| c.path == d.path))
                     .collect();
                 if !new_docs.is_empty() {
                     output.push_str(&format!(
                         "---\n\n## Focused Context: \"{}\"\n\n_{} relevant docs_\n\n",
-                        focus, new_docs.len()
+                        focus,
+                        new_docs.len()
                     ));
                     for doc in &new_docs {
                         output.push_str(&format!("### {}\n\n{}\n\n", doc.title, doc.content));
@@ -555,7 +585,9 @@ impl SlateVaultMcpServer {
             let status = format!("{:?}", doc.front_matter.status).to_lowercase();
             output.push_str(&format!(
                 "- **{}** [{}] — {}\n",
-                doc.front_matter.title, status, doc.front_matter.modified.format("%Y-%m-%d")
+                doc.front_matter.title,
+                status,
+                doc.front_matter.modified.format("%Y-%m-%d")
             ));
         }
         output.push_str("\n");
@@ -565,11 +597,20 @@ impl SlateVaultMcpServer {
         if canonical.is_empty() {
             output.push_str("No documents are currently marked as canonical. ");
             output.push_str("Establishing canonical documents (architecture, key specs, core decisions) should be prioritized. ");
-            output.push_str("Mark docs as canonical by adding `canonical: true` to their frontmatter.\n\n");
+            output.push_str(
+                "Mark docs as canonical by adding `canonical: true` to their frontmatter.\n\n",
+            );
         } else {
-            output.push_str(&format!("{} canonical document{} established:\n", canonical.len(), if canonical.len() != 1 { "s" } else { "" }));
+            output.push_str(&format!(
+                "{} canonical document{} established:\n",
+                canonical.len(),
+                if canonical.len() != 1 { "s" } else { "" }
+            ));
             for doc in &canonical {
-                output.push_str(&format!("- **{}** (`{}`)\n", doc.front_matter.title, doc.path));
+                output.push_str(&format!(
+                    "- **{}** (`{}`)\n",
+                    doc.front_matter.title, doc.path
+                ));
             }
             output.push_str("\n");
         }
@@ -588,7 +629,11 @@ impl SlateVaultMcpServer {
                 output.push_str("- No canonical documents established yet\n");
             }
             if draft_count > 0 {
-                output.push_str(&format!("- {} document{} still in draft state\n", draft_count, if draft_count != 1 { "s" } else { "" }));
+                output.push_str(&format!(
+                    "- {} document{} still in draft state\n",
+                    draft_count,
+                    if draft_count != 1 { "s" } else { "" }
+                ));
             }
             if protected_count == 0 && !substantive_docs.is_empty() {
                 output.push_str("- No documents are protected from AI overwrites\n");
@@ -602,7 +647,8 @@ impl SlateVaultMcpServer {
         output.push_str("- Canonical docs are the source of truth — prioritize over drafts\n");
         output.push_str("- AI-authored docs are tagged `author: ai` and auto-staged for git\n");
         output.push_str("- Use `convert_to_spec` to structure messy notes\n");
-        output.push_str("- Use `build_context_bundle` for focused context before major changes\n\n");
+        output
+            .push_str("- Use `build_context_bundle` for focused context before major changes\n\n");
 
         // Compression instructions
         if vault.config.mcp.compress_context {
@@ -611,7 +657,9 @@ impl SlateVaultMcpServer {
             output.push_str("- Drop articles (a, the, an) and filler words\n");
             output.push_str("- Abbreviate: config, impl, auth, func, param, req, res, db, repo, deps, env, init, msg, err, ctx\n");
             output.push_str("- Symbols: → (leads to), + (added), - (removed), = (set to), ~ (approx), @ (regarding)\n");
-            output.push_str("- Shorthand paths: `specs/auth.md` not `the auth specification document`\n");
+            output.push_str(
+                "- Shorthand paths: `specs/auth.md` not `the auth specification document`\n",
+            );
             output.push_str("- Skip obvious context — don't restate project summary\n");
             output.push_str("- Code refs: `fn:handleAuth` not `the handleAuth function`\n");
             output.push_str("- Dates: `04-06` not `April 6th, 2026`\n\n");
@@ -625,10 +673,15 @@ impl SlateVaultMcpServer {
             output.push_str("- **Identify and promote key documents to canonical status** (architecture, specs, decisions)\n");
         }
         if draft_count > 0 {
-            output.push_str(&format!("- Review and finalize {} draft document{}\n", draft_count, if draft_count != 1 { "s" } else { "" }));
+            output.push_str(&format!(
+                "- Review and finalize {} draft document{}\n",
+                draft_count,
+                if draft_count != 1 { "s" } else { "" }
+            ));
         }
         output.push_str("- Propose structural improvements via `propose_doc_update`\n");
-        output.push_str("- Generate implementation specs from feature docs with `convert_to_spec`\n");
+        output
+            .push_str("- Generate implementation specs from feature docs with `convert_to_spec`\n");
         output.push_str("- Use `build_context_bundle` for focused analysis before major changes\n");
         output.push_str("- Check for stale docs with `detect_stale_docs`\n\n");
 
@@ -653,7 +706,9 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
-    #[tool(description = "Get a summary of recent changes — what docs were modified, added, or updated. Useful for session resumption ('what happened since last time?').")]
+    #[tool(
+        description = "Get a summary of recent changes — what docs were modified, added, or updated. Useful for session resumption ('what happened since last time?')."
+    )]
     fn get_recent_changes(
         &self,
         Parameters(params): Parameters<GetRecentChangesParams>,
@@ -720,7 +775,9 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
-    #[tool(description = "Read a scratchpad/note and return its content alongside a structured spec template. The agent should use this to transform messy notes into clean specs, then write the result with write_document.")]
+    #[tool(
+        description = "Read a scratchpad/note and return its content alongside a structured spec template. The agent should use this to transform messy notes into clean specs, then write the result with write_document."
+    )]
     fn convert_to_spec(
         &self,
         Parameters(params): Parameters<ConvertToSpecParams>,
@@ -753,15 +810,15 @@ impl SlateVaultMcpServer {
              ---\n\n\
              ## Source: {} (from `{}`)\n\n\
              {}\n",
-            doc.front_matter.title,
-            params.source_path,
-            doc.content,
+            doc.front_matter.title, params.source_path, doc.content,
         );
 
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
-    #[tool(description = "Get all canonical (source-of-truth) documents for a project. Returns full content of docs marked canonical: true. Use this for quick access to critical project context.")]
+    #[tool(
+        description = "Get all canonical (source-of-truth) documents for a project. Returns full content of docs marked canonical: true. Use this for quick access to critical project context."
+    )]
     fn get_canonical_context(
         &self,
         Parameters(params): Parameters<GetCanonicalContextParams>,
@@ -771,10 +828,7 @@ impl SlateVaultMcpServer {
             .list_documents(&params.project, None)
             .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
 
-        let canonical: Vec<_> = docs
-            .iter()
-            .filter(|d| d.front_matter.canonical)
-            .collect();
+        let canonical: Vec<_> = docs.iter().filter(|d| d.front_matter.canonical).collect();
 
         if canonical.is_empty() {
             return Ok(CallToolResult::success(vec![Content::text(format!(
@@ -802,7 +856,9 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
-    #[tool(description = "Get a structured summary of changes between two branches — files changed, additions, deletions")]
+    #[tool(
+        description = "Get a structured summary of changes between two branches — files changed, additions, deletions"
+    )]
     fn summarize_branch_diff(
         &self,
         Parameters(params): Parameters<SummarizeBranchDiffParams>,
@@ -831,7 +887,9 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
-    #[tool(description = "List non-markdown asset files (PDFs, images, config files, etc.) in a project's docs folder")]
+    #[tool(
+        description = "List non-markdown asset files (PDFs, images, config files, etc.) in a project's docs folder"
+    )]
     fn list_project_assets(
         &self,
         Parameters(params): Parameters<ListProjectAssetsParams>,
@@ -859,12 +917,18 @@ impl SlateVaultMcpServer {
             params.project,
             assets.len(),
             if assets.len() == 1 { "" } else { "s" },
-            assets.iter().map(|p| format!("- `{}`", p)).collect::<Vec<_>>().join("\n"),
+            assets
+                .iter()
+                .map(|p| format!("- `{}`", p))
+                .collect::<Vec<_>>()
+                .join("\n"),
         );
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
-    #[tool(description = "Read the raw content of a non-markdown asset file. Text files return their content; binary files report type and size only.")]
+    #[tool(
+        description = "Read the raw content of a non-markdown asset file. Text files return their content; binary files report type and size only."
+    )]
     fn read_asset(
         &self,
         Parameters(params): Parameters<ReadAssetParams>,
@@ -881,13 +945,19 @@ impl SlateVaultMcpServer {
             match component {
                 std::path::Component::Normal(p) => cleaned.push(p),
                 std::path::Component::CurDir => {}
-                _ => return Err(McpError::internal_error(
-                    format!("Invalid path: {}", params.path), None,
-                )),
+                _ => {
+                    return Err(McpError::internal_error(
+                        format!("Invalid path: {}", params.path),
+                        None,
+                    ))
+                }
             }
         }
         if cleaned.as_os_str().is_empty() {
-            return Err(McpError::internal_error("Path cannot be empty".to_string(), None));
+            return Err(McpError::internal_error(
+                "Path cannot be empty".to_string(),
+                None,
+            ));
         }
         let full_path = docs_dir.join(&cleaned);
 
@@ -909,8 +979,7 @@ impl SlateVaultMcpServer {
 
         // Extract text from PDF and return as readable content
         if ext == "pdf" {
-            let text = pdf_extract::extract_text_from_mem(&bytes)
-                .unwrap_or_default();
+            let text = pdf_extract::extract_text_from_mem(&bytes).unwrap_or_default();
             let text = text.trim().to_string();
             return if text.is_empty() {
                 Ok(CallToolResult::success(vec![Content::text(format!(
@@ -920,19 +989,22 @@ impl SlateVaultMcpServer {
             } else {
                 Ok(CallToolResult::success(vec![Content::text(format!(
                     "# {}/{}\n\nPDF text content ({} bytes):\n\n{}",
-                    params.project, params.path, bytes.len(), text,
+                    params.project,
+                    params.path,
+                    bytes.len(),
+                    text,
                 ))]))
             };
         }
 
         // Detect image MIME types and return as image content so vision models can see them
         let image_mime = match ext.as_str() {
-            "png"  => Some("image/png"),
+            "png" => Some("image/png"),
             "jpg" | "jpeg" => Some("image/jpeg"),
-            "gif"  => Some("image/gif"),
+            "gif" => Some("image/gif"),
             "webp" => Some("image/webp"),
-            "svg"  => Some("image/svg+xml"),
-            _      => None,
+            "svg" => Some("image/svg+xml"),
+            _ => None,
         };
 
         if let Some(mime) = image_mime {
@@ -941,7 +1013,10 @@ impl SlateVaultMcpServer {
             return Ok(CallToolResult::success(vec![
                 Content::text(format!(
                     "Image asset `{}/{}` ({}, {} bytes):",
-                    params.project, params.path, mime, bytes.len(),
+                    params.project,
+                    params.path,
+                    mime,
+                    bytes.len(),
                 )),
                 Content::image(b64, mime),
             ]));
@@ -959,16 +1034,19 @@ impl SlateVaultMcpServer {
                 );
                 Ok(CallToolResult::success(vec![Content::text(output)]))
             }
-            Err(_) => {
-                Ok(CallToolResult::success(vec![Content::text(format!(
-                    "Asset `{}/{}` is a binary file ({}, {} bytes). Cannot display raw content.",
-                    params.project, params.path, ext, bytes.len(),
-                ))]))
-            }
+            Err(_) => Ok(CallToolResult::success(vec![Content::text(format!(
+                "Asset `{}/{}` is a binary file ({}, {} bytes). Cannot display raw content.",
+                params.project,
+                params.path,
+                ext,
+                bytes.len(),
+            ))])),
         }
     }
 
-    #[tool(description = "Get the local source code folder configured for a project on this machine")]
+    #[tool(
+        description = "Get the local source code folder configured for a project on this machine"
+    )]
     fn get_project_source_folder(
         &self,
         Parameters(params): Parameters<GetProjectSourceFolderParams>,
@@ -978,10 +1056,12 @@ impl SlateVaultMcpServer {
 
         match local.get_source_folder(&params.project) {
             Some(folder) => Ok(CallToolResult::success(vec![Content::text(format!(
-                "Source folder for '{}': {}", params.project, folder
+                "Source folder for '{}': {}",
+                params.project, folder
             ))])),
             None => Ok(CallToolResult::success(vec![Content::text(format!(
-                "No source folder configured for project '{}'.", params.project
+                "No source folder configured for project '{}'.",
+                params.project
             ))])),
         }
     }
@@ -995,19 +1075,25 @@ impl SlateVaultMcpServer {
             .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
 
         local.set_source_folder(&params.project, params.path.clone());
-        local.save().map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+        local
+            .save()
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
 
         match params.path {
             Some(path) => Ok(CallToolResult::success(vec![Content::text(format!(
-                "Source folder for '{}' set to: {}", params.project, path
+                "Source folder for '{}' set to: {}",
+                params.project, path
             ))])),
             None => Ok(CallToolResult::success(vec![Content::text(format!(
-                "Source folder for '{}' cleared.", params.project
+                "Source folder for '{}' cleared.",
+                params.project
             ))])),
         }
     }
 
-    #[tool(description = "Push committed vault changes to the remote (origin). Returns an error if the remote has diverged — pull first in that case.")]
+    #[tool(
+        description = "Push committed vault changes to the remote (origin). Returns an error if the remote has diverged — pull first in that case."
+    )]
     fn git_push(&self) -> Result<CallToolResult, McpError> {
         let vault = self.open_vault()?;
         if vault.config.mcp.read_only {
@@ -1036,8 +1122,13 @@ impl SlateVaultMcpServer {
 
         if output.status.success() {
             Ok(CallToolResult::success(vec![Content::text(format!(
-                "Pushed to origin/{}: {}", branch,
-                if combined.is_empty() { "Already up to date.".to_string() } else { combined }
+                "Pushed to origin/{}: {}",
+                branch,
+                if combined.is_empty() {
+                    "Already up to date.".to_string()
+                } else {
+                    combined
+                }
             ))]))
         } else {
             Err(McpError::internal_error(
@@ -1059,15 +1150,20 @@ impl SlateVaultMcpServer {
                 None,
             ));
         }
-        let oid = vault.commit(&params.message)
+        let oid = vault
+            .commit(&params.message)
             .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
 
         Ok(CallToolResult::success(vec![Content::text(format!(
-            "Committed: {} ({})", params.message, &oid.to_string()[..8]
+            "Committed: {} ({})",
+            params.message,
+            &oid.to_string()[..8]
         ))]))
     }
 
-    #[tool(description = "Create a new project and optionally set its source folder and write an initial context document in one step")]
+    #[tool(
+        description = "Create a new project and optionally set its source folder and write an initial context document in one step"
+    )]
     fn bootstrap_project(
         &self,
         Parameters(params): Parameters<BootstrapProjectParams>,
@@ -1081,12 +1177,14 @@ impl SlateVaultMcpServer {
         }
 
         // Create the project with the specified template (or vault default)
-        vault.create_project(
-            &params.name,
-            &params.description.clone().unwrap_or_default(),
-            params.tags.unwrap_or_default(),
-            params.template.as_deref(),
-        ).map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+        vault
+            .create_project(
+                &params.name,
+                &params.description.clone().unwrap_or_default(),
+                params.tags.unwrap_or_default(),
+                params.template.as_deref(),
+            )
+            .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
 
         let mut log = vec![format!("Project '{}' created.", params.name)];
 
@@ -1095,21 +1193,25 @@ impl SlateVaultMcpServer {
             let mut local = slatevault_core::local_config::LocalConfig::load()
                 .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
             local.set_source_folder(&params.name, Some(folder.clone()));
-            local.save().map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+            local
+                .save()
+                .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
             log.push(format!("Source folder set to: {}", folder));
         }
 
         // Write initial context doc if provided
         if let Some(context_content) = params.context {
             let title = format!("{} — Overview", params.name);
-            vault.write_document(
-                &params.name,
-                "context/overview.md",
-                &title,
-                &context_content,
-                vec!["context".to_string(), "overview".to_string()],
-                Some("claude-code".to_string()),
-            ).map_err(|e| McpError::internal_error(format!("{}", e), None))?;
+            vault
+                .write_document(
+                    &params.name,
+                    "context/overview.md",
+                    &title,
+                    &context_content,
+                    vec!["context".to_string(), "overview".to_string()],
+                    Some("claude-code".to_string()),
+                )
+                .map_err(|e| McpError::internal_error(format!("{}", e), None))?;
             log.push("Context document written to context/overview.md.".to_string());
         }
 
@@ -1152,16 +1254,14 @@ impl ServerHandler for SlateVaultMcpServer {
             .unwrap_or(false);
 
         if compress_enabled {
-                instructions.push_str("\n\n## COMPRESSION (ON)\n\
+            instructions.push_str("\n\n## COMPRESSION (ON)\n\
                     For changelogs/summaries/notes use shorthand: drop articles, abbrev common words (config,impl,auth,func,db,ctx,req,res), use symbols (+added -removed →leads ~changed @regarding), short paths, skip obvious context.\n\
                     Format: `+ auth spec → specs/auth.md | ~ db docs | - old api refs | next: rate limiting`");
         }
 
         ServerInfo {
             instructions: Some(instructions),
-            capabilities: ServerCapabilities::builder()
-                .enable_tools()
-                .build(),
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
             ..Default::default()
         }
     }

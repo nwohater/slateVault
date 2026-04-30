@@ -30,11 +30,13 @@ impl TemplateConfig {
         );
         software_files.insert(
             "features/_about.md".to_string(),
-            "Feature documentation — requirements, acceptance criteria, and implementation notes.".to_string(),
+            "Feature documentation — requirements, acceptance criteria, and implementation notes."
+                .to_string(),
         );
         software_files.insert(
             "decisions/_about.md".to_string(),
-            "Architecture Decision Records (ADRs). Use numbered prefixes: `001-use-postgres.md`.".to_string(),
+            "Architecture Decision Records (ADRs). Use numbered prefixes: `001-use-postgres.md`."
+                .to_string(),
         );
         software_files.insert(
             "guides/_about.md".to_string(),
@@ -80,7 +82,8 @@ impl TemplateConfig {
         );
         agile_files.insert(
             "ceremonies/_about.md".to_string(),
-            "Ceremony guides — standup, planning, review, and retro formats and agendas.".to_string(),
+            "Ceremony guides — standup, planning, review, and retro formats and agendas."
+                .to_string(),
         );
         agile_files.insert(
             "epics/_about.md".to_string(),

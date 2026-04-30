@@ -92,7 +92,7 @@ export async function getPlaybookPrompt(
   playbookId: string,
   project: string
 ): Promise<string> {
-  return invoke("get_playbook_prompt", { playbookId, project });
+  return invoke("get_playbook_prompt", { playbookId, playbook_id: playbookId, project });
 }
 
 export async function backupVault(destPath: string): Promise<string> {
