@@ -580,8 +580,10 @@ pub fn git_set_remote_config(
         if !url.is_empty() {
             vault.set_git_remote(url).map_err(|e| e.to_string())?;
             vault.config.sync.remote_url = Some(url.clone());
+            vault.local_config.sync.remote_url = Some(url.clone());
         } else {
             vault.config.sync.remote_url = None;
+            vault.local_config.sync.remote_url = None;
         }
     }
     if let Some(ref branch) = args.remote_branch {
@@ -591,11 +593,14 @@ pub fn git_set_remote_config(
     }
     if let Some(v) = args.pull_on_open {
         vault.config.sync.pull_on_open = v;
+        vault.local_config.sync.pull_on_open = Some(v);
     }
     if let Some(v) = args.push_on_close {
         vault.config.sync.push_on_close = v;
+        vault.local_config.sync.push_on_close = Some(v);
     }
     vault.save_config().map_err(|e| e.to_string())?;
+    vault.save_local_config().map_err(|e| e.to_string())?;
     Ok("Remote config updated".to_string())
 }
 
@@ -738,6 +743,7 @@ pub fn set_vault_config(
     }
     if let Some(port) = args.mcp_port {
         vault.config.mcp.port = port;
+        vault.local_config.mcp.port = Some(port);
     }
     if let Some(v) = args.auto_stage_ai_writes {
         vault.config.mcp.auto_stage_ai_writes = v;
@@ -747,18 +753,27 @@ pub fn set_vault_config(
     }
     if let Some(v) = args.ai_enabled {
         vault.config.ai.enabled = v;
+        vault.local_config.ai.enabled = Some(v);
     }
     if let Some(url) = args.ai_endpoint_url {
         vault.config.ai.endpoint_url = url;
+        vault.local_config.ai.endpoint_url = Some(vault.config.ai.endpoint_url.clone());
     }
     if let Some(model) = args.ai_model {
         vault.config.ai.model = model;
+        vault.local_config.ai.model = Some(vault.config.ai.model.clone());
     }
     // Empty string clears the path, Some(path) sets it
     if let Some(path) = args.ssh_key_path {
-        vault.config.sync.ssh_key_path = if path.is_empty() { None } else { Some(path) };
+        vault.config.sync.ssh_key_path = if path.is_empty() {
+            None
+        } else {
+            Some(path.clone())
+        };
+        vault.local_config.sync.ssh_key_path = if path.is_empty() { None } else { Some(path) };
     }
     vault.save_config().map_err(|e| e.to_string())?;
+    vault.save_local_config().map_err(|e| e.to_string())?;
     Ok("Settings updated".to_string())
 }
 
@@ -2824,8 +2839,12 @@ pub fn backup_vault(dest_path: String, state: State<'_, VaultState>) -> CmdResul
                 .to_string_lossy()
                 .replace('\\', "/");
 
-            // Skip index.db, .git, and target directories
-            if rel.starts_with(".git") || rel.starts_with("index.db") || rel.starts_with("target") {
+            // Skip machine-local and generated files
+            if rel.starts_with(".git")
+                || rel == "vault.local.toml"
+                || rel.starts_with("index.db")
+                || rel.starts_with("target")
+            {
                 continue;
             }
 

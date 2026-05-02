@@ -10,6 +10,7 @@ pub mod project;
 pub mod search;
 pub mod template;
 pub mod vault;
+pub mod vault_local_config;
 
 pub use error::CoreError;
 pub use vault::{

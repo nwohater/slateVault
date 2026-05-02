@@ -34,8 +34,11 @@ function discoverWindowsArtifact(assetsDir) {
   const entries = fs.readdirSync(assetsDir, { withFileTypes: true });
   const installer = entries
     .filter((entry) => entry.isFile() && /setup\.exe$/i.test(entry.name))
-    .map((entry) => entry.name)
-    .sort()[0];
+    .map((entry) => ({
+      name: entry.name,
+      mtimeMs: fs.statSync(path.join(assetsDir, entry.name)).mtimeMs,
+    }))
+    .sort((a, b) => b.mtimeMs - a.mtimeMs)[0]?.name;
 
   if (!installer) return null;
 

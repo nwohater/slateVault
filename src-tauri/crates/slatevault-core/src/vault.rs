@@ -1,15 +1,17 @@
 use std::path::{Component, Path, PathBuf};
 
-use crate::config::{McpConfig, SyncConfig, VaultConfig, VaultMeta};
+use crate::config::{AiConfig, McpConfig, SyncConfig, VaultConfig, VaultMeta};
 use crate::document::Document;
 use crate::error::Result;
 use crate::project::Project;
 use crate::search::SearchIndex;
 use crate::template::TemplateConfig;
+use crate::vault_local_config::VaultLocalConfig;
 
 pub struct Vault {
     pub root: PathBuf,
     pub config: VaultConfig,
+    pub local_config: VaultLocalConfig,
     pub search: SearchIndex,
     repo: git2::Repository,
 }
@@ -38,10 +40,7 @@ impl Vault {
         std::fs::write(root.join("vault.toml"), toml_str)?;
 
         // Write .gitignore
-        std::fs::write(
-            root.join(".gitignore"),
-            "index.db\nindex.db-journal\n.DS_Store\n",
-        )?;
+        ensure_vault_gitignore(root)?;
 
         // Write default templates.json
         let _ = TemplateConfig::load(root);
@@ -56,6 +55,7 @@ impl Vault {
         Ok(Self {
             root: root.to_path_buf(),
             config,
+            local_config: VaultLocalConfig::default(),
             search,
             repo,
         })
@@ -68,19 +68,39 @@ impl Vault {
         }
 
         let toml_str = std::fs::read_to_string(&toml_path)?;
-        let config: VaultConfig = toml::from_str(&toml_str)?;
+        let mut config: VaultConfig = toml::from_str(&toml_str)?;
         let repo = git2::Repository::open(root)?;
         let search = SearchIndex::open(&root.join("index.db"))?;
 
         // Ensure templates.json exists (migration for older vaults)
         let _ = TemplateConfig::load(root);
+        ensure_vault_gitignore(root)?;
 
-        Ok(Self {
+        let migrated_local = VaultLocalConfig::from_effective_config(&config);
+        config.sync.remote_url = None;
+        config.sync.pull_on_open = SyncConfig::default().pull_on_open;
+        config.sync.push_on_close = SyncConfig::default().push_on_close;
+        config.sync.ssh_key_path = None;
+        config.mcp.port = McpConfig::default().port;
+        config.ai.enabled = AiConfig::default().enabled;
+        config.ai.endpoint_url = AiConfig::default().endpoint_url;
+        config.ai.model = AiConfig::default().model;
+
+        let local_config = VaultLocalConfig::load(root)?.merge_with_fallback(migrated_local);
+        local_config.apply_to(&mut config);
+
+        let vault = Self {
             root: root.to_path_buf(),
             config,
+            local_config,
             search,
             repo,
-        })
+        };
+
+        vault.save_config()?;
+        vault.save_local_config()?;
+
+        Ok(vault)
     }
 
     pub fn projects_dir(&self) -> PathBuf {
@@ -1045,9 +1065,23 @@ impl Vault {
     // -- Config operations --
 
     pub fn save_config(&self) -> Result<()> {
-        let toml_str = toml::to_string_pretty(&self.config)?;
+        let mut shared = self.config.clone();
+        shared.sync.remote_url = None;
+        shared.sync.pull_on_open = SyncConfig::default().pull_on_open;
+        shared.sync.push_on_close = SyncConfig::default().push_on_close;
+        shared.sync.ssh_key_path = None;
+        shared.mcp.port = McpConfig::default().port;
+        shared.ai.enabled = AiConfig::default().enabled;
+        shared.ai.endpoint_url = AiConfig::default().endpoint_url;
+        shared.ai.model = AiConfig::default().model;
+
+        let toml_str = toml::to_string_pretty(&shared)?;
         std::fs::write(self.root.join("vault.toml"), toml_str)?;
         Ok(())
+    }
+
+    pub fn save_local_config(&self) -> Result<()> {
+        self.local_config.save(&self.root)
     }
 
     pub fn set_git_remote(&self, url: &str) -> Result<()> {
@@ -1062,6 +1096,41 @@ impl Vault {
         }
         Ok(())
     }
+}
+
+fn ensure_vault_gitignore(root: &Path) -> Result<()> {
+    const REQUIRED_ENTRIES: &[&str] = &[
+        "vault.local.toml",
+        "index.db",
+        "index.db-journal",
+        "index.db-shm",
+        "index.db-wal",
+        ".DS_Store",
+    ];
+
+    let gitignore_path = root.join(".gitignore");
+    let existing = if gitignore_path.exists() {
+        std::fs::read_to_string(&gitignore_path)?
+    } else {
+        String::new()
+    };
+
+    let mut lines: Vec<String> = existing
+        .lines()
+        .map(|line| line.trim_end().to_string())
+        .filter(|line| !line.is_empty())
+        .collect();
+
+    for entry in REQUIRED_ENTRIES {
+        if !lines.iter().any(|line| line == entry) {
+            lines.push((*entry).to_string());
+        }
+    }
+
+    let mut content = lines.join("\n");
+    content.push('\n');
+    std::fs::write(gitignore_path, content)?;
+    Ok(())
 }
 
 fn sanitize_relative_path(path: &str) -> Result<PathBuf> {
@@ -1130,6 +1199,19 @@ mod tests {
             .search_documents("staletoken", Some("demo"), Some(10))
             .expect("search after delete");
         assert!(final_results.is_empty());
+    }
+
+    #[test]
+    fn create_vault_writes_index_artifacts_to_gitignore() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let _vault = Vault::create(temp_dir.path(), "Test Vault").expect("create vault");
+
+        let gitignore = std::fs::read_to_string(temp_dir.path().join(".gitignore"))
+            .expect("read .gitignore");
+
+        assert!(gitignore.contains("index.db\n"));
+        assert!(gitignore.contains("index.db-shm\n"));
+        assert!(gitignore.contains("index.db-wal\n"));
     }
 }
 
