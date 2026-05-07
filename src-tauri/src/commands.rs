@@ -432,6 +432,18 @@ pub fn git_status(state: State<'_, VaultState>) -> CmdResult<Vec<slatevault_core
 }
 
 #[tauri::command]
+pub fn git_sync_status(state: State<'_, VaultState>) -> CmdResult<slatevault_core::SyncStatus> {
+    with_vault(&state, |vault| vault.sync_status())
+}
+
+#[tauri::command]
+pub fn git_doc_sync_risks(
+    state: State<'_, VaultState>,
+) -> CmdResult<Vec<slatevault_core::DocSyncRisk>> {
+    with_vault(&state, |vault| vault.doc_sync_risks())
+}
+
+#[tauri::command]
 pub fn git_stage(path: String, state: State<'_, VaultState>) -> CmdResult<String> {
     with_vault(&state, |vault| {
         vault.stage_path(&path)?;

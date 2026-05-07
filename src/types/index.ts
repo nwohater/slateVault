@@ -73,6 +73,24 @@ export interface RemoteConfig {
   push_on_close: boolean;
 }
 
+export interface SyncStatusInfo {
+  current_branch: string;
+  remote_branch: string;
+  has_remote: boolean;
+  has_upstream: boolean;
+  ahead: number;
+  behind: number;
+  diverged: boolean;
+}
+
+export interface DocSyncRiskInfo {
+  project: string;
+  path: string;
+  remote_statuses: string[];
+  local_statuses: string[];
+  risk: "remote_changed" | "conflict_risk" | string;
+}
+
 export interface VaultSettings {
   name: string;
   path: string;

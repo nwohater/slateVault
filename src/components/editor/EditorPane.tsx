@@ -67,6 +67,33 @@ function SecretWarning({ content }: { content: string }) {
   );
 }
 
+function SyncRiskWarning() {
+  const syncRisk = useEditorStore((s) => s.activeDocSyncRisk);
+
+  if (!syncRisk) return null;
+
+  const isConflictRisk = syncRisk.risk === "conflict_risk";
+
+  return (
+    <div
+      className={`border-b px-3 py-2 text-[11px] ${
+        isConflictRisk
+          ? "border-red-800 bg-red-950/30 text-red-300"
+          : "border-amber-800 bg-amber-950/30 text-amber-300"
+      }`}
+    >
+      <div className="font-medium">
+        {isConflictRisk ? "Conflict risk" : "Remote changed this document"}
+      </div>
+      <div className="mt-0.5 text-neutral-300">
+        {isConflictRisk
+          ? "This doc changed locally and also has newer remote changes. Pull and review before saving or pushing."
+          : "The shared vault has a newer version of this doc. Pull before editing further to avoid starting from stale content."}
+      </div>
+    </div>
+  );
+}
+
 export function EditorPane() {
   const activePath = useEditorStore((s) => s.activePath);
   const content = useEditorStore((s) => s.content);
@@ -85,6 +112,7 @@ export function EditorPane() {
     <div className="flex flex-col h-full">
       {rawFilePath ? <RawFileBar /> : <FrontMatterBar />}
       <SecretWarning content={content} />
+      {!rawFilePath && <SyncRiskWarning />}
       <div className="flex-1 min-h-0">
         <CodeMirrorEditor />
       </div>

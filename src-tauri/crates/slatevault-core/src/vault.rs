@@ -1,4 +1,5 @@
 use std::path::{Component, Path, PathBuf};
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::config::{AiConfig, McpConfig, SyncConfig, VaultConfig, VaultMeta};
 use crate::document::Document;
@@ -881,6 +882,154 @@ impl Vault {
         }
     }
 
+    pub fn sync_status(&self) -> Result<SyncStatus> {
+        let current_branch = self.current_branch()?;
+        let remote_branch = self.config.sync.remote_branch.clone();
+        let has_remote = self.config.sync.remote_url.is_some();
+
+        if !has_remote {
+            return Ok(SyncStatus {
+                current_branch,
+                remote_branch,
+                has_remote,
+                has_upstream: false,
+                ahead: 0,
+                behind: 0,
+                diverged: false,
+            });
+        }
+
+        let head_oid = match self.repo.head().ok().and_then(|head| head.target()) {
+            Some(oid) => oid,
+            None => {
+                return Ok(SyncStatus {
+                    current_branch,
+                    remote_branch,
+                    has_remote,
+                    has_upstream: false,
+                    ahead: 0,
+                    behind: 0,
+                    diverged: false,
+                });
+            }
+        };
+
+        let remote_ref = format!("refs/remotes/origin/{}", remote_branch);
+        let upstream_oid = match self
+            .repo
+            .find_reference(&remote_ref)
+            .ok()
+            .and_then(|reference| reference.target())
+        {
+            Some(oid) => oid,
+            None => {
+                return Ok(SyncStatus {
+                    current_branch,
+                    remote_branch,
+                    has_remote,
+                    has_upstream: false,
+                    ahead: 0,
+                    behind: 0,
+                    diverged: false,
+                });
+            }
+        };
+
+        let (ahead, behind) = self.repo.graph_ahead_behind(head_oid, upstream_oid)?;
+
+        Ok(SyncStatus {
+            current_branch,
+            remote_branch,
+            has_remote,
+            has_upstream: true,
+            ahead,
+            behind,
+            diverged: ahead > 0 && behind > 0,
+        })
+    }
+
+    pub fn doc_sync_risks(&self) -> Result<Vec<DocSyncRisk>> {
+        let status = self.sync_status()?;
+        if !status.has_upstream || status.behind == 0 {
+            return Ok(Vec::new());
+        }
+
+        let head_tree = match self.repo.head().ok().and_then(|head| head.peel_to_tree().ok()) {
+            Some(tree) => tree,
+            None => return Ok(Vec::new()),
+        };
+
+        let remote_ref = format!("refs/remotes/origin/{}", status.remote_branch);
+        let remote_tree = match self
+            .repo
+            .find_reference(&remote_ref)
+            .ok()
+            .and_then(|reference| reference.peel_to_tree().ok())
+        {
+            Some(tree) => tree,
+            None => return Ok(Vec::new()),
+        };
+
+        let local_statuses = self.status()?;
+        let mut local_by_doc: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
+        for local in &local_statuses {
+            if let Some((project, path)) = parse_project_doc_path(&local.path) {
+                local_by_doc
+                    .entry((project, path))
+                    .or_default()
+                    .push(local.status.clone());
+            }
+        }
+
+        let diff = self
+            .repo
+            .diff_tree_to_tree(Some(&head_tree), Some(&remote_tree), None)?;
+
+        let mut remote_docs: BTreeMap<(String, String), BTreeSet<String>> = BTreeMap::new();
+        for delta in diff.deltas() {
+            let path = delta
+                .new_file()
+                .path()
+                .or_else(|| delta.old_file().path())
+                .map(|path| path.to_string_lossy().replace('\\', "/"));
+
+            let Some(path) = path else {
+                continue;
+            };
+            let Some((project, doc_path)) = parse_project_doc_path(&path) else {
+                continue;
+            };
+
+            remote_docs
+                .entry((project, doc_path))
+                .or_default()
+                .insert(format_delta_status(delta.status()).to_string());
+        }
+
+        Ok(remote_docs
+            .into_iter()
+            .map(|((project, path), remote_statuses)| {
+                let local_statuses = local_by_doc
+                    .get(&(project.clone(), path.clone()))
+                    .cloned()
+                    .unwrap_or_default();
+                let risk = if local_statuses.is_empty() {
+                    "remote_changed"
+                } else {
+                    "conflict_risk"
+                };
+
+                DocSyncRisk {
+                    project,
+                    path,
+                    remote_statuses: remote_statuses.into_iter().collect(),
+                    local_statuses,
+                    risk: risk.to_string(),
+                }
+            })
+            .collect())
+    }
+
     pub fn list_branches(&self) -> Result<Vec<BranchInfo>> {
         let mut branches = Vec::new();
         let current = self.current_branch()?;
@@ -1163,6 +1312,32 @@ fn normalize_relative_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
+fn parse_project_doc_path(path: &str) -> Option<(String, String)> {
+    let normalized = path.replace('\\', "/");
+    let rest = normalized.strip_prefix("projects/")?;
+    let (project, doc_path) = rest.split_once("/docs/")?;
+    if project.is_empty() || !doc_path.ends_with(".md") {
+        return None;
+    }
+    Some((project.to_string(), doc_path.to_string()))
+}
+
+fn format_delta_status(status: git2::Delta) -> &'static str {
+    match status {
+        git2::Delta::Added => "added",
+        git2::Delta::Deleted => "deleted",
+        git2::Delta::Modified => "modified",
+        git2::Delta::Renamed => "renamed",
+        git2::Delta::Copied => "copied",
+        git2::Delta::Typechange => "type changed",
+        git2::Delta::Unreadable => "unreadable",
+        git2::Delta::Conflicted => "conflicted",
+        git2::Delta::Ignored => "ignored",
+        git2::Delta::Untracked => "untracked",
+        git2::Delta::Unmodified => "unmodified",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Vault;
@@ -1243,6 +1418,26 @@ pub struct VaultStats {
 pub struct BranchInfo {
     pub name: String,
     pub is_current: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SyncStatus {
+    pub current_branch: String,
+    pub remote_branch: String,
+    pub has_remote: bool,
+    pub has_upstream: bool,
+    pub ahead: usize,
+    pub behind: usize,
+    pub diverged: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DocSyncRisk {
+    pub project: String,
+    pub path: String,
+    pub remote_statuses: Vec<String>,
+    pub local_statuses: Vec<String>,
+    pub risk: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

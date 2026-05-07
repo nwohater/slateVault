@@ -46,6 +46,8 @@ pub fn run() {
             commands::get_project_context,
             commands::git_commit,
             commands::git_status,
+            commands::git_sync_status,
+            commands::git_doc_sync_risks,
             commands::git_stage,
             commands::git_unstage,
             commands::git_log,

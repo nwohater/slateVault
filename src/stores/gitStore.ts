@@ -1,11 +1,31 @@
 import { create } from "zustand";
-import type { FileStatus, CommitInfo, RemoteConfig, BranchInfo, FileDiff } from "@/types";
+import type {
+  FileStatus,
+  CommitInfo,
+  RemoteConfig,
+  BranchInfo,
+  DocSyncRiskInfo,
+  FileDiff,
+  SyncStatusInfo,
+} from "@/types";
 import * as commands from "@/lib/commands";
+
+export type SyncHealthLevel = "neutral" | "good" | "warning" | "attention";
+
+export interface SyncHealth {
+  level: SyncHealthLevel;
+  label: string;
+  detail: string;
+  recommendedAction: "configure-remote" | "pull" | "commit" | "push" | "review" | "none";
+}
 
 interface GitState {
   files: FileStatus[];
   commits: CommitInfo[];
   remoteConfig: RemoteConfig | null;
+  syncStatus: SyncStatusInfo | null;
+  syncHealth: SyncHealth | null;
+  docSyncRisks: DocSyncRiskInfo[];
   commitMessage: string;
   loading: boolean;
   output: string | null;
@@ -23,8 +43,13 @@ interface GitState {
   unstage: (path: string) => Promise<void>;
   stageAll: () => Promise<void>;
   commit: () => Promise<void>;
+  push: () => Promise<string>;
+  pull: () => Promise<string>;
   loadLog: () => Promise<void>;
   loadRemoteConfig: () => Promise<void>;
+  loadSyncStatus: () => Promise<void>;
+  loadDocSyncRisks: () => Promise<void>;
+  refreshSyncState: () => Promise<void>;
   setRemoteConfig: (config: Partial<RemoteConfig>) => Promise<void>;
   clearOutput: () => void;
 
@@ -39,10 +64,93 @@ interface GitState {
   clearDiff: () => void;
 }
 
+function deriveSyncHealth(
+  syncStatus: SyncStatusInfo | null,
+  files: FileStatus[],
+  remoteConfig: RemoteConfig | null
+): SyncHealth {
+  const hasRemote = Boolean(remoteConfig?.remote_url) && Boolean(syncStatus?.has_remote);
+  const stagedCount = files.filter((file) => file.status.startsWith("staged_")).length;
+  const hasLocalChanges = files.length > 0;
+
+  if (!hasRemote) {
+    return {
+      level: "neutral",
+      label: "Remote not configured",
+      detail: "Connect a remote when you are ready to share this vault with a team or another machine.",
+      recommendedAction: "configure-remote",
+    };
+  }
+
+  if (syncStatus?.diverged) {
+    return {
+      level: "attention",
+      label: "Local and remote history diverged",
+      detail: "Pull and review before pushing more documentation changes so the shared vault stays clean.",
+      recommendedAction: "pull",
+    };
+  }
+
+  if ((syncStatus?.behind ?? 0) > 0 && hasLocalChanges) {
+    return {
+      level: "attention",
+      label: "Remote has newer changes",
+      detail: "You have local documentation edits and the shared vault is ahead. Pull and review before you push.",
+      recommendedAction: "pull",
+    };
+  }
+
+  if ((syncStatus?.behind ?? 0) > 0) {
+    return {
+      level: "warning",
+      label: "Pull before editing further",
+      detail: "The shared vault has newer changes. Update locally so you do not start from stale project memory.",
+      recommendedAction: "pull",
+    };
+  }
+
+  if (stagedCount > 0) {
+    return {
+      level: "warning",
+      label: "Ready to commit",
+      detail: "You already have staged documentation changes. Commit them when this change set is ready.",
+      recommendedAction: "commit",
+    };
+  }
+
+  if ((syncStatus?.ahead ?? 0) > 0) {
+    return {
+      level: "warning",
+      label: "Ready to push",
+      detail: "Your local vault is ahead of the shared branch. Push when you are ready to share the latest docs.",
+      recommendedAction: "push",
+    };
+  }
+
+  if (hasLocalChanges) {
+    return {
+      level: "warning",
+      label: "Local changes in progress",
+      detail: "You have unstaged documentation edits. Review and stage them when the change set is coherent.",
+      recommendedAction: "review",
+    };
+  }
+
+  return {
+    level: "good",
+    label: "Up to date with shared vault",
+    detail: "No pending local changes and no newer remote history detected.",
+    recommendedAction: "none",
+  };
+}
+
 export const useGitStore = create<GitState>((set, get) => ({
   files: [],
   commits: [],
   remoteConfig: null,
+  syncStatus: null,
+  syncHealth: null,
+  docSyncRisks: [],
   commitMessage: "",
   loading: false,
   output: null,
@@ -57,20 +165,58 @@ export const useGitStore = create<GitState>((set, get) => ({
   loadStatus: async () => {
     try {
       const files = await commands.gitStatus();
-      set({ files });
+      set((state) => ({
+        files,
+        syncHealth: deriveSyncHealth(state.syncStatus, files, state.remoteConfig),
+      }));
     } catch (e) {
       console.error("git status failed:", e);
     }
   },
 
+  loadSyncStatus: async () => {
+    try {
+      const syncStatus = await commands.gitSyncStatus();
+      set((state) => ({
+        syncStatus,
+        syncHealth: deriveSyncHealth(syncStatus, state.files, state.remoteConfig),
+      }));
+    } catch (e) {
+      console.error("git sync status failed:", e);
+    }
+  },
+
+  loadDocSyncRisks: async () => {
+    try {
+      const docSyncRisks = await commands.gitDocSyncRisks();
+      set({ docSyncRisks });
+    } catch (e) {
+      console.error("git doc sync risks failed:", e);
+      set({ docSyncRisks: [] });
+    }
+  },
+
+  refreshSyncState: async () => {
+    await Promise.all([
+      get().loadStatus(),
+      get().loadLog(),
+      get().loadBranches(),
+      get().loadRemoteConfig(),
+      get().loadSyncStatus(),
+      get().loadDocSyncRisks(),
+    ]);
+  },
+
   stage: async (path) => {
     await commands.gitStage(path);
     await get().loadStatus();
+    await get().loadDocSyncRisks();
   },
 
   unstage: async (path) => {
     await commands.gitUnstage(path);
     await get().loadStatus();
+    await get().loadDocSyncRisks();
   },
 
   stageAll: async () => {
@@ -82,6 +228,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       await commands.gitStage(f.path);
     }
     await get().loadStatus();
+    await get().loadDocSyncRisks();
   },
 
   commit: async () => {
@@ -90,10 +237,35 @@ export const useGitStore = create<GitState>((set, get) => ({
     try {
       const result = await commands.gitCommit(commitMessage.trim());
       set({ commitMessage: "", output: result });
-      await get().loadStatus();
-      await get().loadLog();
+      await get().refreshSyncState();
     } catch (e) {
       set({ output: `Commit failed: ${e}` });
+    }
+  },
+
+  push: async () => {
+    try {
+      const result = await commands.gitPush();
+      set({ output: result || "Pushed successfully" });
+      await get().refreshSyncState();
+      return result;
+    } catch (e) {
+      const message = `Push failed: ${e}`;
+      set({ output: message });
+      throw e;
+    }
+  },
+
+  pull: async () => {
+    try {
+      const result = await commands.gitPull();
+      set({ output: result || "Pulled successfully" });
+      await get().refreshSyncState();
+      return result;
+    } catch (e) {
+      const message = `Pull failed: ${e}`;
+      set({ output: message });
+      throw e;
     }
   },
 
@@ -109,7 +281,10 @@ export const useGitStore = create<GitState>((set, get) => ({
   loadRemoteConfig: async () => {
     try {
       const remoteConfig = await commands.gitRemoteConfig();
-      set({ remoteConfig });
+      set((state) => ({
+        remoteConfig,
+        syncHealth: deriveSyncHealth(state.syncStatus, state.files, remoteConfig),
+      }));
     } catch (e) {
       console.error("git remote config failed:", e);
     }
@@ -123,6 +298,8 @@ export const useGitStore = create<GitState>((set, get) => ({
       push_on_close: config.push_on_close,
     });
     await get().loadRemoteConfig();
+    await get().loadSyncStatus();
+    await get().loadDocSyncRisks();
   },
 
   // Branch actions
@@ -153,9 +330,7 @@ export const useGitStore = create<GitState>((set, get) => ({
     try {
       await commands.gitSwitchBranch(name);
       set({ output: `Switched to '${name}'` });
-      await get().loadBranches();
-      await get().loadStatus();
-      await get().loadLog();
+      await get().refreshSyncState();
     } catch (e) {
       set({ output: `Switch branch failed: ${e}` });
     }

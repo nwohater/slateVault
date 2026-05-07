@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useGitStore } from "@/stores/gitStore";
-import * as commands from "@/lib/commands";
 
 export function RemoteTab() {
   const remoteConfig = useGitStore((s) => s.remoteConfig);
   const loadRemoteConfig = useGitStore((s) => s.loadRemoteConfig);
   const setRemoteConfig = useGitStore((s) => s.setRemoteConfig);
+  const pushRemote = useGitStore((s) => s.push);
+  const pullRemote = useGitStore((s) => s.pull);
 
   const [url, setUrl] = useState("");
   const [branch, setBranch] = useState("main");
@@ -41,7 +42,7 @@ export function RemoteTab() {
     setRunning(true);
     setOutput("Pushing...");
     try {
-      const result = await commands.gitPush();
+      const result = await pushRemote();
       setOutput(result || "Pushed successfully");
     } catch (e) {
       setOutput(String(e));
@@ -54,7 +55,7 @@ export function RemoteTab() {
     setRunning(true);
     setOutput("Pulling...");
     try {
-      const result = await commands.gitPull();
+      const result = await pullRemote();
       setOutput(result || "Pulled successfully");
     } catch (e) {
       setOutput(String(e));

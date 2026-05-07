@@ -7,7 +7,9 @@ import type {
   FileStatus,
   CommitInfo,
   FileHistoryEntry,
+  DocSyncRiskInfo,
   RemoteConfig,
+  SyncStatusInfo,
   VaultSettings,
   VaultStatsInfo,
   McpServerStatus,
@@ -251,6 +253,14 @@ export async function gitCommit(message: string): Promise<string> {
 
 export async function gitStatus(): Promise<FileStatus[]> {
   return invoke("git_status");
+}
+
+export async function gitSyncStatus(): Promise<SyncStatusInfo> {
+  return invoke("git_sync_status");
+}
+
+export async function gitDocSyncRisks(): Promise<DocSyncRiskInfo[]> {
+  return invoke("git_doc_sync_risks");
 }
 
 export async function gitStage(path: string): Promise<string> {

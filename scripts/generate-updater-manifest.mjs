@@ -47,7 +47,6 @@ function discoverWindowsArtifact(assetsDir) {
   ensureFile(signaturePath, 'Windows updater signature');
 
   return {
-    platform: 'windows-x86_64',
     urlPath: installer,
     signature: readTrimmed(signaturePath),
   };
@@ -101,10 +100,12 @@ function main() {
   const platforms = {};
   const windows = discoverWindowsArtifact(assetsDir);
   if (windows) {
-    platforms[windows.platform] = {
+    const windowsArtifact = {
       signature: windows.signature,
       url: `${releaseBaseUrl}/${encodeURIComponent(windows.urlPath).replace(/%2F/g, '/')}`,
     };
+    platforms['windows-x86_64'] = windowsArtifact;
+    platforms['windows-x86_64-nsis'] = windowsArtifact;
   }
 
   for (const artifact of discoverMacArtifacts(assetsDir)) {

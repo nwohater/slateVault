@@ -14,6 +14,6 @@ pub mod vault_local_config;
 
 pub use error::CoreError;
 pub use vault::{
-    BranchInfo, CommitInfo, DiffFileStats, DiffHunk, DiffLine, FileDiff, FileStatus, Vault,
-    VaultStats,
+    BranchInfo, CommitInfo, DiffFileStats, DiffHunk, DiffLine, DocSyncRisk, FileDiff,
+    FileStatus, SyncStatus, Vault, VaultStats,
 };

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { FrontMatter } from "@/types";
+import type { DocSyncRiskInfo, FrontMatter } from "@/types";
 import * as commands from "@/lib/commands";
 import { parseFrontMatter } from "@/lib/frontmatter";
 import { useUIStore } from "@/stores/uiStore";
@@ -9,6 +9,7 @@ interface EditorState {
   activePath: string | null;
   content: string;
   frontMatter: FrontMatter | null;
+  activeDocSyncRisk: DocSyncRiskInfo | null;
   isDirty: boolean;
   // Raw vault file mode (e.g. templates.json)
   rawFilePath: string | null;
@@ -26,6 +27,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   activePath: null,
   content: "",
   frontMatter: null,
+  activeDocSyncRisk: null,
   isDirty: false,
   rawFilePath: null,
 
@@ -38,6 +40,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const raw = await commands.readDocument(project, path);
     const { data, content } = parseFrontMatter(raw);
+    const syncRisk = await commands
+      .gitDocSyncRisks()
+      .then((risks) => risks.find((risk) => risk.project === project && risk.path === path) ?? null)
+      .catch(() => null);
     useUIStore.getState().setShowOnboarding(false);
     useUIStore.getState().setWorkspaceView("documents");
     set({
@@ -45,6 +51,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       activePath: path,
       content: raw,
       frontMatter: data,
+      activeDocSyncRisk: syncRisk,
       isDirty: false,
       rawFilePath: null,
     });
@@ -69,6 +76,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       activePath: path,
       content,
       frontMatter: null,
+      activeDocSyncRisk: null,
       isDirty: false,
       rawFilePath: path,
     });
@@ -95,7 +103,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (rawFilePath) {
       // Save raw vault file
       await commands.writeVaultFile(rawFilePath, content);
-      set({ isDirty: false });
+      set({ isDirty: false, activeDocSyncRisk: null });
       return;
     }
 
@@ -113,7 +121,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       frontMatter.protected,
       frontMatter.status,
     );
-    set({ isDirty: false });
+    set({ isDirty: false, activeDocSyncRisk: null });
   },
 
   updateStatus: async (status: string) => {
@@ -141,6 +149,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       activePath: null,
       content: "",
       frontMatter: null,
+      activeDocSyncRisk: null,
       isDirty: false,
       rawFilePath: null,
     });
