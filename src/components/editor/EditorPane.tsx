@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useEditorStore } from "@/stores/editorStore";
+import { useUIStore } from "@/stores/uiStore";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { FrontMatterBar } from "./FrontMatterBar";
 import { EmptyState } from "../shared/EmptyState";
@@ -19,6 +20,8 @@ function RawFileBar() {
   const activePath = useEditorStore((s) => s.activePath);
   const isDirty = useEditorStore((s) => s.isDirty);
   const saveDocument = useEditorStore((s) => s.saveDocument);
+  const workspaceView = useUIStore((s) => s.workspaceView);
+  const showSaveButton = workspaceView !== "wiki";
 
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-900 border-b border-neutral-800 text-xs">
@@ -29,13 +32,15 @@ function RawFileBar() {
         <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
       )}
       <div className="flex-1" />
-      <button
-        onClick={saveDocument}
-        disabled={!isDirty}
-        className="px-2.5 py-1 rounded bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white text-[10px] font-medium transition-colors"
-      >
-        {isDirty ? "Save (Ctrl+S)" : "Saved"}
-      </button>
+      {showSaveButton && (
+        <button
+          onClick={saveDocument}
+          disabled={!isDirty}
+          className="px-2.5 py-1 rounded bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white text-[10px] font-medium transition-colors"
+        >
+          {isDirty ? "Save (Ctrl+S)" : "Saved"}
+        </button>
+      )}
     </div>
   );
 }

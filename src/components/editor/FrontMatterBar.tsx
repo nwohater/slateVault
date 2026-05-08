@@ -20,18 +20,30 @@ const authorLabels: Record<string, string> = {
 export function FrontMatterBar() {
   const fm = useEditorStore((s) => s.frontMatter);
   const isDirty = useEditorStore((s) => s.isDirty);
+  const saveDocument = useEditorStore((s) => s.saveDocument);
   const updateStatus = useEditorStore((s) => s.updateStatus);
-  const [saving, setSaving] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [savingDocument, setSavingDocument] = useState(false);
 
   const handleStatusClick = async () => {
-    if (!fm || saving) return;
+    if (!fm || savingStatus) return;
     const idx = STATUS_CYCLE.indexOf(fm.status as typeof STATUS_CYCLE[number]);
     const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
-    setSaving(true);
+    setSavingStatus(true);
     try {
       await updateStatus(next);
     } finally {
-      setSaving(false);
+      setSavingStatus(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!isDirty || savingDocument) return;
+    setSavingDocument(true);
+    try {
+      await saveDocument();
+    } finally {
+      setSavingDocument(false);
     }
   };
 
@@ -58,11 +70,11 @@ export function FrontMatterBar() {
       )}
       <button
         onClick={handleStatusClick}
-        disabled={saving}
+        disabled={savingStatus}
         title="Click to cycle status: draft → review → final"
         className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${statusColors[fm.status] || "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"}`}
       >
-        {saving ? "saving…" : fm.status}
+        {savingStatus ? "saving…" : fm.status}
       </button>
       <span className="text-neutral-500">
         {authorLabels[fm.author] || fm.author}
@@ -82,6 +94,13 @@ export function FrontMatterBar() {
           )}
         </div>
       )}
+      <button
+        onClick={handleSave}
+        disabled={!isDirty || savingDocument}
+        className="rounded bg-blue-700 px-2.5 py-1 text-[10px] font-medium text-white transition-colors hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500"
+      >
+        {savingDocument ? "Saving..." : isDirty ? "Save" : "Saved"}
+      </button>
     </div>
   );
 }

@@ -71,6 +71,42 @@ where
     f(vault).map_err(|e| e.to_string())
 }
 
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+fn git_command_for_vault(vault: &Vault) -> Command {
+    let mut command = Command::new("git");
+    if let Some(path) = vault.config.sync.ssh_key_path.as_deref() {
+        if !path.trim().is_empty() {
+            command.env(
+                "GIT_SSH_COMMAND",
+                format!("ssh -i {} -o IdentitiesOnly=yes", shell_quote(path)),
+            );
+        }
+    }
+    command
+}
+
+fn git_auth_hint(vault: &Vault) -> String {
+    match vault.config.sync.ssh_key_path.as_deref() {
+        Some(path) if !path.trim().is_empty() => format!(
+            "\n\nSlateVault tried SSH key: {}\nMake sure the matching public key is added to GitHub.",
+            path
+        ),
+        _ => "\n\nNo SSH key path is configured in SlateVault settings.".to_string(),
+    }
+}
+
+fn git_error(prefix: &str, stderr: &str, vault: &Vault) -> String {
+    let trimmed = stderr.trim();
+    if trimmed.contains("Permission denied (publickey)") {
+        format!("{}: {}{}", prefix, trimmed, git_auth_hint(vault))
+    } else {
+        format!("{}: {}", prefix, trimmed)
+    }
+}
+
 fn write_to_clipboard_command(command: &str, args: &[&str], text: &str) -> CmdResult<()> {
     let mut child = Command::new(command)
         .args(args)
@@ -647,7 +683,7 @@ pub fn git_push(state: State<'_, VaultState>) -> CmdResult<String> {
     let _ = std::process::Command::new("git")
         .args(["-C", &vault.root.to_string_lossy(), "branch", "-M", branch])
         .output();
-    let output = std::process::Command::new("git")
+    let output = git_command_for_vault(vault)
         .args([
             "-C",
             &vault.root.to_string_lossy(),
@@ -663,7 +699,7 @@ pub fn git_push(state: State<'_, VaultState>) -> CmdResult<String> {
     if output.status.success() {
         Ok(format!("{}{}", stdout, stderr).trim().to_string())
     } else {
-        Err(format!("Push failed: {}", stderr.trim()).to_string())
+        Err(git_error("Push failed", &stderr, vault))
     }
 }
 
@@ -672,7 +708,7 @@ pub fn git_pull(state: State<'_, VaultState>) -> CmdResult<String> {
     let lock = state.0.lock().map_err(|e| e.to_string())?;
     let vault = lock.as_ref().ok_or("No vault is open")?;
     let branch = &vault.config.sync.remote_branch;
-    let output = std::process::Command::new("git")
+    let output = git_command_for_vault(vault)
         .args([
             "-C",
             &vault.root.to_string_lossy(),
@@ -687,7 +723,7 @@ pub fn git_pull(state: State<'_, VaultState>) -> CmdResult<String> {
     if output.status.success() {
         Ok(format!("{}{}", stdout, stderr).trim().to_string())
     } else {
-        Err(format!("Pull failed: {}", stderr.trim()).to_string())
+        Err(git_error("Pull failed", &stderr, vault))
     }
 }
 
@@ -1148,7 +1184,7 @@ pub fn git_load_credentials() -> CmdResult<CredentialsMasked> {
 pub fn git_push_branch(branch: String, state: State<'_, VaultState>) -> CmdResult<String> {
     let lock = state.0.lock().map_err(|e| e.to_string())?;
     let vault = lock.as_ref().ok_or("No vault is open")?;
-    let output = std::process::Command::new("git")
+    let output = git_command_for_vault(vault)
         .args([
             "-C",
             &vault.root.to_string_lossy(),
@@ -1164,7 +1200,7 @@ pub fn git_push_branch(branch: String, state: State<'_, VaultState>) -> CmdResul
     if output.status.success() {
         Ok(format!("{}{}", stdout, stderr).trim().to_string())
     } else {
-        Err(format!("Push failed: {}", stderr.trim()))
+        Err(git_error("Push failed", &stderr, vault))
     }
 }
 
@@ -3456,5 +3492,3 @@ pub fn rebuild_index(state: State<'_, VaultState>) -> CmdResult<usize> {
 pub fn vault_stats(state: State<'_, VaultState>) -> CmdResult<slatevault_core::VaultStats> {
     with_vault(&state, |vault| vault.stats())
 }
-
-
