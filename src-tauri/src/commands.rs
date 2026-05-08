@@ -79,9 +79,17 @@ fn git_command_for_vault(vault: &Vault) -> Command {
     let mut command = Command::new("git");
     if let Some(path) = vault.config.sync.ssh_key_path.as_deref() {
         if !path.trim().is_empty() {
+            #[cfg(target_os = "macos")]
+            let ssh_command = format!(
+                "ssh -i {} -o IdentitiesOnly=yes -o AddKeysToAgent=yes -o UseKeychain=yes",
+                shell_quote(path)
+            );
+            #[cfg(not(target_os = "macos"))]
+            let ssh_command = format!("ssh -i {} -o IdentitiesOnly=yes", shell_quote(path));
+
             command.env(
                 "GIT_SSH_COMMAND",
-                format!("ssh -i {} -o IdentitiesOnly=yes", shell_quote(path)),
+                ssh_command,
             );
         }
     }
