@@ -79,9 +79,10 @@ export function WikiView() {
     const q = filter.trim().toLowerCase();
     if (!q) return docs;
     return docs.filter(
-      (doc) =>
-        doc.title.toLowerCase().includes(q) ||
-        doc.path.toLowerCase().includes(q),
+      (doc) => {
+        const searchable = `${doc.title}\n${doc.path}\n${doc.search_text}`.toLowerCase();
+        return searchable.includes(q);
+      },
     );
   }, [docs, filter]);
 

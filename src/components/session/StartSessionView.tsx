@@ -297,7 +297,7 @@ export function StartSessionView() {
                 <select
                   value={selectedProject}
                   onChange={(e) => setSelectedProject(e.target.value)}
-                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-200 outline-none focus:border-cyan-600"
+                  className="w-full max-w-md rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-200 outline-none focus:border-cyan-600"
                 >
                   {projects.map((project) => (
                     <option key={project.name} value={project.name}>
@@ -389,11 +389,11 @@ export function StartSessionView() {
             </div>
           </div>
 
-          <div className="mt-5">
+          <div className="mt-5 flex">
             <button
               onClick={() => void handleGenerateAndCopy()}
               disabled={loading || !selectedProject}
-              className="w-full rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-cyan-500 disabled:bg-neutral-800 disabled:text-neutral-500"
+              className="w-full rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-cyan-500 disabled:bg-neutral-800 disabled:text-neutral-500 sm:w-auto sm:min-w-64 sm:px-6"
             >
               {loading
                 ? "Generating..."

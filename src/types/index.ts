@@ -38,6 +38,7 @@ export interface WikiDocInfo {
   title: string;
   modified: string;
   size: number;
+  search_text: string;
 }
 
 export interface AssetInfo {

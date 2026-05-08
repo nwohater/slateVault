@@ -95,6 +95,8 @@ export function EditorPane() {
   const activePath = useEditorStore((s) => s.activePath);
   const content = useEditorStore((s) => s.content);
   const rawFilePath = useEditorStore((s) => s.rawFilePath);
+  const workspaceView = useUIStore((s) => s.workspaceView);
+  const showRawFileBar = Boolean(rawFilePath) && workspaceView !== "wiki";
 
   if (!activePath) {
     return (
@@ -107,7 +109,7 @@ export function EditorPane() {
 
   return (
     <div className="flex flex-col h-full">
-      {rawFilePath ? <RawFileBar /> : <FrontMatterBar />}
+      {showRawFileBar ? <RawFileBar /> : rawFilePath ? null : <FrontMatterBar />}
       <SecretWarning content={content} />
       {!rawFilePath && <SyncRiskWarning />}
       <div className="flex-1 min-h-0">

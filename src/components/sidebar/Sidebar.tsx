@@ -54,10 +54,9 @@ function FlatFileIcon({ className = "w-5 h-5" }: IconProps) {
 
 function FlatWikiIcon({ className = "w-5 h-5" }: IconProps) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 5.25h8.5a2 2 0 0 1 2 2v11.5h-8.5a2 2 0 0 0-2 2z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 5.25v15.5" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9h4.5M9.75 12h4.5M9.75 15h3" />
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.75 7.25 7.6 16.75l4.4-8.5 4.4 8.5 2.85-9.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 19.25h12" />
     </svg>
   );
 }

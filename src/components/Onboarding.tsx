@@ -187,7 +187,7 @@ export function Onboarding() {
 
   return (
     <div className="workspace-page h-full min-w-0 flex-1 overflow-y-auto px-6 py-6">
-      <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="grid w-full max-w-6xl gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
         <StepRail
           currentStep={step}
           onSelect={setStep}
@@ -196,7 +196,7 @@ export function Onboarding() {
 
         <div className="workspace-section rounded-3xl p-6">
           {step === "welcome" && (
-            <div className="mx-auto max-w-3xl">
+            <div className="max-w-3xl">
               <div className="workspace-kicker mb-4">
                 <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
                 {vaultName || "slateVault"} is ready
@@ -251,7 +251,7 @@ export function Onboarding() {
           )}
 
           {step === "project" && (
-            <div className="mx-auto max-w-4xl">
+            <div className="max-w-4xl">
               <h2 className="text-2xl font-semibold text-neutral-100">Set up a new project</h2>
               <p className="mt-2 mb-6 text-sm text-neutral-400">
                 Name it, pick a template, and optionally link a source folder so
@@ -266,7 +266,7 @@ export function Onboarding() {
           )}
 
           {step === "sync" && (
-            <div className="mx-auto max-w-3xl">
+            <div className="max-w-3xl">
               <h2 className="text-2xl font-semibold text-neutral-100">
                 Connect team sync
               </h2>
@@ -382,7 +382,7 @@ export function Onboarding() {
           )}
 
           {step === "agent" && (
-            <div className="mx-auto max-w-4xl">
+            <div className="max-w-4xl">
               <h2 className="text-2xl font-semibold text-neutral-100">
                 Connect your coding agent
               </h2>

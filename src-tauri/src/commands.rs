@@ -3260,6 +3260,7 @@ pub struct WikiDocInfo {
     title: String,
     modified: String,
     size: u64,
+    search_text: String,
 }
 
 fn markdown_title(content: &str, fallback: &str) -> String {
@@ -3330,6 +3331,7 @@ fn collect_wiki_docs(
             title: markdown_title(&content, &filename),
             modified,
             size: metadata.len(),
+            search_text: content,
         });
     }
 
