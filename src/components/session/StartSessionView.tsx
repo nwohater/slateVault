@@ -383,6 +383,9 @@ export function StartSessionView() {
               <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/70 px-3 py-3 text-[11px] leading-5 text-neutral-500">
                 Include only the context your agent actually needs. Smaller, task-shaped briefs usually produce better work than dumping the whole vault.
               </div>
+              <div className="mt-3 rounded-xl border border-cyan-900/40 bg-cyan-950/20 px-3 py-3 text-[11px] leading-5 text-cyan-100/80">
+                Global Wiki is always part of session hygiene: agents should check vault-wide AI rules, coding standards, and documentation style before substantial work.
+              </div>
             </div>
           </div>
 
@@ -416,7 +419,7 @@ export function StartSessionView() {
                     MCP Use
                   </h2>
                   <p className="mt-1 text-xs text-neutral-500">
-                    Project-specific SlateVault rules to paste before the task prompt.
+                    Project-specific SlateVault rules plus global Wiki guidance to paste before the task prompt.
                   </p>
                 </div>
                 <button

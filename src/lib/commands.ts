@@ -187,6 +187,17 @@ export async function createWikiDoc(
   return invoke("create_wiki_doc", { path, title });
 }
 
+export async function deleteWikiDoc(path: string): Promise<string> {
+  return invoke("delete_wiki_doc", { path });
+}
+
+export async function renameWikiDoc(
+  oldPath: string,
+  newPath: string
+): Promise<string> {
+  return invoke("rename_wiki_doc", { oldPath, newPath });
+}
+
 export async function listTemplates(): Promise<TemplateInfo[]> {
   return invoke("list_templates");
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { FormEvent, MouseEvent } from "react";
 import type { WikiDocInfo } from "@/types";
 import * as commands from "@/lib/commands";
 import { useEditorStore } from "@/stores/editorStore";
@@ -29,15 +30,42 @@ function suggestPath(title: string): string {
   return `${slug || "new-wiki-doc"}.md`;
 }
 
+function normalizeMarkdownFilename(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.endsWith(".md") ? trimmed : `${trimmed}.md`;
+}
+
+function displayFilename(value: string): string {
+  return value.split("/").pop() || value;
+}
+
+type WikiContextMenu =
+  | {
+      path: string;
+      title: string;
+      x: number;
+      y: number;
+      action: "menu" | "rename" | "delete";
+      renameValue: string;
+    }
+  | null;
+
 export function WikiView() {
   const [docs, setDocs] = useState<WikiDocInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+  const [showNewDoc, setShowNewDoc] = useState(false);
+  const [newDocTitle, setNewDocTitle] = useState("");
+  const [newDocPath, setNewDocPath] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [contextMenu, setContextMenu] = useState<WikiContextMenu>(null);
   const activePath = useEditorStore((s) => s.activePath);
   const rawFilePath = useEditorStore((s) => s.rawFilePath);
   const openWikiFile = useEditorStore((s) => s.openWikiFile);
   const saveDocument = useEditorStore((s) => s.saveDocument);
+  const closeDocument = useEditorStore((s) => s.closeDocument);
   const isDirty = useEditorStore((s) => s.isDirty);
   const showEditor = useUIStore((s) => s.showEditor);
   const showPreview = useUIStore((s) => s.showPreview);
@@ -78,19 +106,87 @@ export function WikiView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleCreate = async () => {
-    const title = window.prompt("Wiki doc title", "Team AI Rules");
-    if (!title?.trim()) return;
-    const path = window.prompt("Path inside wiki/", suggestPath(title));
-    if (!path?.trim()) return;
+  const handleNewDocTitleChange = (value: string) => {
+    setNewDocTitle(value);
+    if (!newDocPath.trim() || newDocPath === suggestPath(newDocTitle)) {
+      setNewDocPath(suggestPath(value));
+    }
+  };
 
+  const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const title = newDocTitle.trim();
+    const path = normalizeMarkdownFilename(newDocPath);
+    if (!title || !path || creating) return;
+
+    setCreating(true);
     try {
-      const createdPath = await commands.createWikiDoc(path, title.trim());
+      const createdPath = await commands.createWikiDoc(path, title);
       const next = await commands.listWikiDocs();
       setDocs(next);
       await openWikiFile(createdPath);
+      setNewDocTitle("");
+      setNewDocPath("");
+      setShowNewDoc(false);
     } catch (e) {
       setError(`Could not create wiki doc: ${e}`);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const openContextMenu = (event: MouseEvent, doc: WikiDocInfo) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setError(null);
+    setContextMenu({
+      path: doc.path,
+      title: doc.title,
+      x: event.clientX,
+      y: event.clientY,
+      action: "menu",
+      renameValue: displayFilename(doc.path),
+    });
+  };
+
+  const handleRename = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!contextMenu || !contextMenu.renameValue.trim()) return;
+
+    try {
+      const oldPath = contextMenu.path;
+      const renamedPath = await commands.renameWikiDoc(
+        oldPath,
+        normalizeMarkdownFilename(contextMenu.renameValue),
+      );
+      const next = await commands.listWikiDocs();
+      setDocs(next);
+      if (activeWikiPath === oldPath) {
+        await openWikiFile(renamedPath);
+      }
+      setContextMenu(null);
+    } catch (e) {
+      setError(`Could not rename wiki doc: ${e}`);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!contextMenu) return;
+
+    try {
+      const deletedPath = contextMenu.path;
+      await commands.deleteWikiDoc(deletedPath);
+      const next = await commands.listWikiDocs();
+      setDocs(next);
+      if (activeWikiPath === deletedPath) {
+        closeDocument();
+        if (next[0]) {
+          await openWikiFile(next[0].path);
+        }
+      }
+      setContextMenu(null);
+    } catch (e) {
+      setError(`Could not delete wiki doc: ${e}`);
     }
   };
 
@@ -111,7 +207,10 @@ export function WikiView() {
               </div>
             </div>
             <button
-              onClick={handleCreate}
+              onClick={() => {
+                setError(null);
+                setShowNewDoc((show) => !show);
+              }}
               className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-900/40 text-cyan-200 hover:bg-cyan-800/50"
               title="New wiki doc"
             >
@@ -120,6 +219,52 @@ export function WikiView() {
               </svg>
             </button>
           </div>
+          {showNewDoc && (
+            <form
+              onSubmit={handleCreate}
+              className="mt-3 rounded-lg border border-neutral-800 bg-neutral-950/70 p-3"
+            >
+              <label className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+                Title
+              </label>
+              <input
+                value={newDocTitle}
+                onChange={(e) => handleNewDocTitleChange(e.target.value)}
+                autoFocus
+                placeholder="Team AI Rules"
+                className="mt-1 w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-cyan-800"
+              />
+              <label className="mt-3 block text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+                Filename
+              </label>
+              <input
+                value={newDocPath}
+                onChange={(e) => setNewDocPath(e.target.value)}
+                placeholder="team-ai-rules.md"
+                className="mt-1 w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-cyan-800"
+              />
+              <div className="mt-3 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNewDoc(false);
+                    setNewDocTitle("");
+                    setNewDocPath("");
+                  }}
+                  className="rounded-lg px-2.5 py-1.5 text-xs text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newDocTitle.trim() || !normalizeMarkdownFilename(newDocPath) || creating}
+                  className="rounded-lg bg-cyan-800 px-2.5 py-1.5 text-xs font-medium text-cyan-50 hover:bg-cyan-700 disabled:bg-neutral-800 disabled:text-neutral-500"
+                >
+                  {creating ? "Creating..." : "Create"}
+                </button>
+              </div>
+            </form>
+          )}
           <input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
@@ -144,6 +289,7 @@ export function WikiView() {
               <button
                 key={doc.path}
                 onClick={() => openWikiFile(doc.path)}
+                onContextMenu={(e) => openContextMenu(e, doc)}
                 className={`mb-1 w-full rounded-lg px-3 py-2 text-left transition-colors ${
                   activeWikiPath === doc.path
                     ? "bg-neutral-800 text-neutral-100"
@@ -227,6 +373,105 @@ export function WikiView() {
           </div>
         )}
       </main>
+      {contextMenu && (
+        <>
+          <button
+            className="fixed inset-0 z-40 cursor-default"
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenu(null);
+            }}
+            aria-label="Close wiki menu"
+          />
+          <div
+            className="fixed z-50 min-w-52 rounded-lg border border-neutral-800 bg-neutral-950 p-1 text-xs text-neutral-200 shadow-2xl"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+          >
+            {contextMenu.action === "menu" && (
+              <>
+                <div className="border-b border-neutral-800 px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-500">
+                  {contextMenu.title}
+                </div>
+                <button
+                  onClick={() =>
+                    setContextMenu({ ...contextMenu, action: "rename" })
+                  }
+                  className="mt-1 w-full rounded px-3 py-2 text-left hover:bg-neutral-800"
+                >
+                  Rename file
+                </button>
+                <button
+                  onClick={() =>
+                    setContextMenu({ ...contextMenu, action: "delete" })
+                  }
+                  className="w-full rounded px-3 py-2 text-left text-red-300 hover:bg-red-950/40"
+                >
+                  Delete file
+                </button>
+              </>
+            )}
+            {contextMenu.action === "rename" && (
+              <form onSubmit={handleRename} className="p-2">
+                <label className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+                  Filename
+                </label>
+                <input
+                  value={contextMenu.renameValue}
+                  onChange={(e) =>
+                    setContextMenu({
+                      ...contextMenu,
+                      renameValue: e.target.value,
+                    })
+                  }
+                  autoFocus
+                  className="mt-1 w-72 rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 outline-none focus:border-cyan-800"
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setContextMenu(null);
+                  }}
+                />
+                <div className="mt-3 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setContextMenu(null)}
+                    className="rounded px-2.5 py-1.5 text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded bg-cyan-800 px-2.5 py-1.5 font-medium text-cyan-50 hover:bg-cyan-700"
+                  >
+                    Rename
+                  </button>
+                </div>
+              </form>
+            )}
+            {contextMenu.action === "delete" && (
+              <div className="w-72 p-3">
+                <div className="font-medium text-neutral-100">
+                  Delete this wiki doc?
+                </div>
+                <div className="mt-1 text-neutral-500">{contextMenu.path}</div>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button
+                    onClick={() => setContextMenu(null)}
+                    className="rounded px-2.5 py-1.5 text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => void handleDelete()}
+                    className="rounded bg-red-900 px-2.5 py-1.5 font-medium text-red-100 hover:bg-red-800"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

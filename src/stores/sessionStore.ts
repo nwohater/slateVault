@@ -50,6 +50,8 @@ export function buildMcpUseText(project: string): string {
   const projectLabel = project || "this project";
   const instructions = [
     `Use the SlateVault MCP for documentation discovery, reading, and writing for ${projectLabel} whenever possible.`,
+    "Before implementation or documentation work, check the global wiki for vault-wide standards and AI rules.",
+    "Use `get_agent_rules`, `list_wiki_docs`, `read_wiki_doc`, or `search_wiki` when standards, coding conventions, or AI-use rules may matter.",
     `Prefer SlateVault document tools over direct filesystem edits for docs that live in ${projectLabel}.`,
     "Treat canonical SlateVault docs as the source of truth when they exist.",
     `When you need context for ${projectLabel}, list and read vault docs before guessing.`,
@@ -374,15 +376,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         commands.getRecentChanges(25),
         commands.getProjectSourceFolder(selectedProject),
       ]);
-      const substantiveDocs = docs.filter(
-        (doc) => !doc.path.endsWith("/_about.md") && doc.path !== "_about.md"
-      );
-      const greenfieldMode = substantiveDocs.length === 0;
-
       const recentChanges = includeRecentChanges
         ? allRecentChanges
             .filter((change) => change.project === selectedProject)
-            .filter((change) => !greenfieldMode || (!change.path.endsWith("/_about.md") && change.path !== "_about.md"))
+            .filter((change) => !change.path.endsWith("/_about.md") && change.path !== "_about.md")
             .slice(0, 8)
         : [];
 

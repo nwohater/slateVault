@@ -2319,6 +2319,8 @@ pub fn generate_project_brief(
 
         brief.push_str("## Agent Rules\n\n");
         brief.push_str("- Use the SlateVault MCP for documentation discovery, reading, and writing whenever possible.\n");
+        brief.push_str("- Check the global wiki for vault-wide AI rules, coding standards, and documentation style before substantial work.\n");
+        brief.push_str("- Use `get_agent_rules`, `list_wiki_docs`, `read_wiki_doc`, or `search_wiki` when global standards may apply.\n");
         brief.push_str("- Prefer SlateVault document tools over direct filesystem edits for docs that live in the vault.\n");
         brief.push_str(
             "- Treat canonical SlateVault docs as the source of truth when they exist.\n\n",
@@ -2520,11 +2522,13 @@ pub fn generate_project_brief(
         .count();
         if gap_count > 0 {
             brief.push_str("## Known Gaps\n\n");
-            if canonical.is_empty() && draft_count > 0 {
+            if canonical.is_empty() && draft_count == substantive_docs.len() {
                 brief.push_str(&format!(
                     "**WARNING:** All {} documents are drafts and no canonical docs exist. This project has no established source of truth.\n\n",
                     substantive_docs.len()
                 ));
+            } else if canonical.is_empty() && draft_count > 0 {
+                brief.push_str("**WARNING:** No canonical docs exist yet. This project has no established source of truth.\n\n");
             }
             if canonical.is_empty() {
                 brief.push_str("- No canonical documents established yet\n");
@@ -3368,6 +3372,66 @@ pub fn create_wiki_doc(
             std::fs::write(&full, format!("# {}\n\n", title.trim()))?;
         }
         Ok(normalized.to_string_lossy().replace('\\', "/"))
+    })
+}
+
+#[tauri::command]
+pub fn delete_wiki_doc(path: String, state: State<'_, VaultState>) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let rel = sanitize_relative_path(&path)?;
+        if rel.extension().and_then(|e| e.to_str()) != Some("md") {
+            return Err(invalid_input("Wiki documents must be markdown files"));
+        }
+
+        let full = vault.root.join("wiki").join(&rel);
+        if !full.exists() {
+            return Err(invalid_input(format!("Wiki document not found: {}", path)));
+        }
+        if full.is_dir() {
+            return Err(invalid_input("Cannot delete a directory as a wiki document"));
+        }
+
+        std::fs::remove_file(&full)?;
+        let _ = vault.stage_file(&full);
+        Ok(format!("Deleted wiki/{}", rel.to_string_lossy().replace('\\', "/")))
+    })
+}
+
+#[tauri::command]
+pub fn rename_wiki_doc(
+    old_path: String,
+    new_path: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let old_rel = sanitize_relative_path(&old_path)?;
+        let mut new_rel = sanitize_relative_path(&new_path)?;
+        if new_rel.extension().is_none() {
+            new_rel.set_extension("md");
+        }
+        if old_rel.extension().and_then(|e| e.to_str()) != Some("md")
+            || new_rel.extension().and_then(|e| e.to_str()) != Some("md")
+        {
+            return Err(invalid_input("Wiki documents must be markdown files"));
+        }
+
+        let wiki_dir = vault.root.join("wiki");
+        let old_full = wiki_dir.join(&old_rel);
+        let new_full = wiki_dir.join(&new_rel);
+        if !old_full.exists() {
+            return Err(invalid_input(format!("Wiki document not found: {}", old_path)));
+        }
+        if new_full.exists() {
+            return Err(invalid_input(format!("Wiki document already exists: {}", new_path)));
+        }
+        if let Some(parent) = new_full.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        std::fs::rename(&old_full, &new_full)?;
+        let _ = vault.stage_file(&old_full);
+        let _ = vault.stage_file(&new_full);
+        Ok(new_rel.to_string_lossy().replace('\\', "/"))
     })
 }
 

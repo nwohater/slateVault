@@ -99,6 +99,8 @@ pub fn run() {
             commands::write_vault_file,
             commands::list_wiki_docs,
             commands::create_wiki_doc,
+            commands::delete_wiki_doc,
+            commands::rename_wiki_doc,
             commands::list_templates,
             commands::get_templates_config,
             commands::save_templates_config,
