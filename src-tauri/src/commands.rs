@@ -657,18 +657,20 @@ pub fn git_set_remote_config(
     let mut lock = state.0.lock().map_err(|e| e.to_string())?;
     let vault = lock.as_mut().ok_or("No vault is open")?;
     if let Some(ref url) = args.remote_url {
+        let url = url.trim();
         if !url.is_empty() {
             vault.set_git_remote(url).map_err(|e| e.to_string())?;
-            vault.config.sync.remote_url = Some(url.clone());
-            vault.local_config.sync.remote_url = Some(url.clone());
+            vault.config.sync.remote_url = Some(url.to_string());
+            vault.local_config.sync.remote_url = Some(url.to_string());
         } else {
             vault.config.sync.remote_url = None;
             vault.local_config.sync.remote_url = None;
         }
     }
     if let Some(ref branch) = args.remote_branch {
+        let branch = branch.trim();
         if !branch.is_empty() {
-            vault.config.sync.remote_branch = branch.clone();
+            vault.config.sync.remote_branch = branch.to_string();
         }
     }
     if let Some(v) = args.pull_on_open {
@@ -830,12 +832,17 @@ pub fn set_vault_config(
     }
     // Empty string clears the path, Some(path) sets it
     if let Some(path) = args.ssh_key_path {
+        let path = path.trim();
         vault.config.sync.ssh_key_path = if path.is_empty() {
             None
         } else {
-            Some(path.clone())
+            Some(path.to_string())
         };
-        vault.local_config.sync.ssh_key_path = if path.is_empty() { None } else { Some(path) };
+        vault.local_config.sync.ssh_key_path = if path.is_empty() {
+            None
+        } else {
+            Some(path.to_string())
+        };
     }
     vault.save_config().map_err(|e| e.to_string())?;
     vault.save_local_config().map_err(|e| e.to_string())?;

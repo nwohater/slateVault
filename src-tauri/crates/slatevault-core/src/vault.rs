@@ -90,8 +90,10 @@ impl Vault {
         config.ai.endpoint_url = AiConfig::default().endpoint_url;
         config.ai.model = AiConfig::default().model;
 
-        let local_config = VaultLocalConfig::load(root)?.merge_with_fallback(migrated_local);
+        let mut local_config = VaultLocalConfig::load(root)?.merge_with_fallback(migrated_local);
         local_config.apply_to(&mut config);
+        normalize_sync_config(&mut config);
+        normalize_local_sync_config(&mut local_config);
 
         let vault = Self {
             root: root.to_path_buf(),
@@ -1312,6 +1314,44 @@ fn ensure_global_wiki(root: &Path) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn normalize_sync_config(config: &mut VaultConfig) {
+    config.sync.remote_url = config
+        .sync
+        .remote_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+    config.sync.ssh_key_path = config
+        .sync
+        .ssh_key_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+    config.sync.remote_branch = config.sync.remote_branch.trim().to_string();
+    if config.sync.remote_branch.is_empty() {
+        config.sync.remote_branch = SyncConfig::default().remote_branch;
+    }
+}
+
+fn normalize_local_sync_config(config: &mut VaultLocalConfig) {
+    config.sync.remote_url = config
+        .sync
+        .remote_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+    config.sync.ssh_key_path = config
+        .sync
+        .ssh_key_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
 }
 
 fn sanitize_relative_path(path: &str) -> Result<PathBuf> {
