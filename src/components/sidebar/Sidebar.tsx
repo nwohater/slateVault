@@ -9,60 +9,118 @@ import { SettingsPanel } from "../settings/SettingsPanel";
 import { AiChatPanel } from "../ai/AiChatPanel";
 import { CreateProjectForm } from "@/components/shared/CreateProjectForm";
 import * as commands from "@/lib/commands";
-import {
-  AiSparkIcon,
-  BranchIcon,
-  DocsHealthIcon,
-  FilesIcon,
-  HomeIcon,
-  SessionIcon,
-} from "@/components/icons/GitIcons";
-
 type SidebarView =
   | "home"
   | "files"
+  | "wiki"
   | "start-session"
   | "docs-health"
   | "git"
   | "ai"
   | "settings";
 
-const viewIcons: Record<SidebarView, React.ReactNode> = {
-  home: <HomeIcon className="w-5 h-5" />,
-  files: <FilesIcon className="w-5 h-5" />,
-  "start-session": <SessionIcon className="w-5 h-5" />,
-  "docs-health": <DocsHealthIcon className="w-5 h-5" />,
-  git: <BranchIcon className="w-5 h-5" />,
-  ai: <AiSparkIcon className="w-5 h-5" />,
-  settings: (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-    </svg>
-  ),
+type IconProps = {
+  className?: string;
 };
 
-function OnboardingShieldIcon({ className = "w-5 h-5" }: { className?: string }) {
+function OnboardingCheckIcon({ className = "w-5 h-5" }: IconProps) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.45}>
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 3.25 5.25 5.7v5.26c0 4.33 2.72 8.2 6.75 9.8 4.03-1.6 6.75-5.47 6.75-9.8V5.7L12 3.25Z"
-      />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9.25 12.25 11.1 14.1l3.9-4.2"
-      />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M8.25 7.75h.01M15.75 7.75h.01"
-      />
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12.5 9.2 16.7 19 7.3" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.75 18.25h14.5" />
     </svg>
   );
 }
+
+function FlatHomeIcon({ className = "w-5 h-5" }: IconProps) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="m4.75 11.5 7.25-6 7.25 6" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 10.25v8h10v-8" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10 18.25v-4.5h4v4.5" />
+    </svg>
+  );
+}
+
+function FlatFileIcon({ className = "w-5 h-5" }: IconProps) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 4.75h6.25L17 8.5v10.75H7z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13.25 4.75V8.5H17" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 12.25h4.5M9.75 15.25h4.5" />
+    </svg>
+  );
+}
+
+function FlatWikiIcon({ className = "w-5 h-5" }: IconProps) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 5.25h8.5a2 2 0 0 1 2 2v11.5h-8.5a2 2 0 0 0-2 2z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 5.25v15.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9h4.5M9.75 12h4.5M9.75 15h3" />
+    </svg>
+  );
+}
+
+function FlatSessionIcon({ className = "w-5 h-5" }: IconProps) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 5.75h10.5v12.5H6.75z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.25 9.25h5.5M9.25 12h5.5M9.25 14.75h3.25" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 8.25h1.5M17.25 15.75h1.5" />
+    </svg>
+  );
+}
+
+function FlatHealthIcon({ className = "w-5 h-5" }: IconProps) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h4l1.8-4.75 3 9.5L14.5 12h5.75" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5.75 18.25h12.5" />
+    </svg>
+  );
+}
+
+function FlatGitIcon({ className = "w-5 h-5" }: IconProps) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 6.75v9.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 11.5h4.5a3.5 3.5 0 0 0 3.5-3.5V6.75" />
+      <circle cx="8" cy="6.75" r="1.75" />
+      <circle cx="8" cy="17.25" r="1.75" />
+      <circle cx="16" cy="6.75" r="1.75" />
+    </svg>
+  );
+}
+
+function FlatSparkIcon({ className = "w-5 h-5" }: IconProps) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="m12 4.75 1.6 4.15 4.15 1.6-4.15 1.6L12 16.25l-1.6-4.15-4.15-1.6 4.15-1.6z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="m17.25 15.5.55 1.45 1.45.55-1.45.55-.55 1.45-.55-1.45-1.45-.55 1.45-.55z" />
+    </svg>
+  );
+}
+
+function FlatSettingsIcon({ className = "w-5 h-5" }: IconProps) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 4.75h3l.45 2.1a6 6 0 0 1 1.2.7l2.05-.7 1.5 2.6-1.6 1.4a6.3 6.3 0 0 1 0 1.4l1.6 1.4-1.5 2.6-2.05-.7a6 6 0 0 1-1.2.7l-.45 2.1h-3l-.45-2.1a6 6 0 0 1-1.2-.7l-2.05.7-1.5-2.6 1.6-1.4a6.3 6.3 0 0 1 0-1.4l-1.6-1.4 1.5-2.6 2.05.7a6 6 0 0 1 1.2-.7z" />
+      <circle cx="12" cy="11.5" r="2.25" />
+    </svg>
+  );
+}
+
+const viewIcons: Record<SidebarView, React.ReactNode> = {
+  home: <FlatHomeIcon className="w-5 h-5" />,
+  files: <FlatFileIcon className="w-5 h-5" />,
+  wiki: <FlatWikiIcon className="w-5 h-5" />,
+  "start-session": <FlatSessionIcon className="w-5 h-5" />,
+  "docs-health": <FlatHealthIcon className="w-5 h-5" />,
+  git: <FlatGitIcon className="w-5 h-5" />,
+  ai: <FlatSparkIcon className="w-5 h-5" />,
+  settings: <FlatSettingsIcon className="w-5 h-5" />,
+};
 
 export function Sidebar() {
   const vaultName = useVaultStore((s) => s.vaultName);
@@ -77,16 +135,20 @@ export function Sidebar() {
   const loadProjects = useVaultStore((s) => s.loadProjects);
   const [view, setView] = useState<SidebarView>("home");
   const [refreshingFiles, setRefreshingFiles] = useState(false);
+  const showPanel = view === "files" || view === "settings" || view === "ai";
 
   useEffect(() => {
     if (view === "settings") {
       return;
     }
-    if (workspaceView === "documents" && view === "home") {
+    if (workspaceView === "documents" && view !== "files") {
       setView("files");
     }
     if (workspaceView === "home" && view !== "home") {
       setView("home");
+    }
+    if (workspaceView === "wiki" && view !== "wiki") {
+      setView("wiki");
     }
     if (workspaceView === "start-session" && view !== "start-session") {
       setView("start-session");
@@ -107,12 +169,16 @@ export function Sidebar() {
     } else if (v === "files") {
       setWorkspaceView("documents");
       loadProjects();
+    } else if (v === "wiki") {
+      setWorkspaceView("wiki");
     } else if (v === "start-session") {
       setWorkspaceView("start-session");
     } else if (v === "docs-health") {
       setWorkspaceView("docs-health");
     } else if (v === "git") {
       setWorkspaceView("sync");
+    } else if (v === "settings") {
+      setWorkspaceView("settings");
     } else {
       setWorkspaceView("documents");
     }
@@ -148,12 +214,12 @@ export function Sidebar() {
               : "text-neutral-500 hover:bg-neutral-800/50 hover:text-neutral-300"
           }`}
         >
-          <OnboardingShieldIcon />
+          <OnboardingCheckIcon />
           {showOnboarding && (
             <span className="absolute left-0 top-2 bottom-2 w-0.5 bg-cyan-400 rounded-r-full" />
           )}
         </button>
-        {(["home", "files", "start-session", "docs-health", "git"] as SidebarView[]).map((v) => (
+        {(["home", "files", "wiki", "start-session", "docs-health", "git"] as SidebarView[]).map((v) => (
           <button
             key={v}
             onClick={() => switchView(v)}
@@ -162,13 +228,15 @@ export function Sidebar() {
                 ? "Home"
                 : v === "files"
                   ? "Documents"
-                  : v === "start-session"
-                    ? "Start Session"
-                    : v === "docs-health"
-                      ? "Docs Health"
-                      : v === "git"
-                        ? "Source Control"
-                        : "AI Chat"
+                  : v === "wiki"
+                    ? "Wiki"
+                    : v === "start-session"
+                      ? "Start Session"
+                      : v === "docs-health"
+                        ? "Docs Health"
+                        : v === "git"
+                          ? "Source Control"
+                          : "AI Chat"
             }
             className={`relative flex h-10 w-10 items-center justify-center rounded-2xl transition-colors ${
               view === v && view !== "settings" && !showOnboarding
@@ -203,14 +271,11 @@ export function Sidebar() {
       </div>
 
       {/* Panel */}
+      {showPanel && (
       <div className="flex min-w-0 flex-1 flex-col bg-[linear-gradient(180deg,rgba(13,18,24,0.82),rgba(9,13,18,0.92))]">
         {/* Panel header */}
         <div className="flex items-center justify-between border-b border-neutral-800/50 px-4 py-3">
-          {view === "home" ? (
-            <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-              Vault Home
-            </span>
-          ) : view === "files" ? (
+          {view === "files" ? (
             <button
               onClick={closeVault}
               className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-300 hover:text-cyan-400 truncate group"
@@ -224,15 +289,7 @@ export function Sidebar() {
             </button>
           ) : (
             <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-              {view === "start-session"
-                ? "Start Session"
-                : view === "docs-health"
-                  ? "Docs Health"
-                  : view === "git"
-                    ? "Source Control"
-                    : view === "ai"
-                      ? "AI Assistant"
-                      : "Settings"}
+              {view === "ai" ? "AI Assistant" : "Settings"}
             </span>
           )}
           <div className="flex items-center gap-1">
@@ -261,131 +318,6 @@ export function Sidebar() {
             )}
           </div>
         </div>
-
-        {view === "home" && (
-          <div className="flex flex-col gap-3 p-3">
-            <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
-              <div className="text-xs font-medium text-neutral-200">
-                {vaultName || "slateVault"}
-              </div>
-              <p className="mt-1 text-[11px] leading-5 text-neutral-500">
-                Use Home for the vault overview, then jump into Documents when
-                you want to edit project files.
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setView("files");
-                setShowOnboarding(false);
-                setWorkspaceView("documents");
-                loadProjects();
-              }}
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
-            >
-              <div className="text-xs font-medium text-neutral-200">
-                Open documents
-              </div>
-              <div className="mt-1 text-[11px] text-neutral-500">
-                Browse the file tree and open the editor workspace.
-              </div>
-            </button>
-            <button
-              onClick={() => {
-                setShowOnboarding(false);
-                setWorkspaceView("search");
-              }}
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
-            >
-              <div className="text-xs font-medium text-neutral-200">
-                Search vault
-              </div>
-              <div className="mt-1 text-[11px] text-neutral-500">
-                Find docs across all projects quickly.
-              </div>
-            </button>
-          </div>
-        )}
-
-        {view === "start-session" && (
-          <div className="flex flex-col gap-3 p-3">
-            <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
-              <div className="text-xs font-medium text-neutral-200">
-                Prepare context first
-              </div>
-              <p className="mt-1 text-[11px] leading-5 text-neutral-500">
-                Build a clean session brief before implementation or handoff work starts.
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setShowOnboarding(false);
-                setWorkspaceView("start-session");
-              }}
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
-            >
-              <div className="text-xs font-medium text-neutral-200">
-                Open Start Session
-              </div>
-              <div className="mt-1 text-[11px] text-neutral-500">
-                Generate a project brief and recommended reading list.
-              </div>
-            </button>
-          </div>
-        )}
-
-        {view === "docs-health" && (
-          <div className="flex flex-col gap-3 p-3">
-            <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
-              <div className="text-xs font-medium text-neutral-200">
-                Keep docs useful
-              </div>
-              <p className="mt-1 text-[11px] leading-5 text-neutral-500">
-                Review stale documents, missing canonical anchors, and status backlog before things drift.
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setShowOnboarding(false);
-                setWorkspaceView("docs-health");
-              }}
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
-            >
-              <div className="text-xs font-medium text-neutral-200">
-                Open Docs Health
-              </div>
-              <div className="mt-1 text-[11px] text-neutral-500">
-                See stale docs, recent changes, and project coverage.
-              </div>
-            </button>
-          </div>
-        )}
-
-        {view === "git" && (
-          <div className="flex flex-col gap-3 p-3">
-            <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
-              <div className="text-xs font-medium text-neutral-200">
-                Share docs like code
-              </div>
-              <p className="mt-1 text-[11px] leading-5 text-neutral-500">
-                Use pull, commit, push, and PR workflows so the vault stays collaborative and reviewable.
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setShowOnboarding(false);
-                setWorkspaceView("sync");
-              }}
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-800"
-            >
-              <div className="text-xs font-medium text-neutral-200">
-                Open Sync
-              </div>
-              <div className="mt-1 text-[11px] text-neutral-500">
-                See team sync status and detailed git tools.
-              </div>
-            </button>
-          </div>
-        )}
 
         {view === "files" && (
           <>
@@ -423,6 +355,7 @@ export function Sidebar() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { Sidebar } from "./sidebar/Sidebar";
 import { EditorPane } from "./editor/EditorPane";
 import { MarkdownPreview } from "./preview/MarkdownPreview";
 import { SearchView } from "./search/SearchView";
+import { WikiView } from "./wiki/WikiView";
 import { VaultHome } from "./home/VaultHome";
 import { StartSessionView } from "./session/StartSessionView";
 import { DocsHealthView } from "./health/DocsHealthView";
@@ -47,13 +48,17 @@ export function AppShell() {
         ? "Documents"
         : workspaceView === "search"
           ? "Search"
-          : workspaceView === "start-session"
-            ? "Start Session"
-            : workspaceView === "docs-health"
-                ? "Docs Health"
-                : workspaceView === "sync"
-                  ? "Team Sync"
-                  : "Workspace";
+          : workspaceView === "wiki"
+            ? "Wiki"
+            : workspaceView === "start-session"
+              ? "Start Session"
+              : workspaceView === "docs-health"
+                  ? "Docs Health"
+                  : workspaceView === "sync"
+                    ? "Team Sync"
+                    : workspaceView === "settings"
+                      ? "Settings"
+                      : "Workspace";
 
   // Keep the workspace on the default dark theme.
   useEffect(() => {
@@ -89,18 +94,25 @@ export function AppShell() {
 
   const editorFlex = showEditor ? (showPreview ? previewRatio : 1) : 0;
   const previewFlex = showPreview ? (showEditor ? 1 - previewRatio : 1) : 0;
+  const isDocumentsWorkspace = workspaceView === "documents";
+  const hasSidebarPanel =
+    isDocumentsWorkspace ||
+    workspaceView === "settings";
+  const effectiveSidebarWidth = hasSidebarPanel ? sidebarWidth : 56;
 
   return (
     <div className="app-shell flex h-screen overflow-hidden">
       {/* Sidebar */}
-      <div style={{ width: sidebarWidth }} className="flex-shrink-0">
+      <div style={{ width: effectiveSidebarWidth }} className="flex-shrink-0">
         <Sidebar />
       </div>
 
-      <ResizeHandle
-        direction="vertical"
-        onResize={(delta) => setSidebarWidth((w) => w + delta)}
-      />
+      {hasSidebarPanel && (
+        <ResizeHandle
+          direction="vertical"
+          onResize={(delta) => setSidebarWidth((w) => w + delta)}
+        />
+      )}
 
       {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -126,7 +138,7 @@ export function AppShell() {
               </svg>
               Search
             </button>
-            {workspaceView === "documents" && activeView === "editor" && (
+            {isDocumentsWorkspace && activeView === "editor" && (
               <>
                 <button
                   onClick={toggleEditor}
@@ -160,7 +172,7 @@ export function AppShell() {
             </button>
           </div>
           <div className="flex-1" />
-          {isDirty && (
+          {isDocumentsWorkspace && isDirty && (
             <button
               onClick={saveDocument}
               className="toolbar-btn toolbar-btn-active"
@@ -183,13 +195,15 @@ export function AppShell() {
               <VaultHome />
             ) : workspaceView === "search" ? (
               <SearchView />
+            ) : workspaceView === "wiki" ? (
+              <WikiView />
             ) : workspaceView === "start-session" ? (
               <StartSessionView />
             ) : workspaceView === "docs-health" ? (
               <DocsHealthView />
             ) : workspaceView === "sync" ? (
               <SyncView />
-            ) : (
+            ) : isDocumentsWorkspace ? (
               <>
                 {showEditor && (
                   <div style={{ flex: editorFlex }} className="min-w-0">
@@ -202,7 +216,7 @@ export function AppShell() {
                     direction="vertical"
                     onResize={(delta) => {
                       const mainWidth =
-                        window.innerWidth - sidebarWidth - 4;
+                        window.innerWidth - effectiveSidebarWidth - 4;
                       setPreviewRatio((r) => r + delta / mainWidth);
                     }}
                   />
@@ -214,6 +228,8 @@ export function AppShell() {
                   </div>
                 )}
               </>
+            ) : (
+              <div className="flex-1 bg-neutral-950" />
             )}
           </div>
 

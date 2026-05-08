@@ -161,10 +161,52 @@ impl TemplateConfig {
             },
         );
 
+        let mut research_files = HashMap::new();
+        research_files.insert(
+            "research/_about.md".to_string(),
+            "Research briefs — define the question, scope, constraints, and success criteria for an investigation.".to_string(),
+        );
+        research_files.insert(
+            "findings/_about.md".to_string(),
+            "Distilled findings — summarize what was learned, why it matters, and what is still uncertain.".to_string(),
+        );
+        research_files.insert(
+            "sources/_about.md".to_string(),
+            "Sources — links, references, docs, papers, repositories, and notes about source credibility.".to_string(),
+        );
+        research_files.insert(
+            "experiments/_about.md".to_string(),
+            "Experiments — spikes, prototypes, test results, benchmarks, and reproduction notes.".to_string(),
+        );
+        research_files.insert(
+            "decisions/_about.md".to_string(),
+            "Decisions — recommendations, tradeoffs, final choices, and reasoning from the research.".to_string(),
+        );
+        research_files.insert(
+            "notes/_about.md".to_string(),
+            "Notes — scratchpad captures, open questions, meeting notes, and rough thinking while investigating.".to_string(),
+        );
+
+        templates.insert(
+            "research".to_string(),
+            ProjectTemplate {
+                label: "Research".to_string(),
+                folders: vec![
+                    "research".to_string(),
+                    "findings".to_string(),
+                    "sources".to_string(),
+                    "experiments".to_string(),
+                    "decisions".to_string(),
+                    "notes".to_string(),
+                ],
+                files: research_files,
+            },
+        );
+
         templates.insert(
             "minimal".to_string(),
             ProjectTemplate {
-                label: "Minimal".to_string(),
+                label: "Blank".to_string(),
                 folders: vec![],
                 files: HashMap::new(),
             },

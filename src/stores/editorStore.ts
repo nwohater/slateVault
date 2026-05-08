@@ -16,6 +16,7 @@ interface EditorState {
 
   openDocument: (project: string, path: string) => Promise<void>;
   openVaultFile: (path: string) => Promise<void>;
+  openWikiFile: (path: string) => Promise<void>;
   updateContent: (content: string) => void;
   saveDocument: () => Promise<void>;
   updateStatus: (status: string) => Promise<void>;
@@ -79,6 +80,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       activeDocSyncRisk: null,
       isDirty: false,
       rawFilePath: path,
+    });
+  },
+
+  openWikiFile: async (path: string) => {
+    const state = get();
+    if (state.isDirty && (state.activeProject || state.rawFilePath)) {
+      await state.saveDocument();
+    }
+
+    const vaultPath = `wiki/${path}`;
+    const raw = await commands.readVaultFile(vaultPath);
+    useUIStore.getState().setShowOnboarding(false);
+    useUIStore.getState().setWorkspaceView("wiki");
+    set({
+      activeProject: null,
+      activePath: path,
+      content: raw,
+      frontMatter: null,
+      activeDocSyncRisk: null,
+      isDirty: false,
+      rawFilePath: vaultPath,
     });
   },
 

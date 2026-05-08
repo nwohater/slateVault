@@ -186,7 +186,7 @@ export function Onboarding() {
   };
 
   return (
-    <div className="workspace-page h-full overflow-y-auto px-6 py-6">
+    <div className="workspace-page h-full min-w-0 flex-1 overflow-y-auto px-6 py-6">
       <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
         <StepRail
           currentStep={step}

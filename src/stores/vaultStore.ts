@@ -28,6 +28,7 @@ interface VaultState {
   deleteProject: (name: string) => Promise<void>;
   renameDocument: (project: string, oldPath: string, newPath: string) => Promise<void>;
   renameProject: (oldName: string, newName: string) => Promise<void>;
+  expandProject: (name: string) => void;
   toggleProject: (name: string) => void;
 }
 
@@ -150,6 +151,16 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       return { documents: docs, expandedProjects: expanded };
     });
     await get().loadProjects();
+  },
+
+  expandProject: (name: string) => {
+    set((state) => {
+      if (state.expandedProjects.has(name)) return state;
+      get().loadDocuments(name);
+      return {
+        expandedProjects: new Set([...state.expandedProjects, name]),
+      };
+    });
   },
 
   toggleProject: (name: string) => {

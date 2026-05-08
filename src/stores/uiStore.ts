@@ -5,6 +5,7 @@ export type WorkspaceView =
   | "home"
   | "documents"
   | "search"
+  | "wiki"
   | "start-session"
   | "docs-health"
   | "sync"

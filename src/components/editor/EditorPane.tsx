@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import dynamic from "next/dynamic";
 import { useEditorStore } from "@/stores/editorStore";
+import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { FrontMatterBar } from "./FrontMatterBar";
 import { EmptyState } from "../shared/EmptyState";
 
@@ -14,14 +14,6 @@ const SECRET_PATTERNS = [
   { pattern: /AKIA[0-9A-Z]{16}/, label: "AWS access key" },
   { pattern: /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----/, label: "Private key" },
 ];
-
-const CodeMirrorEditor = dynamic(
-  () =>
-    import("./CodeMirrorEditor").then((mod) => ({
-      default: mod.CodeMirrorEditor,
-    })),
-  { ssr: false }
-);
 
 function RawFileBar() {
   const activePath = useEditorStore((s) => s.activePath);

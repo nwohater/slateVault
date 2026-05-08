@@ -231,8 +231,8 @@ export function StartSessionView() {
   };
 
   return (
-    <div className="workspace-page h-full overflow-y-auto bg-neutral-950 px-6 py-6">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <div className="workspace-page h-full min-w-0 flex-1 overflow-y-auto bg-neutral-950 px-6 py-6">
+      <div className="flex w-full flex-col gap-6">
         <div className="workspace-hero flex flex-col gap-4 rounded-3xl p-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
             <div className="workspace-kicker">

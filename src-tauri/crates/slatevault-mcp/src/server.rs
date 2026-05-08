@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -12,6 +12,58 @@ use crate::tools::*;
 
 fn is_about_doc(path: &str) -> bool {
     path == "_about.md" || path.ends_with("/_about.md")
+}
+
+fn sanitize_wiki_path(path: &str) -> Result<PathBuf, McpError> {
+    let mut cleaned = PathBuf::new();
+    for component in Path::new(path).components() {
+        match component {
+            Component::Normal(part) => cleaned.push(part),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(McpError::invalid_params(
+                    format!("Path escapes wiki/: {}", path),
+                    None,
+                ));
+            }
+        }
+    }
+
+    if cleaned.as_os_str().is_empty() {
+        return Err(McpError::invalid_params("Path cannot be empty", None));
+    }
+    Ok(cleaned)
+}
+
+fn collect_wiki_markdown(base: &Path, dir: &Path, out: &mut Vec<(String, String)>) -> Result<(), McpError> {
+    if !dir.exists() {
+        return Ok(());
+    }
+
+    for entry in std::fs::read_dir(dir)
+        .map_err(|e| McpError::internal_error(format!("Failed to read wiki: {}", e), None))?
+    {
+        let entry = entry
+            .map_err(|e| McpError::internal_error(format!("Failed to read wiki entry: {}", e), None))?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_wiki_markdown(base, &path, out)?;
+            continue;
+        }
+        if path.extension().and_then(|e| e.to_str()) != Some("md") {
+            continue;
+        }
+        let rel = path
+            .strip_prefix(base)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        let content = std::fs::read_to_string(&path)
+            .map_err(|e| McpError::internal_error(format!("Failed to read {}: {}", rel, e), None))?;
+        out.push((rel, content));
+    }
+
+    Ok(())
 }
 
 #[derive(Clone)]
@@ -299,6 +351,115 @@ impl SlateVaultMcpServer {
                 "- **{}** (`{}/docs/{}`)\n  {}\n\n",
                 r.title, r.project, r.path, r.snippet,
             ));
+        }
+
+        Ok(CallToolResult::success(vec![Content::text(output)]))
+    }
+
+    #[tool(description = "List vault-wide wiki documents for coding standards, AI rules, and shared guidance")]
+    fn list_wiki_docs(&self) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        let wiki_dir = vault.root.join("wiki");
+        let mut docs = Vec::new();
+        collect_wiki_markdown(&wiki_dir, &wiki_dir, &mut docs)?;
+        docs.sort_by(|a, b| a.0.cmp(&b.0));
+
+        if docs.is_empty() {
+            return Ok(CallToolResult::success(vec![Content::text(
+                "No wiki documents found in vault wiki/.",
+            )]));
+        }
+
+        let mut output = String::from("# Global Wiki\n\n");
+        for (path, content) in docs {
+            let title = content
+                .lines()
+                .find_map(|line| line.strip_prefix("# ").map(str::trim))
+                .filter(|title| !title.is_empty())
+                .unwrap_or(&path);
+            output.push_str(&format!("- **{}** (`wiki/{}`)\n", title, path));
+        }
+
+        Ok(CallToolResult::success(vec![Content::text(output)]))
+    }
+
+    #[tool(description = "Read a vault-wide wiki document, such as AI agent rules or coding standards")]
+    fn read_wiki_doc(
+        &self,
+        Parameters(params): Parameters<ReadWikiDocParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        let wiki_dir = vault.root.join("wiki");
+        let rel = sanitize_wiki_path(&params.path)?;
+        let full = wiki_dir.join(&rel);
+        let content = std::fs::read_to_string(&full).map_err(|e| {
+            McpError::internal_error(
+                format!("Failed to read wiki/{}: {}", params.path, e),
+                None,
+            )
+        })?;
+
+        Ok(CallToolResult::success(vec![Content::text(format!(
+            "# wiki/{}\n\n{}",
+            rel.to_string_lossy().replace('\\', "/"),
+            content
+        ))]))
+    }
+
+    #[tool(description = "Read the vault-wide AI agent rules from wiki/ai-agent-rules.md")]
+    fn get_agent_rules(&self) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        let path = vault.root.join("wiki").join("ai-agent-rules.md");
+        let content = std::fs::read_to_string(&path).map_err(|e| {
+            McpError::internal_error(
+                format!("Failed to read wiki/ai-agent-rules.md: {}", e),
+                None,
+            )
+        })?;
+
+        Ok(CallToolResult::success(vec![Content::text(content)]))
+    }
+
+    #[tool(description = "Search vault-wide wiki documents for coding standards, AI rules, and shared guidance")]
+    fn search_wiki(
+        &self,
+        Parameters(params): Parameters<SearchWikiParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let vault = self.open_vault()?;
+        let wiki_dir = vault.root.join("wiki");
+        let mut docs = Vec::new();
+        collect_wiki_markdown(&wiki_dir, &wiki_dir, &mut docs)?;
+
+        let query = params.query.to_lowercase();
+        let limit = params.limit.unwrap_or(10);
+        let mut matches = Vec::new();
+        for (path, content) in docs {
+            let haystack = format!("{}\n{}", path, content).to_lowercase();
+            if !haystack.contains(&query) {
+                continue;
+            }
+            let snippet = content
+                .lines()
+                .find(|line| line.to_lowercase().contains(&query))
+                .unwrap_or_else(|| content.lines().next().unwrap_or(""))
+                .trim()
+                .to_string();
+            matches.push((path, snippet));
+            if matches.len() >= limit {
+                break;
+            }
+        }
+
+        if matches.is_empty() {
+            return Ok(CallToolResult::success(vec![Content::text(format!(
+                "No wiki results found for query: {}",
+                params.query
+            ))]));
+        }
+
+        let mut output = format!("Found {} wiki result(s):\n\n", matches.len());
+        for (path, snippet) in matches {
+            output.push_str(&format!("- `wiki/{}`\n  {}\n", path, snippet));
         }
 
         Ok(CallToolResult::success(vec![Content::text(output)]))

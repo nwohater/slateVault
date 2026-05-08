@@ -50,7 +50,7 @@ export function SearchView() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-neutral-950">
+    <div className="flex h-full min-w-0 flex-1 flex-col bg-neutral-950">
       {/* Search header */}
       <div className="p-4 border-b border-neutral-800 space-y-2">
         <div className="flex gap-2">

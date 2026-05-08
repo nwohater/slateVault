@@ -25,6 +25,7 @@ import type {
   PlaybookInfo,
   AiChatMessage,
   AiChatResult,
+  WikiDocInfo,
 } from "@/types";
 
 export async function createVault(
@@ -173,6 +174,17 @@ export async function writeVaultFile(
   content: string
 ): Promise<string> {
   return invoke("write_vault_file", { path, content });
+}
+
+export async function listWikiDocs(): Promise<WikiDocInfo[]> {
+  return invoke("list_wiki_docs");
+}
+
+export async function createWikiDoc(
+  path: string,
+  title: string
+): Promise<string> {
+  return invoke("create_wiki_doc", { path, title });
 }
 
 export async function listTemplates(): Promise<TemplateInfo[]> {

@@ -26,6 +26,7 @@ impl Vault {
         }
 
         std::fs::create_dir_all(root.join("projects"))?;
+        ensure_global_wiki(root)?;
 
         let config = VaultConfig {
             vault: VaultMeta {
@@ -42,6 +43,7 @@ impl Vault {
 
         // Write .gitignore
         ensure_vault_gitignore(root)?;
+        ensure_global_wiki(root)?;
 
         // Write default templates.json
         let _ = TemplateConfig::load(root);
@@ -76,6 +78,7 @@ impl Vault {
         // Ensure templates.json exists (migration for older vaults)
         let _ = TemplateConfig::load(root);
         ensure_vault_gitignore(root)?;
+        ensure_global_wiki(root)?;
 
         let migrated_local = VaultLocalConfig::from_effective_config(&config);
         config.sync.remote_url = None;
@@ -1279,6 +1282,35 @@ fn ensure_vault_gitignore(root: &Path) -> Result<()> {
     let mut content = lines.join("\n");
     content.push('\n');
     std::fs::write(gitignore_path, content)?;
+    Ok(())
+}
+
+fn ensure_global_wiki(root: &Path) -> Result<()> {
+    let wiki_dir = root.join("wiki");
+    std::fs::create_dir_all(&wiki_dir)?;
+
+    let seeds = [
+        (
+            "ai-agent-rules.md",
+            "# AI Agent Rules\n\nUse this document for vault-wide instructions that AI agents should read before implementation, review, or documentation work.\n\n## Defaults\n\n- Read relevant project context before editing.\n- Respect canonical and protected documents.\n- Prefer small, reviewable changes.\n- Record important decisions in the appropriate project docs.\n",
+        ),
+        (
+            "coding-standards.md",
+            "# Coding Standards\n\nUse this document for engineering conventions that apply across projects in this vault.\n\n## Defaults\n\n- Follow existing project patterns before introducing new abstractions.\n- Keep changes scoped to the requested behavior.\n- Add tests when behavior or shared contracts change.\n- Leave unrelated files and user changes alone.\n",
+        ),
+        (
+            "documentation-style.md",
+            "# Documentation Style\n\nUse this document for writing standards that keep project memory useful and easy to scan.\n\n## Defaults\n\n- Prefer clear titles and short sections.\n- Put durable decisions in decisions docs.\n- Mark source-of-truth docs as canonical when they become stable.\n- Keep notes factual, dated when useful, and tied to the project they affect.\n",
+        ),
+    ];
+
+    for (filename, content) in seeds {
+        let path = wiki_dir.join(filename);
+        if !path.exists() {
+            std::fs::write(path, content)?;
+        }
+    }
+
     Ok(())
 }
 

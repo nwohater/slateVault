@@ -113,6 +113,22 @@ pub struct SearchDocumentsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Read a vault-wide wiki document, such as AI agent rules or coding standards")]
+pub struct ReadWikiDocParams {
+    #[schemars(description = "Path relative to the vault wiki/ folder")]
+    pub path: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[schemars(description = "Search vault-wide wiki documents for coding standards, AI rules, and shared guidance")]
+pub struct SearchWikiParams {
+    #[schemars(description = "Search query")]
+    pub query: String,
+    #[schemars(description = "Maximum results to return (default 10)")]
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 #[schemars(
     description = "Propose an update to a document by writing it on a new branch. The human reviews the diff and merges via PR. Use this instead of write_document for existing protected or canonical docs."
 )]
@@ -284,7 +300,7 @@ pub struct BootstrapProjectParams {
     #[schemars(description = "Initial tags for the project")]
     pub tags: Option<Vec<String>>,
     #[schemars(
-        description = "Template to use for folder structure. Options: 'vibe-coding' (prd/todo/bugs/context/changelog/ideas/prompts), 'software-dev' (specs/features/decisions/guides/runbooks/notes), 'agile', 'minimal'. Defaults to vault default if omitted."
+        description = "Template to use for folder structure. Options: 'vibe-coding' (prd/todo/bugs/context/changelog/ideas/prompts), 'software-dev' (specs/features/decisions/guides/runbooks/notes), 'agile', 'research' (research/findings/sources/experiments/decisions/notes), 'minimal'. Defaults to vault default if omitted."
     )]
     pub template: Option<String>,
     #[schemars(description = "Absolute path to the local source code folder, if known")]

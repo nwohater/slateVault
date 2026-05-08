@@ -322,7 +322,7 @@ export function CreateProjectForm({
               )}
             </>
           ) : (
-            <div className="text-neutral-600">Minimal template — starts empty.</div>
+            <div className="text-neutral-600">Blank template — starts empty.</div>
           )}
         </div>
         <p className="mt-4 text-[11px] leading-5 text-neutral-500">

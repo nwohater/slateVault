@@ -33,6 +33,13 @@ export interface DocumentInfo {
   protected: boolean;
 }
 
+export interface WikiDocInfo {
+  path: string;
+  title: string;
+  modified: string;
+  size: number;
+}
+
 export interface AssetInfo {
   path: string;
   filename: string;

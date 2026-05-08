@@ -86,6 +86,7 @@ export function FileTree() {
   const projects = useVaultStore((s) => s.projects);
   const documents = useVaultStore((s) => s.documents);
   const expandedProjects = useVaultStore((s) => s.expandedProjects);
+  const expandProject = useVaultStore((s) => s.expandProject);
   const toggleProject = useVaultStore((s) => s.toggleProject);
   const loadProjects = useVaultStore((s) => s.loadProjects);
   const loadDocuments = useVaultStore((s) => s.loadDocuments);
@@ -139,6 +140,31 @@ export function FileTree() {
       }).catch(() => {});
     }
   }, [expandedProjects, documents]);
+
+  // When a document is opened from another screen, reveal it in the tree.
+  useEffect(() => {
+    if (!activeProject || !activePath || !activePath.includes("/")) {
+      if (activeProject) {
+        expandProject(activeProject);
+      }
+      return;
+    }
+
+    expandProject(activeProject);
+    const parts = activePath.split("/").slice(0, -1);
+    const folderKeys = parts.map((_, index) => {
+      const folderPath = parts.slice(0, index + 1).join("/");
+      return `${activeProject}/${folderPath}`;
+    });
+
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      for (const key of folderKeys) {
+        next.add(key);
+      }
+      return next;
+    });
+  }, [activeProject, activePath, expandProject]);
 
   const handleCreateDoc = async (projectName: string) => {
     if (!newDocName.trim()) return;

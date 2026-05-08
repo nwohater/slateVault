@@ -285,8 +285,8 @@ export function SyncView() {
           : null;
 
   return (
-    <div className="workspace-page h-full overflow-y-auto px-6 py-6">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <div className="workspace-page h-full min-w-0 flex-1 overflow-y-auto px-6 py-6">
+      <div className="flex w-full flex-col gap-6">
         <section className="workspace-hero rounded-3xl p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-2xl">

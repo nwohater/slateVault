@@ -3188,8 +3188,134 @@ pub fn write_vault_file(
 ) -> CmdResult<String> {
     with_vault(&state, |vault| {
         let full = resolve_inside(&vault.root, &path)?;
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
         std::fs::write(&full, &content)?;
         Ok(format!("Saved {}", path))
+    })
+}
+
+// -- Global wiki commands --
+
+#[derive(Serialize)]
+pub struct WikiDocInfo {
+    path: String,
+    title: String,
+    modified: String,
+    size: u64,
+}
+
+fn markdown_title(content: &str, fallback: &str) -> String {
+    content
+        .lines()
+        .find_map(|line| line.strip_prefix("# ").map(str::trim))
+        .filter(|title| !title.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| {
+            fallback
+                .trim_end_matches(".md")
+                .replace(['-', '_'], " ")
+                .split_whitespace()
+                .map(|word| {
+                    let mut chars = word.chars();
+                    match chars.next() {
+                        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                        None => String::new(),
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+}
+
+fn collect_wiki_docs(
+    base: &Path,
+    dir: &Path,
+    out: &mut Vec<WikiDocInfo>,
+) -> Result<(), slatevault_core::CoreError> {
+    if !dir.exists() {
+        return Ok(());
+    }
+
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_wiki_docs(base, &path, out)?;
+            continue;
+        }
+        if path.extension().and_then(|e| e.to_str()) != Some("md") {
+            continue;
+        }
+
+        let rel = path
+            .strip_prefix(base)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        let content = std::fs::read_to_string(&path).unwrap_or_default();
+        let metadata = std::fs::metadata(&path)?;
+        let modified = metadata
+            .modified()
+            .map(|time| {
+                let dt: chrono::DateTime<chrono::Utc> = time.into();
+                dt.to_rfc3339()
+            })
+            .unwrap_or_else(|_| chrono::Utc::now().to_rfc3339());
+        let filename = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(ToString::to_string)
+            .unwrap_or_else(|| rel.clone());
+
+        out.push(WikiDocInfo {
+            path: rel,
+            title: markdown_title(&content, &filename),
+            modified,
+            size: metadata.len(),
+        });
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_wiki_docs(state: State<'_, VaultState>) -> CmdResult<Vec<WikiDocInfo>> {
+    with_vault(&state, |vault| {
+        let wiki_dir = vault.root.join("wiki");
+        std::fs::create_dir_all(&wiki_dir)?;
+        let mut docs = Vec::new();
+        collect_wiki_docs(&wiki_dir, &wiki_dir, &mut docs)?;
+        docs.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(docs)
+    })
+}
+
+#[tauri::command]
+pub fn create_wiki_doc(
+    path: String,
+    title: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let mut normalized = sanitize_relative_path(&path)?;
+        if normalized.extension().is_none() {
+            normalized.set_extension("md");
+        }
+        if normalized.extension().and_then(|e| e.to_str()) != Some("md") {
+            return Err(invalid_input("Wiki documents must be markdown files"));
+        }
+
+        let wiki_dir = vault.root.join("wiki");
+        let full = wiki_dir.join(&normalized);
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        if !full.exists() {
+            std::fs::write(&full, format!("# {}\n\n", title.trim()))?;
+        }
+        Ok(normalized.to_string_lossy().replace('\\', "/"))
     })
 }
 
