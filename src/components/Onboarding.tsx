@@ -11,6 +11,7 @@ import {
   getMcpSetupCards,
   type McpPlatform,
 } from "@/lib/mcpSetup";
+import { setSkipOnboarding, shouldSkipOnboarding } from "@/lib/onboardingPrefs";
 import { CreateProjectForm } from "@/components/shared/CreateProjectForm";
 import type { McpServerStatus, RemoteConfig, VaultSettings } from "@/types";
 
@@ -36,10 +37,14 @@ function StepRail({
   currentStep,
   onSelect,
   projectCreated,
+  skipOnStartup,
+  onSkipOnStartupChange,
 }: {
   currentStep: Step;
   onSelect: (step: Step) => void;
   projectCreated: boolean;
+  skipOnStartup: boolean;
+  onSkipOnStartupChange: (skip: boolean) => void;
 }) {
   return (
     <div className="workspace-section rounded-3xl p-4">
@@ -85,6 +90,15 @@ function StepRail({
           );
         })}
       </div>
+      <label className="mt-5 flex items-start gap-2 border-t border-neutral-800 pt-4 text-[11px] leading-5 text-neutral-400">
+        <input
+          type="checkbox"
+          checked={skipOnStartup}
+          onChange={(e) => onSkipOnStartupChange(e.target.checked)}
+          className="mt-0.5 rounded"
+        />
+        <span>Don&apos;t show this on startup</span>
+      </label>
     </div>
   );
 }
@@ -109,6 +123,7 @@ export function Onboarding() {
   const [vaultConfig, setVaultConfig] = useState<VaultSettings | null>(null);
   const [mcpStatus, setMcpStatus] = useState<McpServerStatus | null>(null);
   const [platform, setPlatform] = useState<McpPlatform>("unknown");
+  const [skipOnStartup, setSkipOnStartupState] = useState(() => shouldSkipOnboarding());
 
   const projectCreated = projects.length > 0;
   const agentCommands = getMcpSetupCards(platform);
@@ -185,6 +200,11 @@ export function Onboarding() {
     setWorkspaceView("documents");
   };
 
+  const handleSkipOnStartupChange = (skip: boolean) => {
+    setSkipOnStartupState(skip);
+    setSkipOnboarding(skip);
+  };
+
   return (
     <div className="workspace-page h-full min-w-0 flex-1 overflow-y-auto px-6 py-6">
       <div className="grid w-full max-w-6xl gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -192,6 +212,8 @@ export function Onboarding() {
           currentStep={step}
           onSelect={setStep}
           projectCreated={projectCreated}
+          skipOnStartup={skipOnStartup}
+          onSkipOnStartupChange={handleSkipOnStartupChange}
         />
 
         <div className="workspace-section rounded-3xl p-6">

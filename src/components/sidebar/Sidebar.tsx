@@ -64,9 +64,9 @@ function FlatWikiIcon({ className = "w-5 h-5" }: IconProps) {
 function FlatSessionIcon({ className = "w-5 h-5" }: IconProps) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 5.75h10.5v12.5H6.75z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9.25 9.25h5.5M9.25 12h5.5M9.25 14.75h3.25" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 8.25h1.5M17.25 15.75h1.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="m12 3.75 7.25 8.25L12 20.25 4.75 12z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="m12 7.75 1.25 2.95 2.95 1.25-2.95 1.25L12 16.25l-1.25-3.05-2.95-1.25 2.95-1.25z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3.75V7.5M12 16.5v3.75" />
     </svg>
   );
 }

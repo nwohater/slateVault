@@ -18,6 +18,7 @@ import { VaultPicker } from "./vault/VaultPicker";
 import { ResizeHandle } from "./shared/ResizeHandle";
 import { StatusBar } from "./StatusBar";
 import { Onboarding } from "./Onboarding";
+import { shouldSkipOnboarding } from "@/lib/onboardingPrefs";
 
 export function AppShell() {
   const isOpen = useVaultStore((s) => s.isOpen);
@@ -84,9 +85,14 @@ export function AppShell() {
 
   useEffect(() => {
     if (isOpen && projects.length === 0) {
+      if (shouldSkipOnboarding()) {
+        setShowOnboarding(false);
+        setWorkspaceView("home");
+        return;
+      }
       setShowOnboarding(true);
     }
-  }, [isOpen, projects.length, setShowOnboarding]);
+  }, [isOpen, projects.length, setShowOnboarding, setWorkspaceView]);
 
   if (!isOpen) {
     return <VaultPicker />;
