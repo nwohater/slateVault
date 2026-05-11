@@ -27,6 +27,12 @@ function CloseIcon() {
 }
 
 export function WindowControls() {
+  const isMac =
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+
+  if (isMac) return null;
+
   const appWindow = getCurrentWindow();
 
   return (

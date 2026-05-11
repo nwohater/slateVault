@@ -84,8 +84,13 @@ export function AppChromeBar({
   onToggleTerminal,
   onSaveDocument,
 }: AppChromeBarProps) {
+  const isMac =
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+
   return (
-    <header className="app-chrome-bar flex h-10 flex-shrink-0 items-center gap-2 pl-2" data-tauri-drag-region>
+    <header className="app-chrome-bar flex h-10 flex-shrink-0 items-center gap-2 pl-2 pr-2" data-tauri-drag-region>
+      {isMac && <div className="h-full w-18 flex-shrink-0" data-tauri-drag-region />}
       <div className="flex min-w-0 items-center gap-2">
         <div className="app-chrome-mark">SV</div>
         <div className="hidden min-w-0 sm:block">

@@ -23,8 +23,7 @@
         "dragDropEnabled": false,
         "theme": "Dark",
         "backgroundColor": "#050505",
-        "decorations": false,
-        "titleBarStyle": "Transparent",
+        "titleBarStyle": "Overlay",
         "hiddenTitle": true
       }
     ],
