@@ -318,6 +318,14 @@ export async function gitPull(): Promise<string> {
   return invoke("git_pull");
 }
 
+export async function gitPullWithStash(): Promise<string> {
+  return invoke("git_pull_with_stash");
+}
+
+export async function gitPullDiscardLocal(): Promise<string> {
+  return invoke("git_pull_discard_local");
+}
+
 export async function gitSetRemoteConfig(config: {
   remote_url?: string;
   remote_branch?: string;

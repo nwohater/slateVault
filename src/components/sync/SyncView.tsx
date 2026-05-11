@@ -98,10 +98,13 @@ export function SyncView() {
   const loadDocSyncRisks = useGitStore((s) => s.loadDocSyncRisks);
   const pushRemote = useGitStore((s) => s.push);
   const pullRemote = useGitStore((s) => s.pull);
+  const pullWithStash = useGitStore((s) => s.pullWithStash);
+  const pullDiscardLocal = useGitStore((s) => s.pullDiscardLocal);
   const setWorkspaceView = useUIStore((s) => s.setWorkspaceView);
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const openDocument = useEditorStore((s) => s.openDocument);
-  const [syncing, setSyncing] = useState<"pull" | "push" | null>(null);
+  const [syncing, setSyncing] = useState<"pull" | "push" | "safe-pull" | "discard-pull" | null>(null);
+  const [confirmDiscardPull, setConfirmDiscardPull] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [docMetaByKey, setDocMetaByKey] = useState<Record<string, DocumentInfo>>({});
@@ -278,6 +281,41 @@ export function SyncView() {
     }
   };
 
+  const handleSafePull = async () => {
+    setSyncing("safe-pull");
+    setError(null);
+    setMessage("Stashing local changes, pulling latest, then reapplying your work...");
+    try {
+      const result = await pullWithStash();
+      setMessage(result || "Pulled latest and reapplied local changes.");
+      window.setTimeout(() => setMessage(null), 3200);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  const handleDiscardLocalPull = async () => {
+    if (!confirmDiscardPull) {
+      setConfirmDiscardPull(true);
+      return;
+    }
+    setSyncing("discard-pull");
+    setError(null);
+    setMessage("Discarding local changes and loading latest remote...");
+    try {
+      const result = await pullDiscardLocal();
+      setMessage(result || "Local changes discarded and latest remote loaded.");
+      setConfirmDiscardPull(false);
+      window.setTimeout(() => setMessage(null), 3200);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setSyncing(null);
+    }
+  };
+
   const handleOpenChangedDoc = (doc: ChangedDocSummary) => {
     if (doc.statuses.every((status) => status.includes("deleted"))) {
       return;
@@ -409,6 +447,54 @@ export function SyncView() {
                 >
                   Review docs
                 </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {syncStatus && (syncStatus.behind > 0 || syncStatus.diverged) && files.length > 0 && (
+          <section className="rounded-3xl border border-amber-900/40 bg-amber-950/15 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-[0.16em] text-amber-300">
+                  Pull needs a strategy
+                </div>
+                <div className="mt-2 text-sm font-semibold text-neutral-100">
+                  You have local changes and the remote has newer history.
+                </div>
+                <p className="mt-1 max-w-3xl text-xs leading-5 text-neutral-400">
+                  Use Safe Pull to temporarily stash your work, update from the shared vault, then reapply your edits.
+                  If you want the remote to win completely, use Discard Local & Pull.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => void handleSafePull()}
+                  disabled={syncing !== null}
+                  className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-neutral-950 transition-colors hover:bg-amber-200 disabled:opacity-50"
+                >
+                  Safe Pull
+                </button>
+                <button
+                  onClick={() => void handleDiscardLocalPull()}
+                  disabled={syncing !== null}
+                  className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                    confirmDiscardPull
+                      ? "border-red-500 bg-red-950/50 text-red-200 hover:bg-red-900/50"
+                      : "border-red-900/50 text-red-300 hover:bg-red-950/30"
+                  }`}
+                >
+                  {confirmDiscardPull ? "Confirm discard & pull" : "Discard local & pull"}
+                </button>
+                {confirmDiscardPull && (
+                  <button
+                    onClick={() => setConfirmDiscardPull(false)}
+                    disabled={syncing !== null}
+                    className="rounded-xl border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-300 hover:bg-neutral-800 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                )}
               </div>
             </div>
           </section>
