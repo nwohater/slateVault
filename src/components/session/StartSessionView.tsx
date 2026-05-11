@@ -235,7 +235,7 @@ export function StartSessionView() {
       <div className="flex w-full flex-col gap-6">
         <div className="workspace-hero flex flex-col gap-4 rounded-3xl p-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
-            <div className="workspace-kicker">
+            <div className="workspace-kicker mb-3">
               <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
               Prepare trusted project context
             </div>

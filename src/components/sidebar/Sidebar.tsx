@@ -194,12 +194,9 @@ export function Sidebar() {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="app-sidebar flex h-full">
       {/* Activity Bar */}
-      <div className="flex w-14 flex-col items-center gap-1 border-r border-neutral-800/50 bg-[linear-gradient(180deg,rgba(5,9,14,0.98),rgba(8,13,19,0.92))] py-3 flex-shrink-0">
-        <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-2xl border border-cyan-900/30 bg-cyan-950/20 text-[11px] font-semibold text-cyan-200">
-          SV
-        </div>
+      <div className="app-activity-bar">
         <button
           onClick={() => {
             setView("home");
@@ -207,10 +204,10 @@ export function Sidebar() {
             setShowOnboarding(true);
           }}
           title="Open onboarding"
-          className={`relative flex h-10 w-10 items-center justify-center rounded-2xl transition-colors ${
+          className={`app-activity-btn ${
             showOnboarding
-              ? "bg-cyan-950/70 text-cyan-200 shadow-[0_10px_24px_rgba(0,0,0,0.22)]"
-              : "text-neutral-500 hover:bg-neutral-800/50 hover:text-neutral-300"
+              ? "app-activity-btn-active app-activity-btn-cyan"
+              : "app-activity-btn-idle"
           }`}
         >
           <OnboardingCheckIcon />
@@ -237,10 +234,10 @@ export function Sidebar() {
                           ? "Source Control"
                           : "AI Chat"
             }
-            className={`relative flex h-10 w-10 items-center justify-center rounded-2xl transition-colors ${
+            className={`app-activity-btn ${
               view === v && view !== "settings" && !showOnboarding
-                ? "bg-neutral-800/90 text-white shadow-[0_10px_24px_rgba(0,0,0,0.22)]"
-                : "text-neutral-500 hover:bg-neutral-800/50 hover:text-neutral-300"
+                ? "app-activity-btn-active"
+                : "app-activity-btn-idle"
             }`}
           >
             {viewIcons[v]}
@@ -256,10 +253,10 @@ export function Sidebar() {
         <button
           onClick={() => switchView("settings")}
           title="Settings"
-          className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors relative ${
+          className={`app-activity-btn ${
             view === "settings"
-              ? "text-white bg-neutral-800"
-              : "text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800/50"
+              ? "app-activity-btn-active"
+              : "app-activity-btn-idle"
           }`}
         >
           {viewIcons.settings}
@@ -271,13 +268,13 @@ export function Sidebar() {
 
       {/* Panel */}
       {showPanel && (
-      <div className="flex min-w-0 flex-1 flex-col bg-[linear-gradient(180deg,rgba(13,18,24,0.82),rgba(9,13,18,0.92))]">
+      <div className="app-sidebar-panel flex min-w-0 flex-1 flex-col">
         {/* Panel header */}
-        <div className="flex items-center justify-between border-b border-neutral-800/50 px-4 py-3">
+        <div className="app-sidebar-panel-header">
           {view === "files" ? (
             <button
               onClick={closeVault}
-              className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-300 hover:text-cyan-400 truncate group"
+              className="group flex min-w-0 items-center gap-1.5 truncate text-[11px] font-semibold text-neutral-300 hover:text-cyan-300"
               title="Click to switch vault"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 flex-shrink-0" />

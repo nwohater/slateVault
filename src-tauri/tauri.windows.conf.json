@@ -23,6 +23,7 @@
         "dragDropEnabled": false,
         "theme": "Dark",
         "backgroundColor": "#050505",
+        "decorations": false,
         "titleBarStyle": "Transparent",
         "hiddenTitle": true
       }

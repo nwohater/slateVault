@@ -5,6 +5,7 @@ import * as commands from "@/lib/commands";
 import { GitPanel } from "@/components/git/GitPanel";
 import { useGitStore } from "@/stores/gitStore";
 import { useUIStore } from "@/stores/uiStore";
+import { useEditorStore } from "@/stores/editorStore";
 import type { DocumentInfo } from "@/types";
 
 function formatRelativeDate(iso: string) {
@@ -98,6 +99,8 @@ export function SyncView() {
   const pushRemote = useGitStore((s) => s.push);
   const pullRemote = useGitStore((s) => s.pull);
   const setWorkspaceView = useUIStore((s) => s.setWorkspaceView);
+  const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
+  const openDocument = useEditorStore((s) => s.openDocument);
   const [syncing, setSyncing] = useState<"pull" | "push" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -273,6 +276,15 @@ export function SyncView() {
       setWorkspaceView("settings");
       return;
     }
+  };
+
+  const handleOpenChangedDoc = (doc: ChangedDocSummary) => {
+    if (doc.statuses.every((status) => status.includes("deleted"))) {
+      return;
+    }
+    setShowOnboarding(false);
+    setWorkspaceView("documents");
+    void openDocument(doc.project, doc.path);
   };
 
   const primaryActionLabel =
@@ -458,11 +470,25 @@ export function SyncView() {
                   No markdown docs are currently changing. If you expected doc changes here, check the detailed git tools below.
                 </div>
               ) : (
-                changedDocs.map((doc) => (
-                  <div key={doc.key} className="workspace-subsection rounded-2xl p-4">
+                changedDocs.map((doc) => {
+                  const isDeletedOnly = doc.statuses.every((status) => status.includes("deleted"));
+
+                  return (
+                  <button
+                    key={doc.key}
+                    type="button"
+                    onClick={() => handleOpenChangedDoc(doc)}
+                    disabled={isDeletedOnly}
+                    className={`workspace-subsection group w-full rounded-2xl p-4 text-left transition-colors ${
+                      isDeletedOnly
+                        ? "cursor-not-allowed opacity-65"
+                        : "hover:border-cyan-800/50 hover:bg-cyan-950/10"
+                    }`}
+                    title={isDeletedOnly ? "Deleted docs cannot be opened from the vault" : "Open document for review"}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-neutral-100">{doc.title}</div>
+                        <div className="truncate text-sm font-medium text-neutral-100 group-hover:text-cyan-200">{doc.title}</div>
                         <div className="mt-1 text-[11px] text-neutral-500">
                           {doc.project}/{doc.path}
                         </div>
@@ -494,8 +520,9 @@ export function SyncView() {
                         </span>
                       )}
                     </div>
-                  </div>
-                ))
+                  </button>
+                  );
+                })
               )}
             </div>
           </div>

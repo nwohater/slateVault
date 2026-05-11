@@ -18,6 +18,7 @@ import { VaultPicker } from "./vault/VaultPicker";
 import { ResizeHandle } from "./shared/ResizeHandle";
 import { StatusBar } from "./StatusBar";
 import { Onboarding } from "./Onboarding";
+import { AppChromeBar } from "./AppChromeBar";
 import { shouldSkipOnboarding } from "@/lib/onboardingPrefs";
 
 export function AppShell() {
@@ -39,6 +40,7 @@ export function AppShell() {
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const toggleTerminal = useUIStore((s) => s.toggleTerminal);
   const setTerminalHeight = useUIStore((s) => s.setTerminalHeight);
+  const vaultName = useVaultStore((s) => s.vaultName);
   const projects = useVaultStore((s) => s.projects);
   const isDirty = useEditorStore((s) => s.isDirty);
   const saveDocument = useEditorStore((s) => s.saveDocument);
@@ -105,94 +107,47 @@ export function AppShell() {
     isDocumentsWorkspace ||
     workspaceView === "settings";
   const effectiveSidebarWidth = hasSidebarPanel ? sidebarWidth : 56;
+  const openWorkspaceView = (view: typeof workspaceView) => {
+    setShowOnboarding(false);
+    setWorkspaceView(view);
+  };
 
   return (
-    <div className="app-shell flex h-screen overflow-hidden">
-      {/* Sidebar */}
-      <div style={{ width: effectiveSidebarWidth }} className="flex-shrink-0">
-        <Sidebar />
-      </div>
+    <div className="app-shell flex h-screen flex-col overflow-hidden">
+      <AppChromeBar
+        workspaceView={workspaceView}
+        workspaceLabel={workspaceLabel}
+        vaultName={vaultName}
+        showEditor={showEditor}
+        showPreview={showPreview}
+        showTerminal={showTerminal}
+        isDirty={isDirty}
+        isDocumentsWorkspace={isDocumentsWorkspace && activeView === "editor"}
+        onWorkspaceChange={openWorkspaceView}
+        onToggleSearch={() => openWorkspaceView(workspaceView === "search" ? "documents" : "search")}
+        onToggleEditor={toggleEditor}
+        onTogglePreview={togglePreview}
+        onToggleTerminal={toggleTerminal}
+        onSaveDocument={saveDocument}
+      />
 
-      {hasSidebarPanel && (
-        <ResizeHandle
-          direction="vertical"
-          onResize={(delta) => setSidebarWidth((w) => w + delta)}
-        />
-      )}
-
-      {/* Main area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Toolbar */}
-        <div className="toolbar-shell flex items-center gap-3 px-4 py-2">
-          <div className="min-w-0">
-            <div className="workspace-label text-sm font-semibold text-neutral-100">
-              {workspaceLabel}
-            </div>
-            <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">
-              Project memory workspace
-            </div>
-          </div>
-          <div className="toolbar-group">
-            <button
-              onClick={() => setWorkspaceView(workspaceView === "search" ? "documents" : "search")}
-              className={`toolbar-btn ${
-                workspaceView === "search" ? "toolbar-btn-active" : "toolbar-btn-default"
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-              </svg>
-              Search
-            </button>
-            {isDocumentsWorkspace && activeView === "editor" && (
-              <>
-                <button
-                  onClick={toggleEditor}
-                  className={`toolbar-btn ${showEditor ? "toolbar-btn-default" : "toolbar-btn-default opacity-50"}`}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
-                  </svg>
-                  Editor
-                </button>
-                <button
-                  onClick={togglePreview}
-                  className={`toolbar-btn ${showPreview ? "toolbar-btn-default" : "toolbar-btn-default opacity-50"}`}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                  </svg>
-                  Preview
-                </button>
-              </>
-            )}
-            <button
-              onClick={toggleTerminal}
-              className={`toolbar-btn ${showTerminal ? "toolbar-btn-active" : "toolbar-btn-default"}`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
-              </svg>
-              Terminal
-            </button>
-          </div>
-          <div className="flex-1" />
-          {isDocumentsWorkspace && isDirty && (
-            <button
-              onClick={saveDocument}
-              className="toolbar-btn toolbar-btn-active"
-            >
-              Save
-            </button>
-          )}
-          <span className="rounded-full border border-neutral-800 bg-neutral-900/70 px-3 py-1 text-[10px] text-neutral-500">
-            Ctrl+T terminal
-          </span>
+      <div className="flex min-h-0 flex-1">
+        {/* Sidebar */}
+        <div style={{ width: effectiveSidebarWidth }} className="flex-shrink-0">
+          <Sidebar />
         </div>
 
-        {/* Content + Terminal + StatusBar */}
-        <div className="flex-1 flex flex-col min-h-0">
+        {hasSidebarPanel && (
+          <ResizeHandle
+            direction="vertical"
+            onResize={(delta) => setSidebarWidth((w) => w + delta)}
+          />
+        )}
+
+        {/* Main area */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Content + Terminal + StatusBar */}
+          <div className="flex min-h-0 flex-1 flex-col">
           {/* Main content */}
           <div className="flex-1 flex min-h-0">
             {showOnboarding ? (
@@ -279,6 +234,7 @@ export function AppShell() {
 
         {/* Status bar */}
         <StatusBar />
+      </div>
       </div>
     </div>
   );

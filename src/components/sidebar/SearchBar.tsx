@@ -32,7 +32,7 @@ export function SearchBar() {
   }, []);
 
   return (
-    <div className="relative px-3 py-2 border-b border-neutral-800">
+    <div className="app-sidebar-search relative">
       <input
         type="text"
         value={query}
@@ -40,10 +40,10 @@ export function SearchBar() {
         onFocus={() => results.length > 0 && setShowResults(true)}
         onBlur={() => setTimeout(() => setShowResults(false), 200)}
         placeholder="Search documents..."
-        className="w-full px-2 py-1 text-xs bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:border-blue-600"
+        className="w-full rounded-lg border border-neutral-800/80 bg-neutral-950/45 px-2.5 py-1.5 text-xs text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-700"
       />
       {showResults && results.length > 0 && (
-        <div className="absolute left-3 right-3 mt-1 bg-neutral-800 border border-neutral-700 rounded shadow-lg z-10 max-h-60 overflow-y-auto">
+        <div className="absolute left-3 right-3 z-10 mt-1 max-h-60 overflow-y-auto rounded-lg border border-neutral-700 bg-neutral-900 shadow-xl">
           {results.map((r, i) => (
             <button
               key={i}

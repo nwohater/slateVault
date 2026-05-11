@@ -104,13 +104,13 @@ export function TreeNode({
         }
       }}
       className={`
-        w-full flex items-center gap-1 px-2 py-1 text-xs text-left
+        w-full flex items-center gap-1.5 px-2 py-1.5 text-xs text-left rounded-md
         transition-colors
         ${isAsset
-          ? "text-neutral-500 hover:text-neutral-400 hover:bg-neutral-800/50"
+          ? "text-neutral-500 hover:text-neutral-400 hover:bg-neutral-800/45"
           : isActive
-            ? "bg-neutral-800 text-blue-400 hover:bg-neutral-800"
-            : "text-neutral-300 hover:bg-neutral-800"}
+            ? "bg-cyan-950/35 text-cyan-300 hover:bg-cyan-950/45"
+            : "text-neutral-300 hover:bg-neutral-800/55"}
         ${isExternalDropTarget ? "bg-cyan-950/40 border-l-2 border-cyan-500" : dragOver ? "bg-blue-900/30 border-l-2 border-blue-500" : ""}
       `}
       style={{ paddingLeft: 8 + depth * 16 }}
