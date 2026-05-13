@@ -16,21 +16,13 @@ import { CreateProjectForm } from "@/components/shared/CreateProjectForm";
 import type { McpServerStatus, RemoteConfig, VaultSettings } from "@/types";
 
 type Step = "welcome" | "project" | "sync" | "agent" | "finish";
-type TemplateConfigMap = Record<
-  string,
-  {
-    label: string;
-    folders: string[];
-    files: Record<string, string>;
-  }
->;
 
 const STEPS: { id: Step; label: string }[] = [
   { id: "welcome", label: "Welcome" },
   { id: "project", label: "New Project" },
-  { id: "sync", label: "Team Sync" },
-  { id: "agent", label: "Agent Access" },
-  { id: "finish", label: "Finish" },
+  { id: "sync",    label: "Team Sync" },
+  { id: "agent",   label: "Agent Access" },
+  { id: "finish",  label: "Finish" },
 ];
 
 function StepRail({
@@ -47,55 +39,59 @@ function StepRail({
   onSkipOnStartupChange: (skip: boolean) => void;
 }) {
   return (
-    <div className="workspace-section rounded-3xl p-4">
-      <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.2em] text-neutral-500">
+    <div className="panel rounded-2xl p-4">
+      <p style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--text-faint)", marginBottom: 12 }}>
         Setup Flow
       </p>
-      <div className="space-y-2">
-        {STEPS.map((step, index) => {
-          const isCurrent = currentStep === step.id;
-          const isEnabled =
-            step.id === "welcome" ||
-            step.id === "project" ||
-            projectCreated ||
-            currentStep === step.id;
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {STEPS.map((s, i) => {
+          const isCurrent = currentStep === s.id;
+          const isEnabled = s.id === "welcome" || s.id === "project" || projectCreated || currentStep === s.id;
           return (
             <button
-              key={step.id}
-              onClick={() => {
-                if (isEnabled) onSelect(step.id);
-              }}
+              key={s.id}
+              onClick={() => { if (isEnabled) onSelect(s.id); }}
               disabled={!isEnabled}
-              className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors ${
-                isCurrent
-                  ? "border border-cyan-400/25 bg-cyan-950/40 text-white"
-                  : isEnabled
-                    ? "workspace-action text-neutral-400 hover:text-neutral-200"
-                    : "cursor-not-allowed text-neutral-700"
-              }`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px 10px",
+                borderRadius: "var(--radius)",
+                border: isCurrent ? "1px solid color-mix(in srgb, var(--accent) 30%, var(--border))" : "1px solid transparent",
+                background: isCurrent ? "var(--accent-soft)" : "transparent",
+                color: isCurrent ? "var(--accent)" : isEnabled ? "var(--text-muted)" : "var(--text-faint)",
+                textAlign: "left",
+                cursor: isEnabled ? "pointer" : "not-allowed",
+                fontWeight: 500,
+                fontSize: 13,
+              }}
             >
-              <span
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold ${
-                  isCurrent
-                    ? "bg-cyan-500 text-neutral-950"
-                    : isEnabled
-                      ? "bg-neutral-800 text-neutral-300"
-                      : "bg-neutral-900 text-neutral-600"
-                }`}
-              >
-                {index + 1}
+              <span style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                width: 24, height: 24, borderRadius: "50%", flexShrink: 0,
+                fontSize: 11, fontWeight: 600,
+                background: isCurrent ? "var(--accent)" : "var(--bg-subtle)",
+                color: isCurrent ? "var(--accent-fg)" : "var(--text-muted)",
+              }}>
+                {i + 1}
               </span>
-              <span className="text-sm font-medium">{step.label}</span>
+              {s.label}
             </button>
           );
         })}
       </div>
-      <label className="mt-5 flex items-start gap-2 border-t border-neutral-800 pt-4 text-[11px] leading-5 text-neutral-400">
+      <label style={{
+        display: "flex", alignItems: "flex-start", gap: 8,
+        marginTop: 16, paddingTop: 12,
+        borderTop: "1px solid var(--border-subtle)",
+        fontSize: 11, color: "var(--text-muted)", cursor: "pointer",
+      }}>
         <input
           type="checkbox"
           checked={skipOnStartup}
           onChange={(e) => onSkipOnStartupChange(e.target.checked)}
-          className="mt-0.5 rounded"
+          style={{ marginTop: 1 }}
         />
         <span>Don&apos;t show this on startup</span>
       </label>
@@ -130,40 +126,24 @@ export function Onboarding() {
 
   useEffect(() => {
     setPlatform(detectMcpPlatform());
-
-    commands
-      .gitRemoteConfig()
-      .then((config) => {
-        setRemoteConfig(config);
-        setRemoteUrl(config.remote_url || "");
-        setRemoteBranch(config.remote_branch || "main");
-        setPullOnOpen(config.pull_on_open);
-        setPushOnClose(config.push_on_close);
-        setConnectRemote(Boolean(config.remote_url));
-      })
-      .catch(() => {});
-
-    commands
-      .getVaultConfig()
-      .then(setVaultConfig)
-      .catch(() => {});
-
-    const refreshMcpStatus = () => {
-      commands
-        .mcpServerStatus()
-        .then(setMcpStatus)
-        .catch(() => {});
-    };
-    refreshMcpStatus();
-    const statusInterval = window.setInterval(refreshMcpStatus, 5000);
-
-    return () => window.clearInterval(statusInterval);
+    commands.gitRemoteConfig().then((config) => {
+      setRemoteConfig(config);
+      setRemoteUrl(config.remote_url || "");
+      setRemoteBranch(config.remote_branch || "main");
+      setPullOnOpen(config.pull_on_open);
+      setPushOnClose(config.push_on_close);
+      setConnectRemote(Boolean(config.remote_url));
+    }).catch(() => {});
+    commands.getVaultConfig().then(setVaultConfig).catch(() => {});
+    const refresh = () => commands.mcpServerStatus().then(setMcpStatus).catch(() => {});
+    refresh();
+    const iv = window.setInterval(refresh, 5000);
+    return () => window.clearInterval(iv);
   }, []);
 
   const goToPrevious = () => {
-    const currentIndex = STEPS.findIndex((s) => s.id === step);
-    const previous = STEPS[currentIndex - 1];
-    if (previous) setStep(previous.id);
+    const i = STEPS.findIndex((s) => s.id === step);
+    if (STEPS[i - 1]) setStep(STEPS[i - 1].id);
   };
 
   const handleProjectCreated = async (name: string) => {
@@ -206,8 +186,8 @@ export function Onboarding() {
   };
 
   return (
-    <div className="workspace-page h-full min-w-0 flex-1 overflow-y-auto px-6 py-6">
-      <div className="grid w-full max-w-6xl gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+    <div className="workspace-page" style={{ height: "100%", minWidth: 0, flex: 1, overflowY: "auto", padding: "24px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "240px minmax(0,1fr)", gap: 20, maxWidth: 960, width: "100%" }}>
         <StepRail
           currentStep={step}
           onSelect={setStep}
@@ -216,66 +196,49 @@ export function Onboarding() {
           onSkipOnStartupChange={handleSkipOnStartupChange}
         />
 
-        <div className="workspace-section rounded-3xl p-6">
+        <div className="panel" style={{ borderRadius: "var(--radius-lg)", padding: 24 }}>
+
+          {/* ── Welcome ── */}
           {step === "welcome" && (
-            <div className="max-w-3xl">
-              <div className="workspace-kicker mb-4">
-                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            <div style={{ maxWidth: 640 }}>
+              <div className="chip accent" style={{ marginBottom: 14 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", flexShrink: 0 }} />
                 {vaultName || "slateVault"} is ready
               </div>
-              <h1 className="workspace-label text-3xl font-semibold tracking-tight text-neutral-100">
+              <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: "-0.02em", color: "var(--text)", margin: 0 }}>
                 Project memory for software teams
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-400">
+              <p style={{ marginTop: 10, fontSize: 13.5, lineHeight: 1.65, color: "var(--text-muted)" }}>
                 Set up a project, decide how the vault should be shared,
                 and optionally connect coding agents once your docs are in place.
               </p>
 
-              <div className="mt-8 grid gap-4 md:grid-cols-3">
-                <div className="workspace-subsection rounded-2xl p-4">
-                  <div className="text-xs font-medium text-neutral-200">
-                    Structured project docs
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 24 }}>
+                {[
+                  { title: "Structured project docs", body: "Use a project template to start with architecture, decisions, runbooks, and handoff docs." },
+                  { title: "Team sync through git", body: "Share the vault like a normal repo — branches, commits, pull, push, and review workflows." },
+                  { title: "Trusted agent context", body: "Connect coding agents so they read trusted docs instead of relying on pasted prompts." },
+                ].map((card) => (
+                  <div key={card.title} className="workspace-subsection" style={{ borderRadius: "var(--radius)", padding: 14 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{card.title}</div>
+                    <p style={{ marginTop: 6, fontSize: 11.5, lineHeight: 1.55, color: "var(--text-muted)" }}>{card.body}</p>
                   </div>
-                  <p className="mt-2 text-[11px] leading-5 text-neutral-500">
-                    Use a project template to start with architecture, decisions,
-                    runbooks, and handoff docs.
-                  </p>
-                </div>
-                <div className="workspace-subsection rounded-2xl p-4">
-                  <div className="text-xs font-medium text-neutral-200">
-                    Team sync through git
-                  </div>
-                  <p className="mt-2 text-[11px] leading-5 text-neutral-500">
-                    Share the vault like a normal repo with branches, commits,
-                    pull, push, and review workflows.
-                  </p>
-                </div>
-                <div className="workspace-subsection rounded-2xl p-4">
-                  <div className="text-xs font-medium text-neutral-200">
-                    Trusted agent context
-                  </div>
-                  <p className="mt-2 text-[11px] leading-5 text-neutral-500">
-                    Later, connect coding agents so they can read trusted docs
-                    instead of relying on pasted prompts.
-                  </p>
-                </div>
+                ))}
               </div>
 
-              <div className="mt-8 flex gap-3">
-                <button
-                  onClick={() => setStep("project")}
-                  className="rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-cyan-500"
-                >
+              <div style={{ marginTop: 24 }}>
+                <button className="btn primary" style={{ height: 34, fontSize: 13, padding: "0 18px" }} onClick={() => setStep("project")}>
                   Set up a project
                 </button>
               </div>
             </div>
           )}
 
+          {/* ── Project ── */}
           {step === "project" && (
-            <div className="max-w-4xl">
-              <h2 className="text-2xl font-semibold text-neutral-100">Set up a new project</h2>
-              <p className="mt-2 mb-6 text-sm text-neutral-400">
+            <div style={{ maxWidth: 680 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 600, color: "var(--text)", margin: 0 }}>Set up a new project</h2>
+              <p style={{ marginTop: 6, marginBottom: 20, fontSize: 13, color: "var(--text-muted)" }}>
                 Name it, pick a template, and optionally link a source folder so
                 terminals and AI chat know where your code lives.
               </p>
@@ -287,297 +250,209 @@ export function Onboarding() {
             </div>
           )}
 
+          {/* ── Sync ── */}
           {step === "sync" && (
-            <div className="max-w-3xl">
-              <h2 className="text-2xl font-semibold text-neutral-100">
-                Connect team sync
-              </h2>
-              <p className="mt-2 text-sm text-neutral-400">
-                Share the vault through git when you are ready. You can skip
-                this now and configure it later.
+            <div style={{ maxWidth: 560 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 600, color: "var(--text)", margin: 0 }}>Connect team sync</h2>
+              <p style={{ marginTop: 6, fontSize: 13, color: "var(--text-muted)" }}>
+                Share the vault through git when you are ready. You can skip this and configure it later.
               </p>
 
-              <div className="mt-6 space-y-4">
-                <label className="workspace-subsection flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-neutral-300">
+              <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+                <label className="workspace-subsection" style={{ display: "flex", alignItems: "center", gap: 10, borderRadius: "var(--radius)", padding: "10px 14px", fontSize: 13, color: "var(--text)", cursor: "pointer" }}>
                   <input
                     type="checkbox"
                     checked={connectRemote}
                     onChange={(e) => setConnectRemote(e.target.checked)}
-                    className="rounded"
                   />
                   Connect a remote now
                 </label>
 
                 {connectRemote && (
-                  <div className="workspace-subsection grid gap-4 rounded-2xl p-4 md:grid-cols-2">
-                    <div className="md:col-span-2">
-                      <label className="mb-1.5 block text-xs text-neutral-400">
-                        Remote URL
-                      </label>
+                  <div className="workspace-subsection" style={{ borderRadius: "var(--radius)", padding: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div style={{ gridColumn: "1/-1" }}>
+                      <label style={{ display: "block", fontSize: 11.5, color: "var(--text-muted)", marginBottom: 6 }}>Remote URL</label>
                       <input
                         type="text"
                         value={remoteUrl}
                         onChange={(e) => setRemoteUrl(e.target.value)}
                         placeholder="https://github.com/your-team/your-vault.git"
-                        className="workspace-input w-full rounded-xl px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
+                        className="workspace-input"
+                        style={{ width: "100%", borderRadius: "var(--radius-sm)", padding: "8px 10px", fontSize: 12.5 }}
                       />
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-xs text-neutral-400">
-                        Branch
-                      </label>
+                      <label style={{ display: "block", fontSize: 11.5, color: "var(--text-muted)", marginBottom: 6 }}>Branch</label>
                       <input
                         type="text"
                         value={remoteBranch}
                         onChange={(e) => setRemoteBranch(e.target.value)}
-                        className="workspace-input w-full rounded-xl px-3 py-2.5 text-sm text-neutral-200 outline-none focus:border-cyan-600"
+                        className="workspace-input"
+                        style={{ width: "100%", borderRadius: "var(--radius-sm)", padding: "8px 10px", fontSize: 12.5 }}
                       />
                     </div>
-                    <div className="space-y-3 pt-6">
-                      <label className="flex items-center gap-2 text-xs text-neutral-400">
-                        <input
-                          type="checkbox"
-                          checked={pullOnOpen}
-                          onChange={(e) => setPullOnOpen(e.target.checked)}
-                          className="rounded"
-                        />
-                        Pull on open
-                      </label>
-                      <label className="flex items-center gap-2 text-xs text-neutral-400">
-                        <input
-                          type="checkbox"
-                          checked={pushOnClose}
-                          onChange={(e) => setPushOnClose(e.target.checked)}
-                          className="rounded"
-                        />
-                        Push on close
-                      </label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 20 }}>
+                      {[
+                        { label: "Pull on open", val: pullOnOpen, set: setPullOnOpen },
+                        { label: "Push on close", val: pushOnClose, set: setPushOnClose },
+                      ].map(({ label, val, set }) => (
+                        <label key={label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-muted)", cursor: "pointer" }}>
+                          <input type="checkbox" checked={val} onChange={(e) => set(e.target.checked)} />
+                          {label}
+                        </label>
+                      ))}
                     </div>
                   </div>
                 )}
 
-                <div className="workspace-subsection rounded-2xl p-4">
-                  <p className="text-xs font-medium text-neutral-200">
-                    Why this matters
-                  </p>
-                  <ul className="mt-3 space-y-2 text-[11px] leading-5 text-neutral-500">
+                <div className="workspace-subsection" style={{ borderRadius: "var(--radius)", padding: 14 }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>Why this matters</p>
+                  <ul style={{ marginTop: 8, paddingLeft: 16, display: "flex", flexDirection: "column", gap: 6, fontSize: 11.5, color: "var(--text-muted)", lineHeight: 1.55 }}>
                     <li>Your vault becomes a normal team repo for documentation.</li>
                     <li>You can branch, commit, push, pull, and review changes safely.</li>
                     <li>Keeping docs in git makes project memory easier to share and preserve.</li>
                   </ul>
                   {remoteConfig?.remote_url && (
-                    <p className="mt-3 text-[11px] text-neutral-600">
-                      Current remote: {remoteConfig.remote_url}
-                    </p>
+                    <p style={{ marginTop: 8, fontSize: 11, color: "var(--text-faint)" }}>Current remote: {remoteConfig.remote_url}</p>
                   )}
                 </div>
 
                 {error && (
-                  <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-xs text-red-300">
+                  <div style={{ borderRadius: "var(--radius-sm)", border: "1px solid color-mix(in srgb, var(--danger) 30%, var(--border))", background: "var(--danger-soft)", padding: "8px 12px", fontSize: 12, color: "var(--danger)" }}>
                     {error}
                   </div>
                 )}
 
-                <div className="flex gap-3">
+                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                  <button className="btn" onClick={goToPrevious}>Back</button>
                   <button
-                    onClick={goToPrevious}
-                    className="rounded-xl border border-neutral-700 px-4 py-2.5 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
-                  >
-                    Back
-                  </button>
-                  <button
+                    className="btn primary"
                     onClick={() => void handleSaveSync()}
                     disabled={loading || (connectRemote && !remoteUrl.trim())}
-                    className="rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-cyan-500 disabled:bg-neutral-800 disabled:text-neutral-500"
                   >
-                    {loading ? "Saving..." : "Continue"}
+                    {loading ? "Saving…" : "Continue"}
                   </button>
-                  <button
-                    onClick={() => setStep("agent")}
-                    className="rounded-xl border border-neutral-700 px-4 py-2.5 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
-                  >
-                    Skip for now
-                  </button>
+                  <button className="btn ghost" onClick={() => setStep("agent")}>Skip for now</button>
                 </div>
               </div>
             </div>
           )}
 
+          {/* ── Agent ── */}
           {step === "agent" && (
-            <div className="max-w-4xl">
-              <h2 className="text-2xl font-semibold text-neutral-100">
-                Connect your coding agent
-              </h2>
-              <p className="mt-2 text-sm text-neutral-400">
+            <div style={{ maxWidth: 760 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 600, color: "var(--text)", margin: 0 }}>Connect your coding agent</h2>
+              <p style={{ marginTop: 6, fontSize: 13, color: "var(--text-muted)" }}>
                 Agent access is optional. Connect it when you want coding tools
                 to load trusted project context from this vault.
               </p>
 
-              <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <div className="space-y-4">
-                  <div className="workspace-subsection rounded-2xl p-4">
-                    <p className="text-xs font-medium text-neutral-200">
-                      How your AI tool finds slateVault
-                    </p>
-                    <p className="mt-2 text-[11px] leading-5 text-neutral-500">
+              <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "minmax(0,1fr) 280px", gap: 16 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div className="workspace-subsection" style={{ borderRadius: "var(--radius)", padding: 14 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>How your AI tool finds slateVault</p>
+                    <p style={{ marginTop: 6, fontSize: 11.5, lineHeight: 1.55, color: "var(--text-muted)" }}>
                       {getMcpInstallNote(platform)}
                     </p>
                   </div>
 
                   {agentCommands.map((agent) => (
-                    <div key={agent.name} className="workspace-subsection rounded-2xl p-4">
-                      <div className="flex items-start justify-between gap-4">
+                    <div key={agent.name} className="workspace-subsection" style={{ borderRadius: "var(--radius)", padding: 14 }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
                         <div>
-                          <h3 className="text-sm font-medium text-neutral-200">
-                            {agent.name}
-                          </h3>
-                          <p className="mt-1 text-[11px] leading-5 text-neutral-500">
-                            {agent.note}
-                          </p>
+                          <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", margin: 0 }}>{agent.name}</h3>
+                          <p style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.5, color: "var(--text-muted)" }}>{agent.note}</p>
                         </div>
-                        <button
-                          onClick={() => copyToClipboard(agent.command)}
-                          className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:bg-neutral-800"
-                        >
-                          Copy
-                        </button>
+                        <button className="btn sm" onClick={() => copyToClipboard(agent.command)}>Copy</button>
                       </div>
-                      <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-neutral-950 px-3 py-3 font-mono text-[11px] text-cyan-300">
+                      <pre style={{ marginTop: 10, borderRadius: "var(--radius-sm)", background: "var(--bg-code)", padding: "10px 12px", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--accent)", whiteSpace: "pre-wrap", overflowX: "auto" }}>
                         {agent.command}
                       </pre>
                     </div>
                   ))}
                 </div>
 
-                <div className="space-y-4">
-                  <div className="workspace-subsection rounded-2xl p-4">
-                    <p className="text-xs font-medium text-neutral-200">
-                      Built-in MCP server status
-                    </p>
-                    <div className="mt-3 flex items-center gap-2 text-sm text-neutral-300">
-                      <span
-                        className={`h-2.5 w-2.5 rounded-full ${
-                          mcpStatus?.running
-                            ? "bg-green-500"
-                            : vaultConfig?.mcp_enabled
-                              ? "bg-yellow-500"
-                              : "bg-red-500"
-                        }`}
-                      />
-                      {mcpStatus?.running
-                        ? "Running in slateVault"
-                        : vaultConfig?.mcp_enabled
-                          ? "Enabled, but slateVault is not hosting a server process right now"
-                          : "Disabled"}
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div className="workspace-subsection" style={{ borderRadius: "var(--radius)", padding: 14 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>MCP server status</p>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, color: "var(--text)" }}>
+                      <span style={{
+                        width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                        background: mcpStatus?.running ? "var(--success)" : vaultConfig?.mcp_enabled ? "var(--warning)" : "var(--danger)",
+                      }} />
+                      {mcpStatus?.running ? "Running" : vaultConfig?.mcp_enabled ? "Enabled, not running" : "Disabled"}
                     </div>
-                    <p className="mt-2 text-[11px] leading-5 text-neutral-500">
+                    <p style={{ marginTop: 6, fontSize: 11, lineHeight: 1.55, color: "var(--text-faint)" }}>
                       {vaultConfig?.mcp_enabled
-                        ? `This only reflects the MCP server process started by slateVault${vaultConfig.mcp_port ? ` on port ${vaultConfig.mcp_port}` : ""}. If you already configured an external MCP client or wrapper, that can still be working even when this status stays yellow.`
-                        : "Enable MCP later in settings when you want slateVault to host the local server itself."}
+                        ? `Server process started by slateVault${vaultConfig.mcp_port ? ` on port ${vaultConfig.mcp_port}` : ""}.`
+                        : "Enable MCP later in Settings when you want slateVault to host the local server."}
                     </p>
                   </div>
 
-                  <div className="workspace-subsection rounded-2xl p-4">
-                    <p className="text-xs font-medium text-neutral-200">
-                      How agent access stays safe
-                    </p>
-                    <ul className="mt-3 space-y-2 text-[11px] leading-5 text-neutral-500">
+                  <div className="workspace-subsection" style={{ borderRadius: "var(--radius)", padding: 14 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>How agent access stays safe</p>
+                    <ul style={{ marginTop: 8, paddingLeft: 16, display: "flex", flexDirection: "column", gap: 6, fontSize: 11.5, lineHeight: 1.55, color: "var(--text-muted)" }}>
                       <li>Canonical docs are the best place for agents to start.</li>
-                      <li>Protected docs should use proposal-based updates instead of direct overwrite.</li>
-                      <li>Your vault remains the team&apos;s source of truth, not the agent.</li>
+                      <li>Protected docs use proposal-based updates instead of direct overwrites.</li>
+                      <li>Your vault stays the team&apos;s source of truth, not the agent.</li>
                     </ul>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-6 flex gap-3">
-                <button
-                  onClick={goToPrevious}
-                  className="rounded-xl border border-neutral-700 px-4 py-2.5 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
-                >
-                  Back
-                </button>
-                <button
-                  onClick={() => setStep("finish")}
-                  className="rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-cyan-500"
-                >
-                  Continue
-                </button>
+              <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+                <button className="btn" onClick={goToPrevious}>Back</button>
+                <button className="btn primary" onClick={() => setStep("finish")}>Continue</button>
               </div>
             </div>
           )}
 
+          {/* ── Finish ── */}
           {step === "finish" && (
-            <div className="mx-auto max-w-3xl text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-cyan-950/40 text-cyan-300">
-                <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <div style={{ maxWidth: 520, margin: "0 auto", textAlign: "center" }}>
+              <div style={{
+                margin: "0 auto 16px",
+                width: 52, height: 52, borderRadius: "50%",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: "var(--accent-soft)", color: "var(--accent)",
+              }}>
+                <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-semibold text-neutral-100">
-                You&apos;re ready to start
-              </h2>
-              <p className="mt-3 text-sm leading-6 text-neutral-400">
+              <h2 style={{ fontSize: 22, fontWeight: 600, color: "var(--text)", margin: 0 }}>You&apos;re ready to start</h2>
+              <p style={{ marginTop: 10, fontSize: 13, lineHeight: 1.65, color: "var(--text-muted)" }}>
                 Your vault now has a project, optional sync settings, and a clear
-                path to agent access later. Next, review your starter docs and
-                decide which ones should become canonical.
+                path to agent access. Next, review your starter docs and decide
+                which ones should become canonical.
               </p>
 
-              <div className="mt-8 grid gap-4 md:grid-cols-3">
-                <button
-                  onClick={() => {
-                    setShowOnboarding(false);
-                    setWorkspaceView("documents");
-                  }}
-                  className="workspace-action rounded-2xl px-4 py-4 text-left transition-colors"
-                >
-                  <div className="text-sm font-medium text-neutral-200">
-                    Open project workspace
-                  </div>
-                  <div className="mt-1 text-[11px] leading-5 text-neutral-500">
-                    Start editing the docs you just created.
-                  </div>
-                </button>
-                <button
-                  onClick={() => {
-                    setShowOnboarding(false);
-                    setWorkspaceView("home");
-                  }}
-                  className="workspace-action rounded-2xl px-4 py-4 text-left transition-colors"
-                >
-                  <div className="text-sm font-medium text-neutral-200">
-                    Go to vault home
-                  </div>
-                  <div className="mt-1 text-[11px] leading-5 text-neutral-500">
-                    See your vault overview and next actions.
-                  </div>
-                </button>
-                <button
-                  onClick={() => {
-                    setShowOnboarding(false);
-                    setWorkspaceView("search");
-                  }}
-                  className="workspace-action rounded-2xl px-4 py-4 text-left transition-colors"
-                >
-                  <div className="text-sm font-medium text-neutral-200">
-                    Search the vault
-                  </div>
-                  <div className="mt-1 text-[11px] leading-5 text-neutral-500">
-                    Jump straight into discovery and navigation.
-                  </div>
-                </button>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 24 }}>
+                {[
+                  { label: "Open project workspace", desc: "Start editing the docs you just created.", view: "documents" as const },
+                  { label: "Go to vault home", desc: "See your vault overview and next actions.", view: "home" as const },
+                  { label: "Search the vault", desc: "Jump straight into discovery and navigation.", view: "search" as const },
+                ].map(({ label, desc, view }) => (
+                  <button
+                    key={view}
+                    className="workspace-action"
+                    style={{ borderRadius: "var(--radius)", padding: 14, textAlign: "left" }}
+                    onClick={() => { setShowOnboarding(false); setWorkspaceView(view); }}
+                  >
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>{label}</div>
+                    <div style={{ marginTop: 4, fontSize: 11, color: "var(--text-muted)" }}>{desc}</div>
+                  </button>
+                ))}
               </div>
 
-              <div className="mt-8">
-                <button
-                  onClick={() => void handleFinish()}
-                  className="rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-cyan-500"
-                >
+              <div style={{ marginTop: 24 }}>
+                <button className="btn primary" style={{ height: 34, fontSize: 13, padding: "0 20px" }} onClick={() => void handleFinish()}>
                   Finish setup
                 </button>
               </div>
             </div>
           )}
+
         </div>
       </div>
     </div>
