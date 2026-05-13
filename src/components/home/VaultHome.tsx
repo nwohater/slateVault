@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useEditorStore } from "@/stores/editorStore";
@@ -99,7 +99,7 @@ function ProjectCard({ project, onOpen }: { project: ProjectInfo; onOpen: (name:
       )}
       <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11, color: "var(--text-faint)" }}>
         <span><b style={{ color: "var(--text)" }}>{project.folder_order.length}</b> folders</span>
-        {docCount !== null && <span><b style={{ color: "var(--text)" }}>{docCount}</b> docs</span>}
+        <span><b style={{ color: "var(--text)" }}>{docCount !== null ? docCount : "…"}</b> docs</span>
         <span><b style={{ color: "var(--text)" }}>{project.tags.length}</b> tags</span>
       </div>
     </button>
@@ -160,10 +160,17 @@ export function VaultHome() {
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const setActiveProject = useEditorStore((s) => s.setActiveProject);
 
+  const loadDocuments = useVaultStore((s) => s.loadDocuments);
+
   const sortedProjects = useMemo(
     () => [...projects].sort((a, b) => a.name.localeCompare(b.name)),
     [projects]
   );
+
+  // Eagerly load doc counts for all projects so cards always show them
+  useEffect(() => {
+    for (const p of projects) loadDocuments(p.name);
+  }, [projects]);
 
   const openProject = (projectName: string) => {
     if (!expandedProjects.has(projectName)) toggleProject(projectName);
