@@ -78,12 +78,12 @@ export function AiChatPanel() {
             </span>
           )}
           {toolsSupported === true && (
-            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-green-900/30 text-green-400 border border-green-800/30">
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium" style={{ background: "var(--success-soft)", color: "var(--success)", border: "1px solid var(--success)" }}>
               Tool calls enabled
             </span>
           )}
           {toolsSupported === false && (
-            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-yellow-900/30 text-yellow-400 border border-yellow-800/30">
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium" style={{ background: "var(--warning-soft)", color: "var(--warning)", border: "1px solid var(--warning)" }}>
               Text only
             </span>
           )}
@@ -145,13 +145,15 @@ export function AiChatPanel() {
         </button>
         {toolTestMessage && (
           <span
-            className={`min-w-0 truncate text-[10px] ${
-              toolsSupported === true
-                ? "text-green-400"
-                : toolsSupported === false
-                  ? "text-yellow-400"
-                  : "text-neutral-500"
-            }`}
+            className="min-w-0 truncate text-[10px]"
+            style={{
+              color:
+                toolsSupported === true
+                  ? "var(--success)"
+                  : toolsSupported === false
+                    ? "var(--warning)"
+                    : undefined,
+            }}
             title={toolTestMessage}
           >
             {toolTestMessage}
@@ -197,16 +199,16 @@ export function AiChatPanel() {
         {isLoading && (
           <div className="flex items-center gap-2 text-neutral-500">
             <div className="flex gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "var(--accent)", animationDelay: "0ms" }} />
+              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "var(--accent)", animationDelay: "150ms" }} />
+              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "var(--accent)", animationDelay: "300ms" }} />
             </div>
             <span className="text-[10px]">Thinking...</span>
           </div>
         )}
 
         {error && (
-          <div className="p-2 rounded bg-red-900/20 border border-red-800/50 text-red-300 text-[10px]">
+          <div className="p-2 rounded text-[10px]" style={{ background: "var(--danger-soft)", border: "1px solid var(--danger)", color: "var(--danger)" }}>
             {error}
           </div>
         )}
@@ -226,13 +228,13 @@ export function AiChatPanel() {
             }}
             placeholder="Ask about your project..."
             rows={2}
-            className="flex-1 px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600 resize-none text-xs"
+            className="flex-1 px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-600 outline-none focus:border-neutral-500 resize-none text-xs"
             disabled={isLoading || !selectedProject}
           />
           <button
             onClick={handleSend}
             disabled={isLoading || !input.trim() || !selectedProject}
-            className="self-end px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:bg-neutral-800 disabled:text-neutral-600 text-white text-xs font-medium"
+            className="btn primary sm self-end"
           >
             Send
           </button>

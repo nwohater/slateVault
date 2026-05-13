@@ -113,7 +113,7 @@ export function PlaybooksPanel() {
         <select
           value={selectedProject}
           onChange={(e) => setSelectedProject(e.target.value)}
-          className="w-full px-2 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 outline-none focus:border-blue-600 text-xs"
+          className="w-full px-2 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 outline-none focus:border-neutral-500 text-xs"
         >
           {projects.map((p) => (
             <option key={p.name} value={p.name}>
@@ -131,7 +131,7 @@ export function PlaybooksPanel() {
             className="rounded-lg border border-neutral-800/50 bg-neutral-800/20 hover:bg-neutral-800/40 transition-colors"
           >
             <div className="flex items-start gap-2.5 p-3">
-              <div className="w-8 h-8 rounded-lg bg-neutral-800 flex items-center justify-center text-cyan-400 flex-shrink-0 mt-0.5">
+              <div className="w-8 h-8 rounded-lg bg-neutral-800 flex items-center justify-center flex-shrink-0 mt-0.5" style={{ color: "var(--accent)" }}>
                 {iconForPlaybook(p.id)}
               </div>
               <div className="flex-1 min-w-0">
@@ -151,7 +151,7 @@ export function PlaybooksPanel() {
               >
                 {copiedId === p.id ? (
                   <>
-                    <svg className="w-3.5 h-3.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg className="w-3.5 h-3.5" style={{ color: "var(--success)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                     Copied!

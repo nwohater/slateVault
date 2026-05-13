@@ -5,10 +5,10 @@ import { useEditorStore } from "@/stores/editorStore";
 
 const STATUS_CYCLE = ["draft", "review", "final"] as const;
 
-const statusColors: Record<string, string> = {
-  draft: "bg-yellow-900/70 text-yellow-300 hover:bg-yellow-800/70",
-  review: "bg-blue-900/70 text-blue-300 hover:bg-blue-800/70",
-  final: "bg-green-900/70 text-green-300 hover:bg-green-800/70",
+const statusStyle: Record<string, { background: string; color: string }> = {
+  draft:  { background: "var(--warning-soft)", color: "var(--warning)" },
+  review: { background: "var(--info-soft)",    color: "var(--info)"    },
+  final:  { background: "var(--success-soft)", color: "var(--success)" },
 };
 
 const authorLabels: Record<string, string> = {
@@ -49,22 +49,27 @@ export function FrontMatterBar() {
 
   if (!fm) return null;
 
+  const statusSty = statusStyle[fm.status] ?? { background: "var(--bg-tint)", color: "var(--text-muted)" };
+
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-neutral-900/80 border-b border-neutral-800/50 text-xs backdrop-blur-sm">
-      <span className="font-semibold text-neutral-200 truncate">
+    <div
+      className="flex items-center gap-2 px-4 py-2 text-xs"
+      style={{ background: "var(--bg-panel)", borderBottom: "1px solid var(--border-subtle)" }}
+    >
+      <span className="font-semibold truncate" style={{ color: "var(--text)" }}>
         {fm.title}
       </span>
       {isDirty && (
-        <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "var(--accent)" }} />
       )}
       <div className="flex-1" />
       {fm.canonical && (
-        <span className="text-yellow-400 text-[10px] font-medium" title="Canonical document">
+        <span className="text-[10px] font-medium" style={{ color: "var(--warning)" }} title="Canonical document">
           ★ canonical
         </span>
       )}
       {fm.protected && (
-        <span className="text-red-400 text-[10px] font-medium" title="Protected from AI overwrites">
+        <span className="text-[10px] font-medium" style={{ color: "var(--danger)" }} title="Protected from AI overwrites">
           🔒 protected
         </span>
       )}
@@ -72,11 +77,12 @@ export function FrontMatterBar() {
         onClick={handleStatusClick}
         disabled={savingStatus}
         title="Click to cycle status: draft → review → final"
-        className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${statusColors[fm.status] || "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"}`}
+        className="px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer"
+        style={statusSty}
       >
         {savingStatus ? "saving…" : fm.status}
       </button>
-      <span className="text-neutral-500">
+      <span style={{ color: "var(--text-faint)" }}>
         {authorLabels[fm.author] || fm.author}
       </span>
       {fm.tags?.length > 0 && (
@@ -84,20 +90,21 @@ export function FrontMatterBar() {
           {fm.tags.slice(0, 3).map((tag) => (
             <span
               key={tag}
-              className="px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400 text-[10px]"
+              className="px-1.5 py-0.5 rounded text-[10px]"
+              style={{ background: "var(--bg-tint)", color: "var(--text-muted)" }}
             >
               {tag}
             </span>
           ))}
           {fm.tags.length > 3 && (
-            <span className="text-neutral-500">+{fm.tags.length - 3}</span>
+            <span style={{ color: "var(--text-faint)" }}>+{fm.tags.length - 3}</span>
           )}
         </div>
       )}
       <button
         onClick={handleSave}
         disabled={!isDirty || savingDocument}
-        className="rounded bg-blue-700 px-2.5 py-1 text-[10px] font-medium text-white transition-colors hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500"
+        className="btn primary sm"
       >
         {savingDocument ? "Saving..." : isDirty ? "Save" : "Saved"}
       </button>

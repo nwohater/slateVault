@@ -168,13 +168,13 @@ export function DocsHealthView() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-2xl">
               <div className="workspace-kicker mb-3">
-                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--accent)" }} />
                 Keep project memory trustworthy
               </div>
-              <h1 className="workspace-label text-3xl font-semibold tracking-tight text-neutral-100">
+              <h1 className="workspace-label text-3xl font-semibold tracking-tight" style={{ color: "var(--text)" }}>
                 Docs Health
               </h1>
-              <p className="mt-2 text-sm leading-6 text-neutral-400">
+              <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
                 Review where documentation is aging, missing canonical anchors, or
                 piling up in draft so the vault stays useful for both people and agents.
               </p>
@@ -201,7 +201,7 @@ export function DocsHealthView() {
         </section>
 
         {error && (
-          <div className="rounded-2xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-red-300">
+          <div className="rounded-2xl px-4 py-3 text-sm" style={{ background: "var(--danger-soft)", border: "1px solid var(--danger)", color: "var(--danger)" }}>
             {error}
           </div>
         )}
@@ -357,7 +357,10 @@ export function DocsHealthView() {
                     <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-neutral-400">
                       <span className="rounded-full border border-neutral-700 px-2 py-0.5">{doc.status}</span>
                       {doc.canonical && (
-                        <span className="rounded-full border border-amber-700/60 px-2 py-0.5 text-amber-300">
+                        <span
+                          className="rounded-full px-2 py-0.5"
+                          style={{ border: "1px solid var(--warning)", color: "var(--warning)", background: "var(--warning-soft)" }}
+                        >
                           canonical
                         </span>
                       )}

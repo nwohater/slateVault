@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { AiChatMessage, AssetInfo } from "@/types";
@@ -71,7 +71,7 @@ export function AiMessageBubble({ message, project, assets = [] }: Props) {
   if (isUser) {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] px-3 py-2 rounded-lg bg-cyan-900/30 border border-cyan-800/30 text-neutral-200 text-xs whitespace-pre-wrap">
+        <div className="max-w-[85%] px-3 py-2 rounded-lg text-xs whitespace-pre-wrap" style={{ background: "var(--accent-soft)", border: "1px solid var(--accent)", color: "var(--text)" }}>
           {message.content}
         </div>
       </div>
@@ -81,7 +81,7 @@ export function AiMessageBubble({ message, project, assets = [] }: Props) {
   return (
     <div className="flex flex-col gap-1">
       <div className="px-3 py-2 rounded-lg bg-neutral-800/50 border border-neutral-800/50 text-xs">
-        <article className="prose prose-invert prose-xs max-w-none prose-headings:text-neutral-200 prose-p:text-neutral-300 prose-a:text-blue-400 prose-code:text-emerald-400 prose-code:bg-neutral-800 prose-code:px-1 prose-code:rounded prose-pre:bg-neutral-900 prose-strong:text-neutral-200 [&_*]:text-xs [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-xs">
+        <article className="prose prose-invert prose-xs max-w-none prose-headings:text-neutral-200 prose-p:text-neutral-300 prose-code:bg-neutral-800 prose-code:px-1 prose-code:rounded prose-pre:bg-neutral-900 prose-strong:text-neutral-200 [&_*]:text-xs [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-xs [&_a]:text-[color:var(--info)] [&_code]:text-[color:var(--success)]">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {message.content}
           </ReactMarkdown>
@@ -96,7 +96,8 @@ export function AiMessageBubble({ message, project, assets = [] }: Props) {
         </button>
         {wasSavedByTool ? (
           <span
-            className="text-[10px] text-green-500"
+            className="text-[10px]"
+            style={{ color: "var(--success)" }}
             title={message.documents_written?.join(", ")}
           >
             Saved via tool
@@ -118,7 +119,8 @@ export function AiMessageBubble({ message, project, assets = [] }: Props) {
             <button
               key={path}
               onClick={() => void openDocument(project, path)}
-              className="rounded border border-green-800/40 bg-green-950/20 px-1.5 py-0.5 text-[10px] text-green-300 hover:bg-green-900/30"
+              className="rounded px-1.5 py-0.5 text-[10px]"
+              style={{ background: "var(--success-soft)", border: "1px solid var(--success)", color: "var(--success)" }}
               title={`Open ${project}/${path}`}
             >
               {path}
@@ -132,7 +134,8 @@ export function AiMessageBubble({ message, project, assets = [] }: Props) {
             <button
               key={doc.path}
               onClick={() => void openDocument(project, doc.path)}
-              className="rounded border border-cyan-800/40 bg-cyan-950/20 px-1.5 py-0.5 text-[10px] text-cyan-300 hover:bg-cyan-900/30"
+              className="rounded px-1.5 py-0.5 text-[10px]"
+              style={{ background: "var(--accent-soft)", border: "1px solid var(--accent)", color: "var(--accent)" }}
               title={`Open ${project}/${doc.path}`}
             >
               {doc.label}
@@ -146,7 +149,8 @@ export function AiMessageBubble({ message, project, assets = [] }: Props) {
             <button
               key={asset.path}
               onClick={() => handleOpenAsset(asset.path)}
-              className={`flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] hover:opacity-80 ${assetBadgeStyle(asset.filename)}`}
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] hover:opacity-80"
+              style={assetBadgeStyle(asset.filename)}
               title={`Open ${asset.path}`}
             >
               <span>{assetIcon(asset.filename)}</span>
@@ -162,20 +166,20 @@ export function AiMessageBubble({ message, project, assets = [] }: Props) {
             value={saveTitle}
             onChange={(e) => setSaveTitle(e.target.value)}
             placeholder="Document title"
-            className="w-full px-2 py-1 bg-neutral-900 border border-neutral-700 rounded text-neutral-200 text-[10px] outline-none focus:border-blue-600"
+            className="w-full px-2 py-1 bg-neutral-900 border border-neutral-700 rounded text-neutral-200 text-[10px] outline-none focus:border-neutral-500"
           />
           <input
             type="text"
             value={savePath}
             onChange={(e) => setSavePath(e.target.value)}
             placeholder="path/to/document.md"
-            className="w-full px-2 py-1 bg-neutral-900 border border-neutral-700 rounded text-neutral-200 text-[10px] font-mono outline-none focus:border-blue-600"
+            className="w-full px-2 py-1 bg-neutral-900 border border-neutral-700 rounded text-neutral-200 text-[10px] font-mono outline-none focus:border-neutral-500"
           />
           <div className="flex gap-1">
             <button
               onClick={handleSave}
               disabled={saving || !savePath.trim()}
-              className="flex-1 px-2 py-1 text-[10px] rounded bg-cyan-700 hover:bg-cyan-600 disabled:bg-neutral-700 text-white"
+              className="btn primary sm flex-1"
             >
               {saving ? "Saving..." : "Save"}
             </button>
@@ -202,14 +206,15 @@ function assetIcon(filename: string): string {
   return "📎";
 }
 
-function assetBadgeStyle(filename: string): string {
+function assetBadgeStyle(filename: string): React.CSSProperties {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-  if (ext === "pdf") return "border-red-800/40 bg-red-950/20 text-red-300";
+  if (ext === "pdf")
+    return { background: "var(--danger-soft)", border: "1px solid var(--danger)", color: "var(--danger)" };
   if (["png", "jpg", "jpeg", "gif", "webp", "svg", "avif"].includes(ext))
-    return "border-purple-800/40 bg-purple-950/20 text-purple-300";
+    return { background: "var(--magic-soft)", border: "1px solid var(--magic)", color: "var(--magic)" };
   if (["mp4", "mov", "avi", "mkv"].includes(ext))
-    return "border-blue-800/40 bg-blue-950/20 text-blue-300";
-  return "border-neutral-700/40 bg-neutral-800/20 text-neutral-400";
+    return { background: "var(--info-soft)", border: "1px solid var(--info)", color: "var(--info)" };
+  return {};
 }
 
 function extractReferencedAssets(content: string, assets: AssetInfo[]): AssetInfo[] {

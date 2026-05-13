@@ -25,10 +25,10 @@ interface TreeNodeProps {
   onDrop?: (e: React.DragEvent) => void;
 }
 
-const authorBadge: Record<string, { label: string; color: string }> = {
-  Ai: { label: "AI", color: "bg-purple-900 text-purple-300" },
-  Human: { label: "H", color: "bg-green-900 text-green-300" },
-  Both: { label: "B", color: "bg-blue-900 text-blue-300" },
+const authorBadge: Record<string, { label: string; bg: string; color: string }> = {
+  Ai:    { label: "AI", bg: "var(--magic-soft)",   color: "var(--magic)"   },
+  Human: { label: "H",  bg: "var(--success-soft)", color: "var(--success)" },
+  Both:  { label: "B",  bg: "var(--info-soft)",    color: "var(--info)"    },
 };
 
 /** Paperclip icon for non-markdown assets */
@@ -64,16 +64,16 @@ export function TreeNode({
 
   const icon = isFolder
     ? isExpanded
-      ? <FolderOpenIcon className="w-3.5 h-3.5 text-yellow-500" />
-      : <FolderIcon className="w-3.5 h-3.5 text-yellow-600" />
+      ? <span style={{ color: "var(--warning)" }}><FolderOpenIcon className="w-3.5 h-3.5" /></span>
+      : <span style={{ color: "var(--warning)" }}><FolderIcon className="w-3.5 h-3.5" /></span>
     : isAsset
-      ? <AssetIcon className="w-3.5 h-3.5 text-neutral-500" />
-      : <FileIcon className="w-3.5 h-3.5 text-neutral-500" />;
+      ? <span style={{ color: "var(--text-faint)" }}><AssetIcon className="w-3.5 h-3.5" /></span>
+      : <span style={{ color: "var(--text-faint)" }}><FileIcon className="w-3.5 h-3.5" /></span>;
 
   const chevron = isFolder
     ? isExpanded
-      ? <ChevronDown className="w-3 h-3 text-neutral-500" />
-      : <ChevronRight className="w-3 h-3 text-neutral-500" />
+      ? <span style={{ color: "var(--text-faint)" }}><ChevronDown className="w-3 h-3" /></span>
+      : <span style={{ color: "var(--text-faint)" }}><ChevronRight className="w-3 h-3" /></span>
     : null;
 
   return (
@@ -103,17 +103,27 @@ export function TreeNode({
           if (onDrop) onDrop(e);
         }
       }}
-      className={`
-        w-full flex items-center gap-1.5 px-2 py-1.5 text-xs text-left rounded-md
-        transition-colors
-        ${isAsset
-          ? "text-neutral-500 hover:text-neutral-400 hover:bg-neutral-800/45"
+      className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs text-left rounded-md transition-colors"
+      style={{
+        paddingLeft: 8 + depth * 16,
+        background: isExternalDropTarget
+          ? "var(--accent-soft)"
+          : dragOver
+          ? "var(--info-soft)"
           : isActive
-            ? "bg-cyan-950/35 text-cyan-300 hover:bg-cyan-950/45"
-            : "text-neutral-300 hover:bg-neutral-800/55"}
-        ${isExternalDropTarget ? "bg-cyan-950/40 border-l-2 border-cyan-500" : dragOver ? "bg-blue-900/30 border-l-2 border-blue-500" : ""}
-      `}
-      style={{ paddingLeft: 8 + depth * 16 }}
+          ? "var(--accent-soft)"
+          : undefined,
+        color: isActive
+          ? "var(--accent)"
+          : isAsset
+          ? "var(--text-faint)"
+          : "var(--text-muted)",
+        borderLeft: isExternalDropTarget
+          ? "2px solid var(--accent)"
+          : dragOver
+          ? "2px solid var(--info)"
+          : undefined,
+      }}
       title={isAsset ? `${label} — click to reveal in Finder` : undefined}
     >
       {isFolder && <span className="w-3 flex-shrink-0">{chevron}</span>}
@@ -123,11 +133,12 @@ export function TreeNode({
         <span className="text-yellow-400 flex-shrink-0 text-[10px]" title="Canonical">★</span>
       )}
       {isProtected && (
-        <span className="text-red-400 flex-shrink-0 text-[10px]" title="Protected">🔒</span>
+        <span className="flex-shrink-0 text-[10px]" style={{ color: "var(--danger)" }} title="Protected">🔒</span>
       )}
       {badge && (
         <span
-          className={`px-1 rounded text-[9px] font-medium flex-shrink-0 ${badge.color}`}
+          style={{ background: badge.bg, color: badge.color }}
+          className="px-1 rounded text-[9px] font-medium flex-shrink-0"
         >
           {badge.label}
         </span>

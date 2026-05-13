@@ -67,17 +67,11 @@ function summarizeFileStatus(status: string) {
   }
 }
 
-function buildHealthTone(level: "neutral" | "good" | "warning" | "attention") {
-  if (level === "good") {
-    return "border-emerald-900/40 bg-emerald-950/20 text-emerald-200";
-  }
-  if (level === "warning") {
-    return "border-amber-900/40 bg-amber-950/20 text-amber-200";
-  }
-  if (level === "attention") {
-    return "border-red-900/40 bg-red-950/20 text-red-300";
-  }
-  return "border-cyan-900/40 bg-cyan-950/20 text-cyan-200";
+function buildHealthToneStyle(level: "neutral" | "good" | "warning" | "attention"): React.CSSProperties {
+  if (level === "good")      return { background: "var(--success-soft)", border: "1px solid var(--success)", color: "var(--success)" };
+  if (level === "warning")   return { background: "var(--warning-soft)", border: "1px solid var(--warning)", color: "var(--warning)" };
+  if (level === "attention") return { background: "var(--danger-soft)",  border: "1px solid var(--danger)",  color: "var(--danger)"  };
+  return { background: "var(--info-soft)", border: "1px solid var(--info)", color: "var(--info)" };
 }
 
 export function SyncView() {
@@ -303,13 +297,13 @@ export function SyncView() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-2xl">
               <div className="workspace-kicker mb-3">
-                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--accent)" }} />
                 Team-ready documentation sync
               </div>
-              <h1 className="workspace-label text-3xl font-semibold tracking-tight text-neutral-100">
+              <h1 className="workspace-label text-3xl font-semibold tracking-tight" style={{ color: "var(--text)" }}>
                 Sync
               </h1>
-              <p className="mt-2 text-sm leading-6 text-neutral-400">
+              <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
                 Keep the vault shareable like a normal repo with commits, branches,
                 pull, push, and review workflows around documentation work.
               </p>
@@ -321,8 +315,8 @@ export function SyncView() {
                 disabled={!hasRemote || syncing !== null}
                 className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <div className="text-xs font-medium text-neutral-200">Pull latest</div>
-                <div className="mt-1 text-[11px] text-neutral-500">
+                <div className="text-xs font-medium" style={{ color: "var(--text)" }}>Pull latest</div>
+                <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
                   Bring the shared vault up to date before editing.
                 </div>
               </button>
@@ -331,8 +325,8 @@ export function SyncView() {
                 disabled={!hasRemote || syncing !== null}
                 className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <div className="text-xs font-medium text-neutral-200">Push changes</div>
-                <div className="mt-1 text-[11px] text-neutral-500">
+                <div className="text-xs font-medium" style={{ color: "var(--text)" }}>Push changes</div>
+                <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
                   Share committed documentation updates with the team.
                 </div>
               </button>
@@ -340,8 +334,8 @@ export function SyncView() {
                 onClick={() => setWorkspaceView("docs-health")}
                 className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors"
               >
-                <div className="text-xs font-medium text-neutral-200">Review docs health</div>
-                <div className="mt-1 text-[11px] text-neutral-500">
+                <div className="text-xs font-medium" style={{ color: "var(--text)" }}>Review docs health</div>
+                <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
                   Check what should be updated before you sync.
                 </div>
               </button>
@@ -349,8 +343,8 @@ export function SyncView() {
                 onClick={() => setWorkspaceView("start-session")}
                 className="workspace-action rounded-2xl px-4 py-3 text-left transition-colors"
               >
-                <div className="text-xs font-medium text-neutral-200">Start session</div>
-                <div className="mt-1 text-[11px] text-neutral-500">
+                <div className="text-xs font-medium" style={{ color: "var(--text)" }}>Start session</div>
+                <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
                   Build a fresh context bundle after pulling shared updates.
                 </div>
               </button>
@@ -360,17 +354,18 @@ export function SyncView() {
 
         {(message || error || output) && (
           <div
-            className={`rounded-2xl border px-4 py-3 text-sm ${
-              error
-                ? "border-red-900/40 bg-red-950/20 text-red-300"
-                : "border-emerald-900/40 bg-emerald-950/20 text-emerald-200"
-            }`}
+            className="rounded-2xl px-4 py-3 text-sm"
+            style={error
+              ? { background: "var(--danger-soft)", border: "1px solid var(--danger)", color: "var(--danger)" }
+              : { background: "var(--success-soft)", border: "1px solid var(--success)", color: "var(--success)" }
+            }
           >
             {error || message || output}
             {output && (
               <button
                 onClick={clearOutput}
-                className="ml-3 text-xs text-neutral-400 underline-offset-2 hover:underline"
+                className="ml-3 text-xs underline-offset-2 hover:underline"
+                style={{ color: "var(--text-muted)" }}
               >
                 Clear
               </button>
@@ -379,16 +374,16 @@ export function SyncView() {
         )}
 
         {syncHealth && (
-          <section className={`rounded-3xl border px-5 py-4 ${buildHealthTone(syncHealth.level)}`}>
+          <section className="rounded-3xl px-5 py-4" style={buildHealthToneStyle(syncHealth.level)}>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <div className="text-xs font-medium uppercase tracking-[0.16em] opacity-80">
+                <div className="text-xs font-medium uppercase tracking-[0.16em] opacity-70">
                   Sync health
                 </div>
                 <div className="mt-2 text-lg font-semibold">{syncHealth.label}</div>
-                <div className="mt-1 text-sm opacity-90">{syncHealth.detail}</div>
+                <div className="mt-1 text-sm opacity-80">{syncHealth.detail}</div>
                 {syncStatus?.has_upstream && (
-                  <div className="mt-2 text-xs opacity-80">
+                  <div className="mt-2 text-xs opacity-70">
                     {syncStatus.ahead} ahead, {syncStatus.behind} behind on {syncStatus.remote_branch}
                   </div>
                 )}
@@ -398,14 +393,14 @@ export function SyncView() {
                   <button
                     onClick={() => void handlePrimaryAction()}
                     disabled={syncing !== null}
-                    className="rounded-xl bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/16 disabled:opacity-50"
+                    className="btn primary sm disabled:opacity-50"
                   >
                     {primaryActionLabel}
                   </button>
                 )}
                 <button
                   onClick={() => setWorkspaceView("docs-health")}
-                  className="rounded-xl border border-white/15 px-4 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/8"
+                  className="btn sm"
                 >
                   Review docs
                 </button>
@@ -417,8 +412,8 @@ export function SyncView() {
         <section className="grid gap-4 md:grid-cols-4">
           <div className="workspace-stat rounded-2xl p-4">
             <div className="workspace-stat-label">Branch</div>
-            <div className="mt-2 text-xl font-semibold text-neutral-100">{currentBranch}</div>
-            <div className="mt-1 text-[11px] text-neutral-500">
+            <div className="mt-2 text-xl font-semibold" style={{ color: "var(--text)" }}>{currentBranch}</div>
+            <div className="mt-1 text-[11px]" style={{ color: "var(--text-faint)" }}>
               {syncStatus?.has_upstream
                 ? `${syncStatus.ahead} ahead, ${syncStatus.behind} behind`
                 : hasRemote
@@ -428,26 +423,26 @@ export function SyncView() {
           </div>
           <div className="workspace-stat rounded-2xl p-4">
             <div className="workspace-stat-label">Pending docs</div>
-            <div className="mt-2 text-xl font-semibold text-neutral-100">{changedDocs.length}</div>
-            <div className="mt-1 text-[11px] text-neutral-500">
+            <div className="mt-2 text-xl font-semibold" style={{ color: "var(--text)" }}>{changedDocs.length}</div>
+            <div className="mt-1 text-[11px]" style={{ color: "var(--text-faint)" }}>
               {changedDocProjects} projects, {staged} staged file changes
             </div>
           </div>
           <div className="workspace-stat rounded-2xl p-4">
             <div className="workspace-stat-label">Review signals</div>
-            <div className="mt-2 text-sm font-medium text-neutral-200">
+            <div className="mt-2 text-sm font-medium" style={{ color: "var(--text)" }}>
               {conflictRiskDocs.length} conflict risks
             </div>
-            <div className="mt-1 text-[11px] text-neutral-500">
+            <div className="mt-1 text-[11px]" style={{ color: "var(--text-faint)" }}>
               {aiChangedDocs} AI-authored, {sensitiveChangedDocs} sensitive docs
             </div>
           </div>
           <div className="workspace-stat rounded-2xl p-4">
             <div className="workspace-stat-label">Latest commit</div>
-            <div className="mt-2 text-sm font-medium text-neutral-200">
+            <div className="mt-2 text-sm font-medium" style={{ color: "var(--text)" }}>
               {latestCommit ? formatRelativeDate(latestCommit.date) : "No commits yet"}
             </div>
-            <div className="mt-1 truncate text-[11px] text-neutral-500">
+            <div className="mt-1 truncate text-[11px]" style={{ color: "var(--text-faint)" }}>
               {latestCommit?.message || "Commit your first docs change to start the history."}
             </div>
           </div>
@@ -457,8 +452,8 @@ export function SyncView() {
           <div className="workspace-section rounded-3xl p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-neutral-100">Pending documentation changes</h2>
-                <p className="mt-1 text-xs text-neutral-500">
+                <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Pending documentation changes</h2>
+                <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
                   Review the docs affected by this change set before you commit or push.
                 </p>
               </div>
@@ -466,7 +461,7 @@ export function SyncView() {
 
             <div className="mt-5 space-y-3">
               {changedDocs.length === 0 ? (
-                <div className="workspace-empty rounded-2xl p-4 text-sm text-neutral-500">
+                <div className="workspace-empty rounded-2xl p-4 text-sm" style={{ color: "var(--text-muted)" }}>
                   No markdown docs are currently changing. If you expected doc changes here, check the detailed git tools below.
                 </div>
               ) : (
@@ -480,42 +475,53 @@ export function SyncView() {
                     onClick={() => handleOpenChangedDoc(doc)}
                     disabled={isDeletedOnly}
                     className={`workspace-subsection group w-full rounded-2xl p-4 text-left transition-colors ${
-                      isDeletedOnly
-                        ? "cursor-not-allowed opacity-65"
-                        : "hover:border-cyan-800/50 hover:bg-cyan-950/10"
+                      isDeletedOnly ? "cursor-not-allowed opacity-65" : ""
                     }`}
                     title={isDeletedOnly ? "Deleted docs cannot be opened from the vault" : "Open document for review"}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-neutral-100 group-hover:text-cyan-200">{doc.title}</div>
-                        <div className="mt-1 text-[11px] text-neutral-500">
+                        <div className="truncate text-sm font-medium" style={{ color: "var(--text)" }}>{doc.title}</div>
+                        <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
                           {doc.project}/{doc.path}
                         </div>
                       </div>
-                      <div className="text-right text-[11px] text-neutral-500">
+                      <div className="text-right text-[11px]" style={{ color: "var(--text-faint)" }}>
                         <div>{doc.stagedCount} staged</div>
                         <div>{doc.unstagedCount} unstaged</div>
                       </div>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-neutral-400">
+                    <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
                       {Array.from(new Set(doc.statuses)).map((status) => (
-                        <span key={status} className="rounded-full border border-neutral-700 px-2 py-0.5">
+                        <span
+                          key={status}
+                          className="rounded-full px-2 py-0.5"
+                          style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}
+                        >
                           {summarizeFileStatus(status)}
                         </span>
                       ))}
                       {doc.isAiAuthored && (
-                        <span className="rounded-full border border-cyan-800/70 px-2 py-0.5 text-cyan-300">
+                        <span
+                          className="rounded-full px-2 py-0.5"
+                          style={{ border: "1px solid var(--magic)", color: "var(--magic)", background: "var(--magic-soft)" }}
+                        >
                           AI-authored
                         </span>
                       )}
                       {doc.isCanonical && (
-                        <span className="rounded-full border border-amber-800/70 px-2 py-0.5 text-amber-300">
+                        <span
+                          className="rounded-full px-2 py-0.5"
+                          style={{ border: "1px solid var(--warning)", color: "var(--warning)", background: "var(--warning-soft)" }}
+                        >
                           canonical
                         </span>
                       )}
                       {doc.isProtected && (
-                        <span className="rounded-full border border-red-800/70 px-2 py-0.5 text-red-300">
+                        <span
+                          className="rounded-full px-2 py-0.5"
+                          style={{ border: "1px solid var(--danger)", color: "var(--danger)", background: "var(--danger-soft)" }}
+                        >
                           protected
                         </span>
                       )}
@@ -529,13 +535,13 @@ export function SyncView() {
 
           <div className="space-y-6">
             <div className="workspace-section rounded-3xl p-5">
-              <h2 className="text-lg font-semibold text-neutral-100">Remote doc risks</h2>
-              <p className="mt-1 text-xs text-neutral-500">
+              <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Remote doc risks</h2>
+              <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
                 Docs changed upstream since your current local base.
               </p>
               <div className="mt-4 space-y-3">
                 {docSyncRisks.length === 0 ? (
-                  <div className="workspace-empty rounded-2xl p-4 text-[12px] text-neutral-500">
+                  <div className="workspace-empty rounded-2xl p-4 text-[12px]" style={{ color: "var(--text-muted)" }}>
                     No remote doc risks detected from the current tracking branch.
                   </div>
                 ) : (
@@ -544,32 +550,39 @@ export function SyncView() {
                     return (
                       <div
                         key={`${risk.project}/${risk.path}`}
-                        className={`rounded-2xl border p-4 ${
-                          isConflictRisk
-                            ? "border-red-900/50 bg-red-950/20"
-                            : "border-amber-900/40 bg-amber-950/20"
-                        }`}
+                        className="rounded-2xl p-4"
+                        style={isConflictRisk
+                          ? { background: "var(--danger-soft)", border: "1px solid var(--danger)" }
+                          : { background: "var(--warning-soft)", border: "1px solid var(--warning)" }
+                        }
                       >
-                        <div className="text-xs font-medium text-neutral-100">
+                        <div className="text-xs font-medium" style={{ color: "var(--text)" }}>
                           {risk.project}/{risk.path}
                         </div>
                         <div
-                          className={`mt-2 text-[11px] ${
-                            isConflictRisk ? "text-red-300" : "text-amber-300"
-                          }`}
+                          className="mt-2 text-[11px]"
+                          style={{ color: isConflictRisk ? "var(--danger)" : "var(--warning)" }}
                         >
                           {isConflictRisk
                             ? "Local and remote both touched this doc"
                             : "Remote changed this doc"}
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-neutral-400">
+                        <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
                           {risk.remote_statuses.map((status) => (
-                            <span key={status} className="rounded-full border border-neutral-700 px-2 py-0.5">
+                            <span
+                              key={status}
+                              className="rounded-full px-2 py-0.5"
+                              style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}
+                            >
                               remote {status}
                             </span>
                           ))}
                           {risk.local_statuses.map((status) => (
-                            <span key={status} className="rounded-full border border-neutral-700 px-2 py-0.5">
+                            <span
+                              key={status}
+                              className="rounded-full px-2 py-0.5"
+                              style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}
+                            >
                               local {summarizeFileStatus(status)}
                             </span>
                           ))}
@@ -579,7 +592,7 @@ export function SyncView() {
                   })
                 )}
                 {remoteChangedDocs.length > 0 && conflictRiskDocs.length === 0 && (
-                  <div className="text-[11px] leading-5 text-neutral-500">
+                  <div className="text-[11px] leading-5" style={{ color: "var(--text-muted)" }}>
                     Pull latest before editing these docs so your local copy starts from the newest shared version.
                   </div>
                 )}
@@ -587,23 +600,23 @@ export function SyncView() {
             </div>
 
             <div className="workspace-section rounded-3xl p-5">
-              <h2 className="text-lg font-semibold text-neutral-100">Next step</h2>
+              <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Next step</h2>
               <div className="mt-4 space-y-3">
                 <div className="workspace-subsection rounded-2xl p-4">
-                  <div className="text-sm font-medium text-neutral-200">
+                  <div className="text-sm font-medium" style={{ color: "var(--text)" }}>
                     {syncHealth?.label || "Review sync state"}
                   </div>
-                  <div className="mt-2 text-[12px] leading-5 text-neutral-400">
+                  <div className="mt-2 text-[12px] leading-5" style={{ color: "var(--text-muted)" }}>
                     {syncHealth?.detail ||
                       "Use this space to understand whether you should pull, commit, or push next."}
                   </div>
                 </div>
                 <div className="workspace-subsection rounded-2xl p-4">
                   <div className="workspace-stat-label">Remote</div>
-                  <div className="mt-2 break-all text-[12px] text-neutral-300">
+                  <div className="mt-2 break-all text-[12px]" style={{ color: "var(--text)" }}>
                     {remoteConfig?.remote_url || "No remote configured yet"}
                   </div>
-                  <div className="mt-2 text-[11px] text-neutral-500">
+                  <div className="mt-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
                     {hasRemote
                       ? `Tracking ${remoteConfig?.remote_branch || currentBranch}`
                       : "Connect a remote when this vault should be shared."}
@@ -611,13 +624,13 @@ export function SyncView() {
                 </div>
                 <div className="workspace-subsection rounded-2xl p-4">
                   <div className="workspace-stat-label">Recommended flow</div>
-                  <ol className="mt-2 space-y-2 text-[12px] leading-5 text-neutral-400">
+                  <ol className="mt-2 space-y-2 text-[12px] leading-5" style={{ color: "var(--text-muted)" }}>
                     <li>1. Pull first if the remote is ahead.</li>
                     <li>2. Review doc changes before mixing in workspace files.</li>
                     <li>3. Commit sensitive or AI-authored docs in intentional groups.</li>
                   </ol>
                   {nonDocChanges > 0 && (
-                    <div className="mt-3 text-[11px] text-neutral-500">
+                    <div className="mt-3 text-[11px]" style={{ color: "var(--text-faint)" }}>
                       {nonDocChanges} non-doc file changes are also present in the working tree.
                     </div>
                   )}
@@ -628,9 +641,9 @@ export function SyncView() {
         </section>
 
         <section className="workspace-section rounded-3xl p-2">
-          <div className="border-b border-neutral-800/60 px-3 py-3">
-            <h2 className="text-lg font-semibold text-neutral-100">Sync tools</h2>
-            <p className="mt-1 text-xs text-neutral-500">
+          <div className="px-3 py-3" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+            <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Sync tools</h2>
+            <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
               Manage changes, branches, remote settings, and pull requests.
             </p>
           </div>

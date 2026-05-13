@@ -270,7 +270,7 @@ export function ProjectPdfExport({ project, onClose }: ProjectPdfExportProps) {
 
         {error ? (
           <>
-            <p className="text-xs text-red-400 mt-3">{error}</p>
+            <p className="text-xs mt-3" style={{ color: "var(--danger)" }}>{error}</p>
             <button
               onClick={onClose}
               className="mt-4 w-full px-3 py-1.5 text-xs rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-300"
@@ -282,8 +282,8 @@ export function ProjectPdfExport({ project, onClose }: ProjectPdfExportProps) {
           <>
             <div className="mt-3 w-full bg-neutral-700 rounded-full h-2">
               <div
-                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${progress}%` }}
+                className="h-2 rounded-full transition-all duration-300"
+                style={{ background: "var(--accent)", width: `${progress}%` }}
               />
             </div>
             <p className="text-[10px] text-neutral-500 mt-2">{status}</p>

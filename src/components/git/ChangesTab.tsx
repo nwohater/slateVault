@@ -39,13 +39,13 @@ export function ChangesTab() {
     switch (s) {
       case "staged_new":
       case "new":
-        return <GitAddedIcon className="w-3.5 h-3.5 text-green-400" />;
+        return <span style={{ color: "var(--success)" }}><GitAddedIcon className="w-3.5 h-3.5" /></span>;
       case "staged_modified":
       case "modified":
-        return <GitModifiedIcon className="w-3.5 h-3.5 text-yellow-400" />;
+        return <span style={{ color: "var(--warning)" }}><GitModifiedIcon className="w-3.5 h-3.5" /></span>;
       case "staged_deleted":
       case "deleted":
-        return <GitDeletedIcon className="w-3.5 h-3.5 text-red-400" />;
+        return <span style={{ color: "var(--danger)" }}><GitDeletedIcon className="w-3.5 h-3.5" /></span>;
       default:
         return <GitUntrackedIcon className="w-3.5 h-3.5 text-neutral-400" />;
     }
@@ -74,7 +74,7 @@ export function ChangesTab() {
           }}
           placeholder="Commit message..."
           rows={2}
-          className="w-full px-2 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:border-blue-600 resize-none"
+          className="w-full px-2 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:[border-color:var(--accent)] resize-none"
         />
         <div className="flex gap-1 mt-1.5">
           {unstaged.length > 0 && staged.length === 0 ? (
@@ -87,7 +87,8 @@ export function ChangesTab() {
                 }
               }}
               disabled={!commitMessage.trim()}
-              className="flex-1 px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white"
+              className="flex-1 px-2 py-1 rounded disabled:bg-neutral-800 disabled:text-neutral-500 text-white"
+              style={{ background: "var(--accent)" }}
             >
               Commit All ({unstaged.length})
             </button>
@@ -95,7 +96,8 @@ export function ChangesTab() {
             <button
               onClick={commit}
               disabled={!commitMessage.trim() || staged.length === 0}
-              className="flex-1 px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white"
+              className="flex-1 px-2 py-1 rounded disabled:bg-neutral-800 disabled:text-neutral-500 text-white"
+              style={{ background: "var(--accent)" }}
             >
               Commit ({staged.length})
             </button>

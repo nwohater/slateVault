@@ -231,37 +231,37 @@ export function StartSessionView() {
   };
 
   return (
-    <div className="workspace-page h-full min-w-0 flex-1 overflow-y-auto bg-neutral-950 px-6 py-6">
+    <div className="workspace-page h-full min-w-0 flex-1 overflow-y-auto px-6 py-6">
       <div className="flex w-full flex-col gap-6">
         <div className="workspace-hero flex flex-col gap-4 rounded-3xl p-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
             <div className="workspace-kicker mb-3">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--accent)" }} />
               Prepare trusted project context
             </div>
-            <h1 className="workspace-label text-3xl font-semibold tracking-tight text-neutral-100">
+            <h1 className="workspace-label text-3xl font-semibold tracking-tight" style={{ color: "var(--text)" }}>
               Start Session
             </h1>
-            <p className="mt-2 text-sm leading-6 text-neutral-400">
+            <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
               Generate a project brief, review recommended docs, and copy a clean
               context package into your coding agent before implementation work starts.
             </p>
             <div className="mt-5 grid gap-3 md:grid-cols-3">
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-4">
-                <div className="text-xs font-medium text-neutral-200">1. Pick the project</div>
-                <div className="mt-1 text-[11px] leading-5 text-neutral-500">
+              <div className="rounded-2xl px-4 py-4" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+                <div className="text-xs font-medium" style={{ color: "var(--text)" }}>1. Pick the project</div>
+                <div className="mt-1 text-[11px] leading-5" style={{ color: "var(--text-muted)" }}>
                   Choose the vault project that should anchor the session.
                 </div>
               </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-4">
-                <div className="text-xs font-medium text-neutral-200">2. Describe the task</div>
-                <div className="mt-1 text-[11px] leading-5 text-neutral-500">
+              <div className="rounded-2xl px-4 py-4" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+                <div className="text-xs font-medium" style={{ color: "var(--text)" }}>2. Describe the task</div>
+                <div className="mt-1 text-[11px] leading-5" style={{ color: "var(--text-muted)" }}>
                   Give the brief enough direction to bias reading and recommendations.
                 </div>
               </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-4">
-                <div className="text-xs font-medium text-neutral-200">3. Generate the brief</div>
-                <div className="mt-1 text-[11px] leading-5 text-neutral-500">
+              <div className="rounded-2xl px-4 py-4" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+                <div className="text-xs font-medium" style={{ color: "var(--text)" }}>3. Generate the brief</div>
+                <div className="mt-1 text-[11px] leading-5" style={{ color: "var(--text-muted)" }}>
                   Generate the session brief, then paste it into your coding agent.
                 </div>
               </div>
@@ -269,17 +269,17 @@ export function StartSessionView() {
           </div>
         </div>
 
-        <div className="surface-card-strong rounded-3xl p-5">
+        <div className="workspace-section rounded-3xl p-5">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-neutral-100">
+              <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
                 Session setup
               </h2>
-              <p className="mt-1 text-xs text-neutral-500">
+              <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
                 Start here. Pick the project first, then the rest of the session helpers will adapt to that project.
               </p>
             </div>
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-3 text-[11px] leading-5 text-neutral-500">
+            <div className="rounded-2xl px-4 py-3 text-[11px] leading-5" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
               {projectStructureLoading
                 ? "Reading project structure..."
                 : currentProject
@@ -291,13 +291,14 @@ export function StartSessionView() {
           <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
             <div className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
                   Project
                 </label>
                 <select
                   value={selectedProject}
                   onChange={(e) => setSelectedProject(e.target.value)}
-                  className="w-full max-w-md rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-200 outline-none focus:border-cyan-600"
+                  className="w-full max-w-md rounded-xl px-3 py-2.5 text-sm outline-none"
+                  style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text)" }}
                 >
                   {projects.map((project) => (
                     <option key={project.name} value={project.name}>
@@ -308,7 +309,7 @@ export function StartSessionView() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
                   Task prompt
                 </label>
                 <textarea
@@ -316,12 +317,13 @@ export function StartSessionView() {
                   onChange={(e) => setTaskPrompt(e.target.value)}
                   rows={5}
                   placeholder="Authentication refactor, release workflow cleanup, PDF export investigation..."
-                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
+                  className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
+                  style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text)" }}
                 />
               </div>
 
               <div>
-                <div className="mb-2 block text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+                <div className="mb-2 block text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
                   Quick presets
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -329,7 +331,7 @@ export function StartSessionView() {
                     <button
                       key={preset.id}
                       onClick={() => applyPreset(preset)}
-                      className="rounded-full border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-[11px] text-neutral-300 transition-colors hover:border-neutral-600 hover:bg-neutral-900"
+                      className="chip"
                     >
                       {preset.label}
                     </button>
@@ -338,11 +340,11 @@ export function StartSessionView() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
-              <div className="mb-2 block text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+            <div className="rounded-2xl p-4" style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+              <div className="mb-2 block text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
                 Include
               </div>
-              <div className="space-y-2 text-sm text-neutral-400">
+              <div className="space-y-2 text-sm" style={{ color: "var(--text-muted)" }}>
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -380,10 +382,10 @@ export function StartSessionView() {
                   Attention warnings
                 </label>
               </div>
-              <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/70 px-3 py-3 text-[11px] leading-5 text-neutral-500">
+              <div className="mt-4 rounded-xl px-3 py-3 text-[11px] leading-5" style={{ background: "var(--bg-tint)", border: "1px solid var(--border-subtle)", color: "var(--text-muted)" }}>
                 Include only the context your agent actually needs. Smaller, task-shaped briefs usually produce better work than dumping the whole vault.
               </div>
-              <div className="mt-3 rounded-xl border border-cyan-900/40 bg-cyan-950/20 px-3 py-3 text-[11px] leading-5 text-cyan-100/80">
+              <div className="mt-3 rounded-xl px-3 py-3 text-[11px] leading-5" style={{ background: "var(--info-soft)", border: "1px solid var(--info)", color: "var(--info)" }}>
                 Global Wiki is always part of session hygiene: agents should check vault-wide AI rules, coding standards, and documentation style before substantial work.
               </div>
             </div>
@@ -393,7 +395,7 @@ export function StartSessionView() {
             <button
               onClick={() => void handleGenerateAndCopy()}
               disabled={loading || !selectedProject}
-              className="w-full rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-cyan-500 disabled:bg-neutral-800 disabled:text-neutral-500 sm:w-auto sm:min-w-64 sm:px-6"
+              className="btn primary sm:min-w-64"
             >
               {loading
                 ? "Generating..."
@@ -403,7 +405,7 @@ export function StartSessionView() {
             </button>
 
             {error && (
-              <div className="mt-3 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-xs text-red-300">
+              <div className="mt-3 rounded-xl px-3 py-2 text-xs" style={{ background: "var(--danger-soft)", border: "1px solid var(--danger)", color: "var(--danger)" }}>
                 {error}
               </div>
             )}
@@ -412,37 +414,37 @@ export function StartSessionView() {
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
           <div className="space-y-4">
-            <div className="surface-card-strong rounded-3xl p-5">
+            <div className="workspace-section rounded-3xl p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-neutral-100">
+                  <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
                     MCP Use
                   </h2>
-                  <p className="mt-1 text-xs text-neutral-500">
+                  <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
                     Project-specific SlateVault rules plus global Wiki guidance to paste before the task prompt.
                   </p>
                 </div>
                 <button
                   onClick={() => void handleCopyMcpUse()}
-                  className="rounded-xl border border-neutral-700 px-3 py-2 text-xs text-neutral-300 transition-colors hover:bg-neutral-800"
+                  className="btn sm"
                 >
                   {copiedMcpUse ? "Copied" : "Copy"}
                 </button>
               </div>
-              <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-2xl bg-neutral-950 p-4 text-xs leading-6 text-neutral-300">
+              <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-2xl p-4 text-xs leading-6" style={{ background: "var(--bg-code)", color: "var(--text-muted)" }}>
                 {mcpUseText}
               </pre>
             </div>
 
             {hasGenerated && !loading && (
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-                <div className="surface-card-strong rounded-3xl p-5">
-                  <h3 className="text-base font-semibold text-neutral-100">
+                <div className="workspace-section rounded-3xl p-5">
+                  <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>
                     Recommended reading
                   </h3>
                   <div className="mt-4 space-y-3">
                     {recommendedDocs.length === 0 ? (
-                      <p className="text-xs text-neutral-500">
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                         No recommended docs yet.
                       </p>
                     ) : (
@@ -450,22 +452,22 @@ export function StartSessionView() {
                         <button
                           key={doc.path}
                           onClick={() => void openDocument(selectedProject, doc.path)}
-                          className="w-full rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-3 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900"
+                          className="workspace-subsection w-full rounded-2xl px-4 py-3 text-left transition-colors"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-neutral-200">
+                            <span className="text-sm font-medium" style={{ color: "var(--text)" }}>
                               {doc.title}
                             </span>
                             {doc.canonical && (
-                              <span className="rounded-full bg-cyan-950/40 px-2 py-0.5 text-[10px] text-cyan-300">
+                              <span className="chip" style={{ background: "var(--warning-soft)", color: "var(--warning)", border: "1px solid var(--warning)" }}>
                                 Canonical
                               </span>
                             )}
                           </div>
-                          <div className="mt-1 text-[11px] text-neutral-500">
+                          <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
                             {doc.path}
                           </div>
-                          <div className="mt-2 text-[11px] leading-5 text-neutral-500">
+                          <div className="mt-2 text-[11px] leading-5" style={{ color: "var(--text-muted)" }}>
                             {doc.reason}
                           </div>
                         </button>
@@ -474,28 +476,28 @@ export function StartSessionView() {
                   </div>
                 </div>
 
-                <div className="surface-card-strong rounded-3xl p-5">
-                  <h3 className="text-base font-semibold text-neutral-100">
+                <div className="workspace-section rounded-3xl p-5">
+                  <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>
                     Recent changes
                   </h3>
                   <div className="mt-4 space-y-3">
                     {recentChanges.length === 0 ? (
-                      <p className="text-xs text-neutral-500">
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                         No recent changes included.
                       </p>
                     ) : (
                       recentChanges.map((change) => (
                         <div
                           key={`${change.project}/${change.path}/${change.modified}`}
-                          className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-3"
+                          className="workspace-subsection rounded-2xl px-4 py-3"
                         >
-                          <div className="text-sm font-medium text-neutral-200">
+                          <div className="text-sm font-medium" style={{ color: "var(--text)" }}>
                             {change.title}
                           </div>
-                          <div className="mt-1 text-[11px] text-neutral-500">
+                          <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
                             {change.path}
                           </div>
-                          <div className="mt-2 text-[11px] text-neutral-600">
+                          <div className="mt-2 text-[11px]" style={{ color: "var(--text-faint)" }}>
                             {change.author} - {new Date(change.modified).toLocaleString()}
                           </div>
                         </div>
@@ -508,21 +510,21 @@ export function StartSessionView() {
           </div>
 
           <div className="space-y-4">
-            <div className="surface-card-strong rounded-3xl p-5">
-              <h2 className="text-lg font-semibold text-neutral-100">
+            <div className="workspace-section rounded-3xl p-5">
+              <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
                 Session playbooks
               </h2>
-              <p className="mt-1 text-xs text-neutral-500">
+              <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
                 These kickoff prompts now key off the selected project and should be read as project-aware starting points, not generic boilerplate.
               </p>
-              <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-4">
-                <div className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+              <div className="workspace-subsection mt-4 rounded-2xl px-4 py-4">
+                <div className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
                   Selected project
                 </div>
-                <div className="mt-2 text-sm text-neutral-200">
+                <div className="mt-2 text-sm" style={{ color: "var(--text)" }}>
                   {selectedProject || "No project selected"}
                 </div>
-                <div className="mt-1 text-[11px] leading-5 text-neutral-500">
+                <div className="mt-1 text-[11px] leading-5" style={{ color: "var(--text-muted)" }}>
                   {projectStructureLoading
                     ? "Reading docs and folders..."
                     : projectStructure
@@ -532,10 +534,7 @@ export function StartSessionView() {
                 {!!projectStructure?.folders.length && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {projectStructure.folders.slice(0, 8).map((folder) => (
-                      <span
-                        key={folder}
-                        className="rounded-full border border-neutral-700 bg-neutral-900 px-2.5 py-1 text-[10px] text-neutral-400"
-                      >
+                      <span key={folder} className="chip">
                         {folder}/
                       </span>
                     ))}
@@ -544,30 +543,30 @@ export function StartSessionView() {
               </div>
               <div className="mt-4 space-y-2">
                 {playbooksLoading ? (
-                  <div className="text-xs text-neutral-500">Loading playbooks...</div>
+                  <div className="text-xs" style={{ color: "var(--text-muted)" }}>Loading playbooks...</div>
                 ) : playbooks.length === 0 ? (
-                  <div className="text-xs text-neutral-500">No playbooks available.</div>
+                  <div className="text-xs" style={{ color: "var(--text-muted)" }}>No playbooks available.</div>
                 ) : (
                   playbooks.slice(0, 4).map((playbook) => {
                     const fit = getPlaybookFit(playbook.id, projectStructure);
                     return (
                       <div
                         key={playbook.id}
-                        className="rounded-xl border border-neutral-800 bg-neutral-900/70 px-3 py-3"
+                        className="workspace-subsection rounded-xl px-3 py-3"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="text-xs font-medium text-neutral-200">
+                            <div className="text-xs font-medium" style={{ color: "var(--text)" }}>
                               {playbook.label}
                             </div>
-                            <div className="mt-1 text-[11px] leading-5 text-neutral-500">
+                            <div className="mt-1 text-[11px] leading-5" style={{ color: "var(--text-muted)" }}>
                               {playbook.description}
                             </div>
                             <div className="mt-2 flex flex-wrap items-center gap-2">
-                              <span className="rounded-full border border-cyan-900/60 bg-cyan-950/30 px-2 py-0.5 text-[10px] text-cyan-300">
+                              <span className="chip" style={{ background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent)" }}>
                                 {fit.label}
                               </span>
-                              <span className="text-[10px] leading-5 text-neutral-500">
+                              <span className="text-[10px] leading-5" style={{ color: "var(--text-muted)" }}>
                                 {fit.note}
                               </span>
                             </div>
@@ -575,7 +574,7 @@ export function StartSessionView() {
                           <button
                             onClick={() => void handleCopyPlaybook(playbook.id)}
                             disabled={!selectedProject}
-                            className="rounded-lg border border-neutral-700 px-2.5 py-1 text-[10px] text-neutral-300 transition-colors hover:bg-neutral-800 disabled:border-neutral-800 disabled:text-neutral-600"
+                            className="btn sm disabled:opacity-40"
                           >
                             {copiedPlaybookId === playbook.id ? "Copied" : "Copy"}
                           </button>
@@ -588,11 +587,11 @@ export function StartSessionView() {
             </div>
 
             {loading && (
-              <div className="surface-card-strong rounded-3xl p-6">
-                <h2 className="text-lg font-semibold text-neutral-100">
+              <div className="workspace-section rounded-3xl p-6">
+                <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
                   Assembling session brief
                 </h2>
-                <div className="mt-4 space-y-2 text-sm text-neutral-500">
+                <div className="mt-4 space-y-2 text-sm" style={{ color: "var(--text-muted)" }}>
                   <div>Loading project context</div>
                   <div>Checking canonical docs</div>
                   <div>Reviewing recent changes</div>
@@ -602,11 +601,11 @@ export function StartSessionView() {
             )}
 
             {!hasGenerated && !loading && (
-              <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-5">
-                <h3 className="text-base font-semibold text-neutral-100">
+              <div className="workspace-section rounded-3xl p-5">
+                <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>
                   What this gives you
                 </h3>
-                <div className="mt-4 space-y-2 text-xs leading-5 text-neutral-500">
+                <div className="mt-4 space-y-2 text-xs leading-5" style={{ color: "var(--text-muted)" }}>
                   <p>A concise project brief instead of an empty prompt box.</p>
                   <p>Recommended docs to read before implementation or review work.</p>
                   <p>Recent changes so the next coding session starts from the current project state.</p>

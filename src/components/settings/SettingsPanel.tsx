@@ -228,7 +228,7 @@ export function SettingsPanel() {
             <button
               onClick={() => void installUpdate()}
               disabled={updateState !== "available"}
-              className="flex-1 px-2 py-1.5 rounded bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-600 text-white"
+              className="btn primary sm flex-1 disabled:opacity-40"
             >
               Install Update
             </button>
@@ -237,7 +237,7 @@ export function SettingsPanel() {
             Last checked: {formatLastChecked(lastCheckedAt)}
           </p>
           {updateError && (
-            <div className="rounded border border-amber-900/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-200">
+            <div className="rounded px-2 py-1 text-[10px]" style={{ background: "var(--warning-soft)", border: "1px solid var(--warning)", color: "var(--warning)" }}>
               {updateError}
             </div>
           )}
@@ -356,13 +356,14 @@ export function SettingsPanel() {
             </div>
             {aiTestOutput && (
               <div
-                className={`mt-1 rounded px-2 py-1 text-[10px] ${
+                className="mt-1 rounded px-2 py-1 text-[10px]"
+                style={
                   aiTestStatus === "success"
-                    ? "bg-green-950/30 text-green-300 border border-green-800/40"
+                    ? { background: "var(--success-soft)", border: "1px solid var(--success)", color: "var(--success)" }
                     : aiTestStatus === "error"
-                      ? "bg-red-950/30 text-red-300 border border-red-800/40"
-                      : "bg-neutral-800/70 text-neutral-400 border border-neutral-700"
-                }`}
+                      ? { background: "var(--danger-soft)", border: "1px solid var(--danger)", color: "var(--danger)" }
+                      : { background: "var(--bg-tint)", color: "var(--text-muted)" }
+                }
               >
                 {aiTestOutput}
               </div>
@@ -372,7 +373,7 @@ export function SettingsPanel() {
             <label className="block text-neutral-500 mb-1">
               API Key
               {creds?.ai_api_key && (
-                <span className="ml-1 text-green-500">({creds?.ai_api_key})</span>
+                <span style={{ color: "var(--success)", marginLeft: 4 }}>({creds?.ai_api_key})</span>
               )}
             </label>
             <input
@@ -412,7 +413,7 @@ export function SettingsPanel() {
               className="rounded"
             />
             Enabled
-            <span className={`w-2 h-2 rounded-full ${mcpEnabled ? "bg-green-500" : "bg-red-500"}`} />
+            <span className="w-2 h-2 rounded-full" style={{ background: mcpEnabled ? "var(--success)" : "var(--danger)" }} />
           </label>
           <div>
             <label className="block text-neutral-500 mb-1">Port</label>
@@ -517,7 +518,7 @@ export function SettingsPanel() {
             <label className="block text-neutral-500 mb-1">
               GitHub PAT
               {creds?.github_pat && (
-                <span className="ml-1 text-green-500">({creds.github_pat})</span>
+                <span style={{ color: "var(--success)", marginLeft: 4 }}>({creds.github_pat})</span>
               )}
             </label>
             <input
@@ -549,7 +550,7 @@ export function SettingsPanel() {
                   <label className="block text-neutral-500 mb-1">
                     Azure DevOps PAT
                     {creds?.ado_pat && (
-                      <span className="ml-1 text-green-500">({creds.ado_pat})</span>
+                      <span style={{ color: "var(--success)", marginLeft: 4 }}>({creds.ado_pat})</span>
                     )}
                   </label>
                   <input
@@ -662,7 +663,7 @@ export function SettingsPanel() {
       <div className="p-3">
         <button
           onClick={handleSave}
-          className="w-full px-2 py-1.5 rounded bg-blue-700 hover:bg-blue-600 text-white"
+          className="btn primary w-full"
         >
           Save Settings
         </button>

@@ -24,19 +24,22 @@ function RawFileBar() {
   const showSaveButton = workspaceView !== "wiki";
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-900 border-b border-neutral-800 text-xs">
-      <span className="font-semibold text-neutral-200 truncate">
+    <div
+      className="flex items-center gap-2 px-3 py-1.5 text-xs"
+      style={{ background: "var(--bg-panel)", borderBottom: "1px solid var(--border-subtle)" }}
+    >
+      <span className="font-semibold truncate" style={{ color: "var(--text)" }}>
         {activePath}
       </span>
       {isDirty && (
-        <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "var(--accent)" }} />
       )}
       <div className="flex-1" />
       {showSaveButton && (
         <button
           onClick={saveDocument}
           disabled={!isDirty}
-          className="px-2.5 py-1 rounded bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white text-[10px] font-medium transition-colors"
+          className="btn primary sm"
         >
           {isDirty ? "Save (Ctrl+S)" : "Saved"}
         </button>
@@ -57,7 +60,10 @@ function SecretWarning({ content }: { content: string }) {
   if (detected.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-red-900/30 border-b border-red-800 text-[10px] text-red-300">
+    <div
+      className="flex items-center gap-2 px-3 py-1.5 text-[10px]"
+      style={{ background: "var(--danger-soft)", borderBottom: "1px solid var(--danger)", color: "var(--danger)" }}
+    >
       <span className="font-medium">Warning:</span>
       <span>Possible {detected.join(", ")} detected. Avoid committing secrets to the vault.</span>
     </div>
@@ -71,18 +77,18 @@ function SyncRiskWarning() {
 
   const isConflictRisk = syncRisk.risk === "conflict_risk";
 
+  const riskBg    = isConflictRisk ? "var(--danger-soft)"  : "var(--warning-soft)";
+  const riskColor = isConflictRisk ? "var(--danger)"       : "var(--warning)";
+
   return (
     <div
-      className={`border-b px-3 py-2 text-[11px] ${
-        isConflictRisk
-          ? "border-red-800 bg-red-950/30 text-red-300"
-          : "border-amber-800 bg-amber-950/30 text-amber-300"
-      }`}
+      className="px-3 py-2 text-[11px]"
+      style={{ background: riskBg, borderBottom: `1px solid ${riskColor}`, color: riskColor }}
     >
       <div className="font-medium">
         {isConflictRisk ? "Conflict risk" : "Remote changed this document"}
       </div>
-      <div className="mt-0.5 text-neutral-300">
+      <div className="mt-0.5" style={{ color: "var(--text-muted)" }}>
         {isConflictRisk
           ? "This doc changed locally and also has newer remote changes. Pull and review before saving or pushing."
           : "The shared vault has a newer version of this doc. Pull before editing further to avoid starting from stale content."}

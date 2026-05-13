@@ -15,8 +15,8 @@ export function DiffViewer({ diff, onClose }: DiffViewerProps) {
       <div className="flex items-center justify-between px-2 py-1 bg-neutral-900 border-b border-neutral-800">
         <div className="flex items-center gap-2 truncate">
           <span className="text-neutral-400 truncate">{diff.path}</span>
-          <span className="text-green-400">+{diff.stats.additions}</span>
-          <span className="text-red-400">-{diff.stats.deletions}</span>
+          <span style={{ color: "var(--success)" }}>+{diff.stats.additions}</span>
+          <span style={{ color: "var(--danger)" }}>-{diff.stats.deletions}</span>
         </div>
         {onClose && (
           <button
@@ -38,28 +38,29 @@ export function DiffViewer({ diff, onClose }: DiffViewerProps) {
           diff.hunks.map((hunk, hi) => (
             <div key={hi}>
               {/* Hunk header */}
-              <div className="px-2 py-0.5 bg-neutral-900/50 text-blue-400 border-y border-neutral-800/50">
+              <div className="px-2 py-0.5 bg-neutral-900/50 border-y border-neutral-800/50" style={{ color: "var(--info)" }}>
                 {hunk.header}
               </div>
               {/* Lines */}
               {hunk.lines.map((line, li) => {
                 const isAdd = line.origin === "+";
                 const isDel = line.origin === "-";
-                const bg = isAdd
-                  ? "bg-green-500/10"
+                const bgStyle = isAdd
+                  ? { background: "color-mix(in srgb, var(--success) 10%, transparent)" }
                   : isDel
-                    ? "bg-red-500/10"
-                    : "";
-                const textColor = isAdd
-                  ? "text-green-300"
+                    ? { background: "color-mix(in srgb, var(--danger) 10%, transparent)" }
+                    : {};
+                const textColorStyle = isAdd
+                  ? { color: "var(--success)" }
                   : isDel
-                    ? "text-red-300"
-                    : "text-neutral-400";
+                    ? { color: "var(--danger)" }
+                    : undefined;
 
                 return (
                   <div
                     key={`${hi}-${li}`}
-                    className={`flex ${bg} hover:brightness-125`}
+                    className="flex hover:brightness-125"
+                    style={bgStyle}
                   >
                     <span className="w-8 text-right pr-1 text-neutral-600 select-none shrink-0">
                       {line.old_lineno ?? ""}
@@ -67,10 +68,10 @@ export function DiffViewer({ diff, onClose }: DiffViewerProps) {
                     <span className="w-8 text-right pr-1 text-neutral-600 select-none shrink-0 border-r border-neutral-800">
                       {line.new_lineno ?? ""}
                     </span>
-                    <span className={`w-4 text-center select-none shrink-0 ${textColor}`}>
+                    <span className="w-4 text-center select-none shrink-0 text-neutral-400" style={textColorStyle}>
                       {line.origin === " " ? "" : line.origin}
                     </span>
-                    <span className={`flex-1 pr-2 whitespace-pre ${textColor}`}>
+                    <span className="flex-1 pr-2 whitespace-pre text-neutral-400" style={textColorStyle}>
                       {line.content}
                     </span>
                   </div>

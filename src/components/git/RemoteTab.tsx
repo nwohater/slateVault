@@ -73,7 +73,7 @@ export function RemoteTab() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://github.com/user/repo.git"
-          className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:border-blue-600"
+          className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:[border-color:var(--accent)]"
         />
       </div>
 
@@ -83,7 +83,7 @@ export function RemoteTab() {
           type="text"
           value={branch}
           onChange={(e) => setBranch(e.target.value)}
-          className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 outline-none focus:border-blue-600"
+          className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 outline-none focus:[border-color:var(--accent)]"
         />
       </div>
 
@@ -105,7 +105,8 @@ export function RemoteTab() {
         <button
           onClick={push}
           disabled={running || !url}
-          className="flex-1 px-2 py-1.5 rounded bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white"
+          className="flex-1 px-2 py-1.5 rounded disabled:bg-neutral-800 disabled:text-neutral-500 text-white"
+          style={{ background: "var(--accent)" }}
         >
           Push
         </button>

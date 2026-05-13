@@ -65,8 +65,9 @@ export function BranchSelector() {
                   setOpen(false);
                 }}
                 className={`flex-1 text-left truncate ${
-                  b.is_current ? "text-blue-400" : "text-neutral-300"
+                  b.is_current ? "" : "text-neutral-300"
                 }`}
+                style={b.is_current ? { color: "var(--accent)" } : undefined}
               >
                 {b.is_current && "* "}
                 {b.name}
@@ -79,14 +80,15 @@ export function BranchSelector() {
                         deleteBranch(b.name);
                         setConfirmDelete(null);
                       }}
-                      className="text-red-400 text-[10px] hover:text-red-300"
+                      className="text-[10px]"
+                      style={{ color: "var(--danger)" }}
                     >
                       confirm
                     </button>
                   ) : (
                     <button
                       onClick={() => setConfirmDelete(b.name)}
-                      className="text-neutral-600 hover:text-red-400 opacity-0 group-hover:opacity-100"
+                      className="text-neutral-600 opacity-0 group-hover:opacity-100 hover:[color:var(--danger)]"
                       title="Delete branch"
                     >
                       <TrashIcon className="w-3 h-3" />
@@ -106,12 +108,13 @@ export function BranchSelector() {
                 if (e.key === "Enter") handleCreate();
               }}
               placeholder="New branch..."
-              className="flex-1 px-1.5 py-0.5 text-xs bg-neutral-900 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:border-blue-600"
+              className="flex-1 px-1.5 py-0.5 text-xs bg-neutral-900 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:[border-color:var(--accent)]"
             />
             <button
               onClick={handleCreate}
               disabled={!newName.trim()}
-              className="px-1.5 py-0.5 text-xs rounded bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-700 disabled:text-neutral-500 text-white flex items-center justify-center"
+              className="px-1.5 py-0.5 text-xs rounded disabled:bg-neutral-700 disabled:text-neutral-500 text-white flex items-center justify-center"
+              style={{ background: "var(--accent)" }}
             >
               <StageIcon className="w-3.5 h-3.5" />
             </button>

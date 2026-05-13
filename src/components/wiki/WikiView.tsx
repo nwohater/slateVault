@@ -195,9 +195,9 @@ export function WikiView() {
   const previewFlex = showPreview ? (showEditor ? 1 - previewRatio : 1) : 0;
 
   return (
-    <div className="flex h-full min-w-0 flex-1 bg-neutral-950">
-      <aside className="flex w-72 flex-shrink-0 flex-col border-r border-neutral-800 bg-[linear-gradient(180deg,rgba(10,15,21,0.95),rgba(7,10,14,0.96))]">
-        <div className="border-b border-neutral-800 px-4 py-3">
+    <div className="flex h-full min-w-0 flex-1" style={{ background: "var(--bg-app)" }}>
+      <aside className="flex w-72 flex-shrink-0 flex-col" style={{ background: "var(--bg-panel)", borderRight: "1px solid var(--border)" }}>
+        <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between gap-2">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
@@ -212,7 +212,7 @@ export function WikiView() {
                 setError(null);
                 setShowNewDoc((show) => !show);
               }}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-900/40 text-cyan-200 hover:bg-cyan-800/50"
+              className="icon-btn"
               title="New wiki doc"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
@@ -223,9 +223,10 @@ export function WikiView() {
           {showNewDoc && (
             <form
               onSubmit={handleCreate}
-              className="mt-3 rounded-lg border border-neutral-800 bg-neutral-950/70 p-3"
+              className="mt-3 rounded-lg p-3"
+              style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
             >
-              <label className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+              <label className="block text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                 Title
               </label>
               <input
@@ -233,16 +234,18 @@ export function WikiView() {
                 onChange={(e) => handleNewDocTitleChange(e.target.value)}
                 autoFocus
                 placeholder="Team AI Rules"
-                className="mt-1 w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-cyan-800"
+                className="mt-1 w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text)" }}
               />
-              <label className="mt-3 block text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+              <label className="mt-3 block text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                 Filename
               </label>
               <input
                 value={newDocPath}
                 onChange={(e) => setNewDocPath(e.target.value)}
                 placeholder="team-ai-rules.md"
-                className="mt-1 w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-cyan-800"
+                className="mt-1 w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text)" }}
               />
               <div className="mt-3 flex items-center justify-end gap-2">
                 <button
@@ -252,14 +255,14 @@ export function WikiView() {
                     setNewDocTitle("");
                     setNewDocPath("");
                   }}
-                  className="rounded-lg px-2.5 py-1.5 text-xs text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300"
+                  className="btn sm"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!newDocTitle.trim() || !normalizeMarkdownFilename(newDocPath) || creating}
-                  className="rounded-lg bg-cyan-800 px-2.5 py-1.5 text-xs font-medium text-cyan-50 hover:bg-cyan-700 disabled:bg-neutral-800 disabled:text-neutral-500"
+                  className="btn primary sm disabled:opacity-40"
                 >
                   {creating ? "Creating..." : "Create"}
                 </button>
@@ -270,35 +273,36 @@ export function WikiView() {
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="Search wiki..."
-            className="mt-3 w-full rounded-lg border border-neutral-800 bg-neutral-950/80 px-3 py-2 text-sm text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-cyan-800"
+            className="mt-3 w-full rounded-lg px-3 py-2 text-sm outline-none"
+            style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
           />
         </div>
 
         {error && (
-          <div className="mx-3 mt-3 rounded-lg border border-red-900/60 bg-red-950/30 px-3 py-2 text-xs text-red-200">
+          <div className="mx-3 mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--danger-soft)", border: "1px solid var(--danger)", color: "var(--danger)" }}>
             {error}
           </div>
         )}
 
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {loading ? (
-            <div className="px-3 py-4 text-xs text-neutral-500">Loading wiki...</div>
+            <div className="px-3 py-4 text-xs" style={{ color: "var(--text-muted)" }}>Loading wiki...</div>
           ) : visibleDocs.length === 0 ? (
-            <div className="px-3 py-4 text-xs text-neutral-500">No wiki docs found.</div>
+            <div className="px-3 py-4 text-xs" style={{ color: "var(--text-muted)" }}>No wiki docs found.</div>
           ) : (
             visibleDocs.map((doc) => (
               <button
                 key={doc.path}
                 onClick={() => openWikiFile(doc.path)}
                 onContextMenu={(e) => openContextMenu(e, doc)}
-                className={`mb-1 w-full rounded-lg px-3 py-2 text-left transition-colors ${
-                  activeWikiPath === doc.path
-                    ? "bg-neutral-800 text-neutral-100"
-                    : "text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200"
-                }`}
+                className="mb-1 w-full rounded-lg px-3 py-2 text-left transition-colors"
+                style={{
+                  background: activeWikiPath === doc.path ? "var(--accent-soft)" : undefined,
+                  color: activeWikiPath === doc.path ? "var(--accent)" : "var(--text-muted)",
+                }}
               >
                 <div className="truncate text-sm font-medium">{doc.title}</div>
-                <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-neutral-600">
+                <div className="mt-1 flex items-center justify-between gap-2 text-[10px]" style={{ color: "var(--text-faint)" }}>
                   <span className="truncate">{doc.path}</span>
                   <span className="flex-shrink-0">{formatModified(doc.modified)}</span>
                 </div>
@@ -307,41 +311,41 @@ export function WikiView() {
           )}
         </div>
 
-        <div className="border-t border-neutral-800 px-4 py-3 text-[11px] text-neutral-500">
+        <div className="px-4 py-3 text-[11px]" style={{ borderTop: "1px solid var(--border)", color: "var(--text-faint)" }}>
           MCP tools can read these docs as vault-wide guidance.
         </div>
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <div className="flex h-11 flex-shrink-0 items-center justify-between border-b border-neutral-800 px-4">
-          <div className="min-w-0 text-sm font-semibold text-neutral-200">
+        <div className="flex h-11 flex-shrink-0 items-center justify-between px-4" style={{ borderBottom: "1px solid var(--border)" }}>
+          <div className="min-w-0 text-sm font-semibold" style={{ color: "var(--text)" }}>
             {activeWikiPath || "Wiki"}
           </div>
           <div className="flex flex-shrink-0 items-center gap-2">
             <button
               onClick={toggleEditor}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
-                showEditor
-                  ? "bg-neutral-800 text-neutral-200"
-                  : "bg-neutral-900 text-neutral-500"
-              }`}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${showEditor ? "on" : ""}`}
+              style={{
+                background: showEditor ? "var(--accent-soft)" : "var(--bg-tint)",
+                color: showEditor ? "var(--accent)" : "var(--text-muted)",
+              }}
             >
               Editor
             </button>
             <button
               onClick={togglePreview}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
-                showPreview
-                  ? "bg-neutral-800 text-neutral-200"
-                  : "bg-neutral-900 text-neutral-500"
-              }`}
+              className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+              style={{
+                background: showPreview ? "var(--accent-soft)" : "var(--bg-tint)",
+                color: showPreview ? "var(--accent)" : "var(--text-muted)",
+              }}
             >
               Preview
             </button>
             <button
               onClick={saveDocument}
               disabled={!isDirty || !activeWikiPath}
-              className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500"
+              className="btn primary sm disabled:opacity-40"
             >
               {isDirty ? "Save" : "Saved"}
             </button>
@@ -386,19 +390,29 @@ export function WikiView() {
             aria-label="Close wiki menu"
           />
           <div
-            className="fixed z-50 min-w-52 rounded-lg border border-neutral-800 bg-neutral-950 p-1 text-xs text-neutral-200 shadow-2xl"
-            style={{ left: contextMenu.x, top: contextMenu.y }}
+            className="fixed z-50 min-w-52 rounded-lg p-1 text-xs"
+            style={{
+              left: contextMenu.x,
+              top: contextMenu.y,
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              boxShadow: "var(--shadow-lg)",
+              color: "var(--text)",
+            }}
           >
             {contextMenu.action === "menu" && (
               <>
-                <div className="border-b border-neutral-800 px-3 py-2 text-[10px] uppercase tracking-wider text-neutral-500">
+                <div className="px-3 py-2 text-[10px] uppercase tracking-wider" style={{ borderBottom: "1px solid var(--border-subtle)", color: "var(--text-faint)" }}>
                   {contextMenu.title}
                 </div>
                 <button
                   onClick={() =>
                     setContextMenu({ ...contextMenu, action: "rename" })
                   }
-                  className="mt-1 w-full rounded px-3 py-2 text-left hover:bg-neutral-800"
+                  className="mt-1 w-full rounded px-3 py-2 text-left"
+                  style={{ color: "var(--text)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tint)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                 >
                   Rename file
                 </button>
@@ -406,7 +420,10 @@ export function WikiView() {
                   onClick={() =>
                     setContextMenu({ ...contextMenu, action: "delete" })
                   }
-                  className="w-full rounded px-3 py-2 text-left text-red-300 hover:bg-red-950/40"
+                  className="w-full rounded px-3 py-2 text-left"
+                  style={{ color: "var(--danger)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--danger-soft)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                 >
                   Delete file
                 </button>
@@ -414,7 +431,7 @@ export function WikiView() {
             )}
             {contextMenu.action === "rename" && (
               <form onSubmit={handleRename} className="p-2">
-                <label className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+                <label className="block text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                   Filename
                 </label>
                 <input
@@ -426,23 +443,17 @@ export function WikiView() {
                     })
                   }
                   autoFocus
-                  className="mt-1 w-72 rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 outline-none focus:border-cyan-800"
+                  className="mt-1 w-72 rounded-lg px-3 py-2 text-sm outline-none"
+                  style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", color: "var(--text)" }}
                   onKeyDown={(e) => {
                     if (e.key === "Escape") setContextMenu(null);
                   }}
                 />
                 <div className="mt-3 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setContextMenu(null)}
-                    className="rounded px-2.5 py-1.5 text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300"
-                  >
+                  <button type="button" onClick={() => setContextMenu(null)} className="btn sm">
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    className="rounded bg-cyan-800 px-2.5 py-1.5 font-medium text-cyan-50 hover:bg-cyan-700"
-                  >
+                  <button type="submit" className="btn primary sm">
                     Rename
                   </button>
                 </div>
@@ -450,20 +461,18 @@ export function WikiView() {
             )}
             {contextMenu.action === "delete" && (
               <div className="w-72 p-3">
-                <div className="font-medium text-neutral-100">
+                <div className="font-medium" style={{ color: "var(--text)" }}>
                   Delete this wiki doc?
                 </div>
-                <div className="mt-1 text-neutral-500">{contextMenu.path}</div>
+                <div className="mt-1" style={{ color: "var(--text-muted)" }}>{contextMenu.path}</div>
                 <div className="mt-3 flex justify-end gap-2">
-                  <button
-                    onClick={() => setContextMenu(null)}
-                    className="rounded px-2.5 py-1.5 text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300"
-                  >
+                  <button onClick={() => setContextMenu(null)} className="btn sm">
                     Cancel
                   </button>
                   <button
                     onClick={() => void handleDelete()}
-                    className="rounded bg-red-900 px-2.5 py-1.5 font-medium text-red-100 hover:bg-red-800"
+                    className="btn sm"
+                    style={{ background: "var(--danger)", color: "white", border: "1px solid var(--danger)" }}
                   >
                     Delete
                   </button>

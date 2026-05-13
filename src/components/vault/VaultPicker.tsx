@@ -127,7 +127,7 @@ export function VaultPicker() {
                     disabled={loading}
                     className="w-full flex items-center gap-3 px-3 py-2 pr-8 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left transition-colors disabled:opacity-50"
                   >
-                    <span className="text-blue-400 text-sm">V</span>
+                    <span className="text-sm" style={{ color: "var(--info)" }}>V</span>
                     <div className="min-w-0 flex-1">
                       <div className="text-sm text-neutral-200 truncate">
                         {v.name}
@@ -200,7 +200,7 @@ export function VaultPicker() {
                 onChange={(e) => setRepoUrl(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                 placeholder="https://github.com/user/repo.git"
-                className="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600 text-sm"
+                className="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-600 outline-none focus:border-[var(--accent)] text-sm"
               />
             </div>
           )}
@@ -216,7 +216,7 @@ export function VaultPicker() {
                 onChange={(e) => setPath(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                 placeholder="Select a folder..."
-                className="flex-1 px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600 text-sm"
+                className="flex-1 px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-600 outline-none focus:border-[var(--accent)] text-sm"
               />
               <button
                 onClick={handleBrowse}
@@ -238,19 +238,19 @@ export function VaultPicker() {
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                 placeholder="my-vault"
-                className="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600 text-sm"
+                className="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-600 outline-none focus:border-[var(--accent)] text-sm"
               />
             </div>
           )}
 
           {error && (
-            <p className="text-red-400 text-xs">{error}</p>
+            <p className="text-xs" style={{ color: "var(--danger)" }}>{error}</p>
           )}
 
           <button
             onClick={handleSubmit}
             disabled={loading || !path.trim() || (mode === "clone" && !repoUrl.trim())}
-            className="w-full py-2 bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white rounded-lg text-sm font-medium transition-colors"
+            className="btn primary w-full py-2 rounded-lg text-sm"
           >
             {loading
               ? (mode === "clone" ? "Cloning..." : "...")

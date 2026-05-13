@@ -458,7 +458,7 @@ export function FileTree() {
 
   if (projects.length === 0) {
     return (
-      <div className="px-3 py-4 text-xs text-neutral-500 text-center">
+      <div className="px-3 py-4 text-xs text-center" style={{ color: "var(--text-faint)" }}>
         No projects yet. Click + to create one.
       </div>
     );
@@ -468,7 +468,10 @@ export function FileTree() {
     <>
       {/* Import toast */}
       {importToast && (
-        <div className="mx-2 mb-1 px-2.5 py-1.5 rounded-md bg-cyan-950/80 border border-cyan-800/50 text-cyan-300 text-[11px] flex items-center gap-1.5 animate-pulse">
+        <div
+          className="mx-2 mb-1 px-2.5 py-1.5 rounded-md text-[11px] flex items-center gap-1.5"
+          style={{ background: "var(--success-soft)", border: "1px solid var(--success)", color: "var(--success)" }}
+        >
           <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
           </svg>
@@ -517,11 +520,8 @@ export function FileTree() {
                 </div>
                 {project.name in sourceFolders && (
                   <span
-                    className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mr-1 ${
-                      sourceFolders[project.name]
-                        ? "bg-green-600"
-                        : "bg-yellow-600"
-                    }`}
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0 mr-1"
+                    style={{ background: sourceFolders[project.name] ? "var(--success)" : "var(--warning)" }}
                     title={
                       sourceFolders[project.name]
                         ? `Source: ${sourceFolders[project.name]}`
@@ -538,7 +538,8 @@ export function FileTree() {
                       );
                       setNewDocName("");
                     }}
-                    className="px-2 text-neutral-500 hover:text-neutral-200 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ color: "var(--text-faint)" }}
                     title="New document"
                   >
                     +
@@ -561,13 +562,18 @@ export function FileTree() {
                         }
                       }}
                       placeholder="filename.md"
-                      className="flex-1 min-w-0 px-1.5 py-0.5 text-xs bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:border-blue-600"
+                      className="flex-1 min-w-0 px-1.5 py-0.5 text-xs rounded outline-none"
+                      style={{
+                        background: "var(--bg-subtle)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text)",
+                      }}
                       autoFocus
                     />
                     <button
                       onClick={() => handleCreateDoc(project.name)}
                       disabled={!newDocName.trim()}
-                      className="px-1.5 py-0.5 text-xs rounded bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white"
+                      className="btn primary sm"
                     >
                       Add
                     </button>
@@ -601,8 +607,14 @@ export function FileTree() {
             }}
           />
           <div
-            className="fixed z-50 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl py-1 w-48 text-xs"
-            style={{ top: contextMenu.y, left: contextMenu.x }}
+            className="fixed z-50 rounded-lg shadow-xl py-1 w-48 text-xs"
+            style={{
+              top: contextMenu.y,
+              left: contextMenu.x,
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              boxShadow: "var(--shadow-lg)",
+            }}
           >
             {contextMenu.action === "menu" && (
               <>
@@ -611,7 +623,10 @@ export function FileTree() {
                     onClick={() =>
                       setContextMenu({ ...contextMenu, action: "new-folder", renameValue: "" })
                     }
-                    className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                    className="w-full px-3 py-1.5 text-left"
+                    style={{ color: "var(--text)" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tint)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                   >
                     New Folder
                   </button>
@@ -636,7 +651,10 @@ export function FileTree() {
                         }
                         setContextMenu(null);
                       }}
-                      className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                      className="w-full px-3 py-1.5 text-left"
+                      style={{ color: "var(--text)" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tint)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                     >
                       Set Source Folder
                     </button>
@@ -657,7 +675,10 @@ export function FileTree() {
                         }
                         setContextMenu(null);
                       }}
-                      className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                      className="w-full px-3 py-1.5 text-left"
+                      style={{ color: "var(--text)" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tint)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                     >
                       Import Markdown Folder
                     </button>
@@ -666,7 +687,10 @@ export function FileTree() {
                         setExportingProject(contextMenu.project);
                         setContextMenu(null);
                       }}
-                      className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                      className="w-full px-3 py-1.5 text-left"
+                      style={{ color: "var(--text)" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tint)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                     >
                       Export to PDF
                     </button>
@@ -675,7 +699,10 @@ export function FileTree() {
                         setSettingsProject(contextMenu.project);
                         setContextMenu(null);
                       }}
-                      className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                      className="w-full px-3 py-1.5 text-left"
+                      style={{ color: "var(--text)" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tint)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                     >
                       Project Settings
                     </button>
@@ -686,7 +713,10 @@ export function FileTree() {
                     onClick={() =>
                       setContextMenu({ ...contextMenu, action: "rename" })
                     }
-                    className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                    className="w-full px-3 py-1.5 text-left"
+                    style={{ color: "var(--text)" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tint)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                   >
                     Rename
                   </button>
@@ -698,7 +728,7 @@ export function FileTree() {
                   if (!doc) return null;
                   return (
                     <>
-                      <div className="my-1 border-t border-neutral-700" />
+                      <div className="my-1" style={{ borderTop: "1px solid var(--border-subtle)" }} />
                       <button
                         onClick={async () => {
                           const raw = await commands.readDocument(contextMenu.project, contextMenu.path!);
@@ -716,7 +746,10 @@ export function FileTree() {
                           await loadDocuments(contextMenu.project);
                           setContextMenu(null);
                         }}
-                        className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                        className="w-full px-3 py-1.5 text-left"
+                        style={{ color: "var(--text)" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tint)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                       >
                         {doc.canonical ? "Remove Canonical ★" : "Mark as Canonical ★"}
                       </button>
@@ -737,7 +770,10 @@ export function FileTree() {
                           await loadDocuments(contextMenu.project);
                           setContextMenu(null);
                         }}
-                        className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                        className="w-full px-3 py-1.5 text-left"
+                        style={{ color: "var(--text)" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tint)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                       >
                         {doc.protected ? "Remove Protection 🔒" : "Protect Document 🔒"}
                       </button>
@@ -752,11 +788,14 @@ export function FileTree() {
                     );
                     setContextMenu(null);
                   }}
-                  className="w-full px-3 py-1.5 text-left text-neutral-200 hover:bg-neutral-700"
+                  className="w-full px-3 py-1.5 text-left"
+                  style={{ color: "var(--text)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tint)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                 >
                   {navigator.platform?.toLowerCase().includes("mac") ? "Show in Finder" : "Show in Explorer"}
                 </button>
-                <div className="my-1 border-t border-neutral-700" />
+                <div className="my-1" style={{ borderTop: "1px solid var(--border-subtle)" }} />
                 <button
                   onClick={() =>
                     setContextMenu({
@@ -764,7 +803,10 @@ export function FileTree() {
                       action: "confirm-delete",
                     })
                   }
-                  className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-neutral-700"
+                  className="w-full px-3 py-1.5 text-left"
+                  style={{ color: "var(--danger)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tint)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                 >
                   Delete
                 </button>
@@ -773,7 +815,7 @@ export function FileTree() {
 
             {contextMenu.action === "confirm-delete" && (
               <div className="px-3 py-2">
-                <p className="text-neutral-300 mb-1">
+                <p className="mb-1" style={{ color: "var(--text)" }}>
                   Delete{" "}
                   <span className="font-semibold">
                     {contextMenu.type === "project"
@@ -782,22 +824,24 @@ export function FileTree() {
                   </span>
                   ?
                 </p>
-                <p className="text-neutral-500 mb-2 text-[10px]">
+                <p className="mb-2 text-[10px]" style={{ color: "var(--text-faint)" }}>
                   Recoverable via git history.
                 </p>
                 {menuError && (
-                  <p className="text-red-400 mb-2 text-[10px]">{menuError}</p>
+                  <p className="mb-2 text-[10px]" style={{ color: "var(--danger)" }}>{menuError}</p>
                 )}
                 <div className="flex gap-1">
                   <button
                     onClick={handleDelete}
-                    className="flex-1 px-2 py-1 bg-red-700 hover:bg-red-600 text-white rounded"
+                    className="flex-1 px-2 py-1 rounded text-white"
+                    style={{ background: "var(--danger)" }}
                   >
                     Delete
                   </button>
                   <button
                     onClick={() => setContextMenu(null)}
-                    className="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-neutral-300 rounded"
+                    className="px-2 py-1 rounded"
+                    style={{ background: "var(--bg-tint)", color: "var(--text-muted)" }}
                   >
                     Cancel
                   </button>
@@ -807,16 +851,20 @@ export function FileTree() {
 
             {contextMenu.action === "new-folder" && (
               <div className="px-3 py-2">
-                <p className="text-neutral-400 mb-1.5">New folder in <span className="text-neutral-200">{contextMenu.type === "folder" && contextMenu.path ? `${contextMenu.project}/${contextMenu.path}` : contextMenu.project}</span></p>
+                <p className="mb-1.5 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                  New folder in{" "}
+                  <span style={{ color: "var(--text)" }}>
+                    {contextMenu.type === "folder" && contextMenu.path
+                      ? `${contextMenu.project}/${contextMenu.path}`
+                      : contextMenu.project}
+                  </span>
+                </p>
                 <input
                   autoFocus
                   type="text"
                   value={contextMenu.renameValue}
                   onChange={(e) =>
-                    setContextMenu({
-                      ...contextMenu,
-                      renameValue: e.target.value,
-                    })
+                    setContextMenu({ ...contextMenu, renameValue: e.target.value })
                   }
                   onKeyDown={async (e) => {
                     if (e.key === "Enter" && contextMenu.renameValue.trim()) {
@@ -841,10 +889,15 @@ export function FileTree() {
                     if (e.key === "Escape") setContextMenu(null);
                   }}
                   placeholder="folder-name"
-                  className="w-full px-2 py-1 bg-neutral-700 border border-neutral-600 rounded text-neutral-200 outline-none focus:border-blue-500 mb-2"
+                  className="w-full px-2 py-1 rounded outline-none mb-2"
+                  style={{
+                    background: "var(--bg-subtle)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text)",
+                  }}
                 />
                 {menuError && (
-                  <p className="text-red-400 mb-2 text-[10px]">{menuError}</p>
+                  <p className="mb-2 text-[10px]" style={{ color: "var(--danger)" }}>{menuError}</p>
                 )}
                 <div className="flex gap-1">
                   <button
@@ -869,13 +922,15 @@ export function FileTree() {
                       }
                     }}
                     disabled={!contextMenu.renameValue.trim()}
-                    className="flex-1 px-2 py-1 bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-700 disabled:text-neutral-500 text-white rounded"
+                    className="flex-1 px-2 py-1 rounded text-white disabled:opacity-40"
+                    style={{ background: "var(--accent)" }}
                   >
                     Create
                   </button>
                   <button
                     onClick={() => setContextMenu(null)}
-                    className="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-neutral-300 rounded"
+                    className="px-2 py-1 rounded"
+                    style={{ background: "var(--bg-tint)", color: "var(--text-muted)" }}
                   >
                     Cancel
                   </button>
@@ -890,31 +945,35 @@ export function FileTree() {
                   type="text"
                   value={contextMenu.renameValue}
                   onChange={(e) =>
-                    setContextMenu({
-                      ...contextMenu,
-                      renameValue: e.target.value,
-                    })
+                    setContextMenu({ ...contextMenu, renameValue: e.target.value })
                   }
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleRename();
                     if (e.key === "Escape") setContextMenu(null);
                   }}
-                  className="w-full px-2 py-1 bg-neutral-700 border border-neutral-600 rounded text-neutral-200 outline-none focus:border-blue-500 mb-2"
+                  className="w-full px-2 py-1 rounded outline-none mb-2"
+                  style={{
+                    background: "var(--bg-subtle)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text)",
+                  }}
                 />
                 {menuError && (
-                  <p className="text-red-400 mb-2 text-[10px]">{menuError}</p>
+                  <p className="mb-2 text-[10px]" style={{ color: "var(--danger)" }}>{menuError}</p>
                 )}
                 <div className="flex gap-1">
                   <button
                     onClick={handleRename}
                     disabled={!contextMenu.renameValue.trim()}
-                    className="flex-1 px-2 py-1 bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-700 disabled:text-neutral-500 text-white rounded"
+                    className="flex-1 px-2 py-1 rounded text-white disabled:opacity-40"
+                    style={{ background: "var(--accent)" }}
                   >
                     Rename
                   </button>
                   <button
                     onClick={() => setContextMenu(null)}
-                    className="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-neutral-300 rounded"
+                    className="px-2 py-1 rounded"
+                    style={{ background: "var(--bg-tint)", color: "var(--text-muted)" }}
                   >
                     Cancel
                   </button>

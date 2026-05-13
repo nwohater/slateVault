@@ -28,16 +28,6 @@ const NAV: { id: WorkspaceView; label: string }[] = [
   { id: "sync",          label: "Team Sync" },
 ];
 
-function TrafficLights() {
-  return (
-    <div className="tl-group">
-      <span className="tl-dot r" />
-      <span className="tl-dot y" />
-      <span className="tl-dot g" />
-    </div>
-  );
-}
-
 function WinControls() {
   return (
     <div className="win-ctrls">
@@ -157,10 +147,7 @@ export function AppChromeBar({
   };
 
   return (
-    <header className="topbar" data-tauri-drag-region>
-      {isMac ? (
-        <TrafficLights />
-      ) : null}
+    <header className={`topbar${isMac ? " mac" : ""}`} data-tauri-drag-region>
 
       {/* Vault identity */}
       <div className="vault-id">
@@ -181,14 +168,15 @@ export function AppChromeBar({
         ))}
       </nav>
 
-      <div className="drag-spacer" />
+      <div className="drag-spacer" data-tauri-drag-region />
 
       {/* Right-side controls */}
       <div className="topbar-right">
         <button
-          className={`search-pill${workspaceView === "search" ? " active" : ""}`}
+          className="search-pill"
           onClick={onToggleSearch}
           title="Search vault (Ctrl+Shift+F)"
+          style={{ background: "transparent", border: "none" }}
         >
           <SearchIcon />
           <span>Search vault…</span>

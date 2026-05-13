@@ -216,25 +216,8 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 .topbar > * { -webkit-app-region: no-drag; }
 .topbar .drag-spacer { flex: 1; -webkit-app-region: drag; }
 
-/* macOS traffic lights */
-.tl-group {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 0 14px;
-  height: 100%;
-  flex-shrink: 0;
-}
-.tl-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 0.5px solid rgba(0,0,0,0.18);
-}
-.tl-dot.r { background: #fc6058; }
-.tl-dot.y { background: #fec043; }
-.tl-dot.g { background: #34c84a; }
-[data-theme="dark"] .tl-dot { border-color: rgba(0,0,0,0.4); }
+/* macOS: reserve space for native traffic lights, keep the area fully draggable */
+.topbar.mac { padding-left: 76px; }
 
 /* Windows controls */
 .win-ctrls {
@@ -346,18 +329,18 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 .search-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 24px;
+  gap: 5px;
+  height: 26px;
   padding: 0 10px 0 8px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  color: var(--text-faint);
   font-size: 12px;
-  min-width: 160px;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
-.search-pill:hover { border-color: var(--border-strong); color: var(--text); }
+.search-pill:hover { background: var(--bg-subtle); color: var(--text-muted); }
 .search-pill .kbd {
   margin-left: auto;
   font-family: var(--font-mono);
@@ -392,30 +375,29 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 }
 
 .save-pill {
+  display: none; /* hidden when saved */
+}
+.save-pill.dirty {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   height: 24px;
   padding: 0 8px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
+  background: var(--warning-soft);
+  border: 1px solid var(--warning);
   border-radius: 5px;
   font-size: 11.5px;
-  color: var(--text-muted);
+  color: var(--warning);
   cursor: default;
 }
 .save-pill .dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--success);
-  flex-shrink: 0;
-}
-.save-pill.dirty .dot {
   background: var(--warning);
+  flex-shrink: 0;
   animation: sv-pulse 1.6s ease-in-out infinite;
 }
-.save-pill.dirty { color: var(--text); }
 
 @keyframes sv-pulse {
   0%, 100% { opacity: 1; }

@@ -47,8 +47,8 @@ export function ResizeHandle({ direction, onResize }: ResizeHandleProps) {
         flex-shrink-0 transition-colors group
         ${
           direction === "vertical"
-            ? "w-1 cursor-col-resize bg-neutral-800/50 hover:bg-cyan-500/40"
-            : "h-1 cursor-row-resize bg-neutral-800/50 hover:bg-cyan-500/40"
+            ? "w-1 cursor-col-resize bg-neutral-800/50 hover:bg-[color-mix(in_srgb,var(--accent)_40%,transparent)]"
+            : "h-1 cursor-row-resize bg-neutral-800/50 hover:bg-[color-mix(in_srgb,var(--accent)_40%,transparent)]"
         }
       `}
     />

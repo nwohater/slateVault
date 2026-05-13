@@ -333,11 +333,8 @@ export function MarkdownPreview() {
           {activeProject && (
             <button
               onClick={handleToggleHistory}
-              className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors xl:w-auto xl:px-2.5 ${
-                showHistory
-                  ? "bg-blue-950/50 text-blue-200 hover:bg-blue-900/50"
-                  : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200"
-              }`}
+              className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors xl:w-auto xl:px-2.5 bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200"
+              style={showHistory ? { background: "var(--info-soft)", color: "var(--info)" } : undefined}
               title="Show Git history for this document"
               aria-label="Show Git history"
             >
@@ -390,7 +387,7 @@ export function MarkdownPreview() {
               Loading history...
             </div>
           ) : historyError ? (
-            <div className="rounded border border-red-950/70 bg-red-950/30 px-3 py-2 text-xs text-red-300">
+            <div className="rounded px-3 py-2 text-xs" style={{ background: "var(--danger-soft)", border: "1px solid var(--danger)", color: "var(--danger)" }}>
               {historyError}
             </div>
           ) : history.length === 0 ? (
@@ -414,7 +411,7 @@ export function MarkdownPreview() {
                         {entry.email ? ` <${entry.email}>` : ""} · {formatHistoryDate(entry.date)}
                       </div>
                     </div>
-                    <code className="rounded bg-neutral-950 px-1.5 py-0.5 text-[10px] text-cyan-300">
+                    <code className="rounded bg-neutral-950 px-1.5 py-0.5 text-[10px]" style={{ color: "var(--accent)" }}>
                       {entry.oid}
                     </code>
                   </div>

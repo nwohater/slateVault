@@ -21,16 +21,16 @@ function StatusPill({
   tone: "green" | "yellow" | "red";
   label: string;
 }) {
-  const toneClass =
+  const dotColor =
     tone === "green"
-      ? "bg-green-500"
+      ? "var(--success)"
       : tone === "yellow"
-        ? "bg-yellow-500"
-        : "bg-red-500";
+        ? "var(--warning)"
+        : "var(--danger)";
 
   return (
     <span className="inline-flex items-center gap-2 rounded-full border border-neutral-800 bg-neutral-950/70 px-3 py-1 text-[11px] text-neutral-300">
-      <span className={`h-2 w-2 rounded-full ${toneClass}`} />
+      <span className="h-2 w-2 rounded-full" style={{ background: dotColor }} />
       {label}
     </span>
   );
@@ -177,7 +177,7 @@ export function AgentAccessView() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-2xl">
               <div className="workspace-kicker mb-3">
-                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--accent)" }} />
                 Agent-ready project memory
               </div>
               <h1 className="workspace-label text-3xl font-semibold tracking-tight text-neutral-100">
@@ -243,11 +243,12 @@ export function AgentAccessView() {
 
         {(message || error) && (
           <div
-            className={`rounded-2xl border px-4 py-3 text-sm ${
+            className="rounded-2xl px-4 py-3 text-sm"
+            style={
               error
-                ? "border-red-900/40 bg-red-950/20 text-red-300"
-                : "border-cyan-900/40 bg-cyan-950/20 text-cyan-200"
-            }`}
+                ? { background: "var(--danger-soft)", border: "1px solid var(--danger)", color: "var(--danger)" }
+                : { background: "var(--accent-soft)", border: "1px solid var(--accent)", color: "var(--accent)" }
+            }
           >
             {error || message}
           </div>
@@ -284,7 +285,7 @@ export function AgentAccessView() {
                     Copy command
                   </button>
                 </div>
-                <code className="mt-3 block rounded-xl bg-black px-3 py-3 text-[11px] text-cyan-300">
+                <code className="mt-3 block rounded-xl bg-black px-3 py-3 text-[11px]" style={{ color: "var(--accent)" }}>
                   {mcpCommand}
                 </code>
               </div>
@@ -311,7 +312,7 @@ export function AgentAccessView() {
                         Copy
                       </button>
                     </div>
-                    <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-neutral-950 px-3 py-3 font-mono text-[11px] text-cyan-300">
+                    <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-neutral-950 px-3 py-3 font-mono text-[11px]" style={{ color: "var(--accent)" }}>
                       {agent.command}
                     </pre>
                   </div>

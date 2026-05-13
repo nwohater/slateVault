@@ -41,7 +41,7 @@ export function TemplatesPanel() {
                   {t.label}
                 </span>
                 {t.is_default && (
-                  <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-cyan-900/30 text-cyan-400 border border-cyan-500/20">
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-medium" style={{ background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent)" }}>
                     default
                   </span>
                 )}

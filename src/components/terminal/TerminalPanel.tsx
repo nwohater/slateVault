@@ -321,7 +321,7 @@ export function TerminalPanel() {
               onClick={() => setActiveId(tab.id)}
               className={`group flex h-6 max-w-36 items-center gap-2 rounded-lg border px-2 text-[11px] transition-colors ${
                 activeId === tab.id
-                  ? "border-cyan-900/50 bg-cyan-950/30 text-cyan-200"
+                  ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[color:var(--accent)]"
                   : "border-transparent text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300"
               }`}
               title={tab.label}

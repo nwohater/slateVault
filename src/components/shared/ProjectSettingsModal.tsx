@@ -127,7 +127,7 @@ export function ProjectSettingsModal({ projectName, onClose }: ProjectSettingsMo
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") void handleSave(); }}
-                className="workspace-input w-full rounded-xl px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
+                className="workspace-input w-full rounded-xl px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-[var(--accent)]"
               />
               {name.trim() !== projectName && (
                 <p className="mt-1 text-[10px] text-yellow-500/80">
@@ -145,7 +145,7 @@ export function ProjectSettingsModal({ projectName, onClose }: ProjectSettingsMo
                 onChange={(e) => setDescription(e.target.value)}
                 rows={2}
                 placeholder="What is this project for?"
-                className="workspace-input w-full rounded-xl px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600 resize-none"
+                className="workspace-input w-full rounded-xl px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-[var(--accent)] resize-none"
               />
             </div>
 
@@ -158,7 +158,7 @@ export function ProjectSettingsModal({ projectName, onClose }: ProjectSettingsMo
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
                 placeholder="backend, api, typescript"
-                className="workspace-input w-full rounded-xl px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-600"
+                className="workspace-input w-full rounded-xl px-3 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-[var(--accent)]"
               />
             </div>
 
@@ -190,7 +190,7 @@ export function ProjectSettingsModal({ projectName, onClose }: ProjectSettingsMo
             </div>
 
             {error && (
-              <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-xs text-red-300">
+              <div className="rounded-xl px-3 py-2 text-xs" style={{ background: "var(--danger-soft)", border: "1px solid var(--danger)", color: "var(--danger)" }}>
                 {error}
               </div>
             )}
@@ -199,7 +199,7 @@ export function ProjectSettingsModal({ projectName, onClose }: ProjectSettingsMo
               <button
                 onClick={() => void handleSave()}
                 disabled={saving || !name.trim()}
-                className="flex-1 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-cyan-500 disabled:bg-neutral-800 disabled:text-neutral-500"
+                className="btn primary flex-1"
               >
                 {success ? "Saved ✓" : saving ? "Saving…" : "Save changes"}
               </button>

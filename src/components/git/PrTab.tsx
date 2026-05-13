@@ -137,7 +137,7 @@ export function PrTab() {
             <select
               value={targetBranch}
               onChange={(e) => setTargetBranch(e.target.value)}
-              className="w-full px-2 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 outline-none focus:border-blue-600"
+              className="w-full px-2 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 outline-none focus:[border-color:var(--accent)]"
             >
               {branches
                 .filter((b) => b.name !== currentBranch)
@@ -155,7 +155,7 @@ export function PrTab() {
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-2 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:border-blue-600"
+              className="w-full px-2 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:[border-color:var(--accent)]"
               placeholder="PR title..."
             />
           </div>
@@ -167,7 +167,7 @@ export function PrTab() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className="w-full px-2 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:border-blue-600 resize-none"
+              className="w-full px-2 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:[border-color:var(--accent)] resize-none"
               placeholder="Describe the changes..."
             />
           </div>
@@ -176,8 +176,8 @@ export function PrTab() {
           {diffSummary && (
             <div className="flex items-center gap-2 px-2 py-1.5 bg-neutral-800/50 rounded text-neutral-400">
               <span>{diffSummary.files} file{diffSummary.files !== 1 ? "s" : ""}</span>
-              <span className="text-green-400">+{diffSummary.additions}</span>
-              <span className="text-red-400">-{diffSummary.deletions}</span>
+              <span style={{ color: "var(--success)" }}>+{diffSummary.additions}</span>
+              <span style={{ color: "var(--danger)" }}>-{diffSummary.deletions}</span>
             </div>
           )}
 
@@ -185,13 +185,14 @@ export function PrTab() {
           <button
             onClick={handleCreatePr}
             disabled={loading || !title.trim() || !platform}
-            className="w-full py-2 rounded bg-blue-700 hover:bg-blue-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-medium"
+            className="w-full py-2 rounded disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-medium"
+            style={{ background: "var(--accent)" }}
           >
             {loading ? "Pushing & Creating PR..." : "Push & Create PR"}
           </button>
 
           {!platform && (
-            <p className="text-yellow-500 text-[10px]">
+            <p className="text-[10px]" style={{ color: "var(--warning)" }}>
               No supported platform detected. Configure a GitHub or Azure DevOps
               remote and add credentials in Settings.
             </p>
@@ -199,7 +200,7 @@ export function PrTab() {
 
           {/* Result */}
           {result && (
-            <div className="p-2 rounded bg-green-900/30 border border-green-800 text-green-300">
+            <div className="p-2 rounded border" style={{ background: "var(--success-soft)", borderColor: "var(--success)", color: "var(--success)" }}>
               PR #{result.number} created on {result.platform}.
               <br />
               <a
@@ -209,7 +210,8 @@ export function PrTab() {
                   const { open } = await import("@tauri-apps/plugin-shell");
                   await open(result.url);
                 }}
-                className="text-blue-400 hover:underline"
+                className="hover:underline"
+                style={{ color: "var(--accent)" }}
               >
                 Open in browser
               </a>
@@ -218,7 +220,7 @@ export function PrTab() {
 
           {/* Error */}
           {error && (
-            <div className="p-2 rounded bg-red-900/30 border border-red-800 text-red-300 break-words">
+            <div className="p-2 rounded border break-words" style={{ background: "var(--danger-soft)", borderColor: "var(--danger)", color: "var(--danger)" }}>
               {error}
             </div>
           )}
