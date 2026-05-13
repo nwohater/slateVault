@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useEditorStore } from "@/stores/editorStore";
 import { useUIStore } from "@/stores/uiStore";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
-import { FrontMatterBar } from "./FrontMatterBar";
+
 import { EmptyState } from "../shared/EmptyState";
 
 const SECRET_PATTERNS = [
@@ -140,7 +140,7 @@ export function EditorPane() {
 
   return (
     <div className="flex flex-col h-full">
-      {showRawFileBar ? <RawFileBar /> : rawFilePath ? null : <FrontMatterBar />}
+      {showRawFileBar && <RawFileBar />}
       <SecretWarning content={content} />
       {!rawFilePath && <SyncRiskWarning />}
       <div className="flex-1 min-h-0">

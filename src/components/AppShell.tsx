@@ -19,6 +19,7 @@ import { ResizeHandle } from "./shared/ResizeHandle";
 import { StatusBar } from "./StatusBar";
 import { Onboarding } from "./Onboarding";
 import { AppChromeBar } from "./AppChromeBar";
+import { FrontMatterBar } from "./editor/FrontMatterBar";
 import { shouldSkipOnboarding } from "@/lib/onboardingPrefs";
 
 export function AppShell() {
@@ -138,28 +139,31 @@ export function AppShell() {
             ) : workspaceView === "sync" ? (
               <SyncView />
             ) : isDocumentsWorkspace ? (
-              <>
-                {showEditor && (
-                  <div style={{ flex: editorFlex }} className="min-w-0">
-                    <EditorPane />
-                  </div>
-                )}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                <FrontMatterBar />
+                <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+                  {showEditor && (
+                    <div style={{ flex: editorFlex }} className="min-w-0">
+                      <EditorPane />
+                    </div>
+                  )}
 
-                {showEditor && showPreview && (
-                  <ResizeHandle
-                    direction="vertical"
-                    onResize={(delta) => {
-                      setPreviewRatio((r) => r + delta / window.innerWidth);
-                    }}
-                  />
-                )}
+                  {showEditor && showPreview && (
+                    <ResizeHandle
+                      direction="vertical"
+                      onResize={(delta) => {
+                        setPreviewRatio((r) => r + delta / window.innerWidth);
+                      }}
+                    />
+                  )}
 
-                {showPreview && (
-                  <div style={{ flex: previewFlex }} className="min-w-0">
-                    <MarkdownPreview />
-                  </div>
-                )}
-              </>
+                  {showPreview && (
+                    <div style={{ flex: previewFlex }} className="min-w-0">
+                      <MarkdownPreview />
+                    </div>
+                  )}
+                </div>
+              </div>
             ) : (
               <div style={{ flex: 1, background: "var(--bg-app)" }} />
             )}
