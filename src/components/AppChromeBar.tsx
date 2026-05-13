@@ -183,24 +183,6 @@ export function AppChromeBar({
           <span className="kbd">⌘K</span>
         </button>
 
-        {isDocumentsWorkspace && (
-          <>
-            <button
-              className={`icon-btn${showEditor ? " on" : ""}`}
-              onClick={onToggleEditor}
-              title="Toggle editor"
-            >
-              <EditorIcon />
-            </button>
-            <button
-              className={`icon-btn${showPreview ? " on" : ""}`}
-              onClick={onTogglePreview}
-              title="Toggle preview"
-            >
-              <PreviewIcon />
-            </button>
-          </>
-        )}
 
         <button
           className={`icon-btn${showTerminal ? " on" : ""}`}
@@ -226,19 +208,11 @@ export function AppChromeBar({
           <SettingsIcon />
         </button>
 
-        <div className={`save-pill${isDirty ? " dirty" : ""}`} title={isDirty ? "Unsaved changes" : "All changes saved"}>
-          <span className="dot" />
-          <span>{isDirty ? "Unsaved" : "Saved"}</span>
-        </div>
-
-        {isDocumentsWorkspace && isDirty && (
-          <button
-            onClick={onSaveDocument}
-            className="btn primary sm"
-            style={{ height: 24 }}
-          >
-            Save
-          </button>
+        {!isDocumentsWorkspace && (
+          <div className={`save-pill${isDirty ? " dirty" : ""}`} title={isDirty ? "Unsaved changes" : "All changes saved"}>
+            <span className="dot" />
+            <span>{isDirty ? "Unsaved" : "Saved"}</span>
+          </div>
         )}
       </div>
 

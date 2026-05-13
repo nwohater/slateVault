@@ -302,10 +302,6 @@ export function FrontMatterBar() {
             <SaveIcon />
             {savingDocument ? "Saving..." : isDirty ? "Save" : "Saved"}
           </button>
-
-          <button className="icon-btn" title="More options" style={{ fontSize: 16, lineHeight: 1 }}>
-            ⋯
-          </button>
         </div>
       </div>
     </div>
