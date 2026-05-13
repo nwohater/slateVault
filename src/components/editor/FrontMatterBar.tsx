@@ -176,7 +176,7 @@ export function FrontMatterBar() {
       {/* Bottom row: title + chips on left, controls on right */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 8 }}>
         {/* Left: title + chips */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0, overflow: "hidden" }}>
           <h1
             style={{
               margin: 0,
