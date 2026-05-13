@@ -23,7 +23,6 @@ import { shouldSkipOnboarding } from "@/lib/onboardingPrefs";
 
 export function AppShell() {
   const isOpen = useVaultStore((s) => s.isOpen);
-  const sidebarWidth = useUIStore((s) => s.sidebarWidth);
   const showEditor = useUIStore((s) => s.showEditor);
   const showPreview = useUIStore((s) => s.showPreview);
   const previewRatio = useUIStore((s) => s.previewRatio);
@@ -32,7 +31,6 @@ export function AppShell() {
   const showOnboarding = useUIStore((s) => s.showOnboarding);
   const showTerminal = useUIStore((s) => s.showTerminal);
   const terminalHeight = useUIStore((s) => s.terminalHeight);
-  const setSidebarWidth = useUIStore((s) => s.setSidebarWidth);
   const setPreviewRatio = useUIStore((s) => s.setPreviewRatio);
   const toggleEditor = useUIStore((s) => s.toggleEditor);
   const togglePreview = useUIStore((s) => s.togglePreview);
@@ -44,29 +42,15 @@ export function AppShell() {
   const projects = useVaultStore((s) => s.projects);
   const isDirty = useEditorStore((s) => s.isDirty);
   const saveDocument = useEditorStore((s) => s.saveDocument);
-  const workspaceLabel =
-    workspaceView === "home"
-      ? "Vault Home"
-      : workspaceView === "documents"
-        ? "Documents"
-        : workspaceView === "search"
-          ? "Search"
-          : workspaceView === "wiki"
-            ? "Wiki"
-            : workspaceView === "start-session"
-              ? "Start Session"
-              : workspaceView === "docs-health"
-                  ? "Docs Health"
-                  : workspaceView === "sync"
-                    ? "Team Sync"
-                    : workspaceView === "settings"
-                      ? "Settings"
-                      : "Workspace";
 
-  // Keep the workspace on the default dark theme.
+  // Restore saved theme preference (defaults to warm paper light if none set)
   useEffect(() => {
-    document.documentElement.removeAttribute("data-theme");
-    localStorage.removeItem("sv-theme");
+    const saved = localStorage.getItem("sv-theme");
+    if (saved) {
+      document.documentElement.setAttribute("data-theme", saved);
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+    }
   }, []);
 
   // Keyboard shortcuts
@@ -103,20 +87,15 @@ export function AppShell() {
   const editorFlex = showEditor ? (showPreview ? previewRatio : 1) : 0;
   const previewFlex = showPreview ? (showEditor ? 1 - previewRatio : 1) : 0;
   const isDocumentsWorkspace = workspaceView === "documents";
-  const hasSidebarPanel =
-    isDocumentsWorkspace ||
-    workspaceView === "settings";
-  const effectiveSidebarWidth = hasSidebarPanel ? sidebarWidth : 56;
   const openWorkspaceView = (view: typeof workspaceView) => {
     setShowOnboarding(false);
     setWorkspaceView(view);
   };
 
   return (
-    <div className="app-shell flex h-screen flex-col overflow-hidden">
+    <div className="app-shell">
       <AppChromeBar
         workspaceView={workspaceView}
-        workspaceLabel={workspaceLabel}
         vaultName={vaultName}
         showEditor={showEditor}
         showPreview={showPreview}
@@ -131,18 +110,12 @@ export function AppShell() {
         onSaveDocument={saveDocument}
       />
 
-      <div className="flex min-h-0 flex-1">
-        {/* Sidebar */}
-        <div style={{ width: effectiveSidebarWidth }} className="flex-shrink-0">
+      <div className="app-body">
+        {/* Sidebar — rail + optional panel, self-sizing */}
+        <div className="flex-shrink-0">
           <Sidebar />
         </div>
 
-        {hasSidebarPanel && (
-          <ResizeHandle
-            direction="vertical"
-            onResize={(delta) => setSidebarWidth((w) => w + delta)}
-          />
-        )}
 
         {/* Main area */}
         <div className="flex min-w-0 flex-1 flex-col">
@@ -176,9 +149,7 @@ export function AppShell() {
                   <ResizeHandle
                     direction="vertical"
                     onResize={(delta) => {
-                      const mainWidth =
-                        window.innerWidth - effectiveSidebarWidth - 4;
-                      setPreviewRatio((r) => r + delta / mainWidth);
+                      setPreviewRatio((r) => r + delta / window.innerWidth);
                     }}
                   />
                 )}
@@ -190,7 +161,7 @@ export function AppShell() {
                 )}
               </>
             ) : (
-              <div className="flex-1 bg-neutral-950" />
+              <div style={{ flex: 1, background: "var(--bg-app)" }} />
             )}
           </div>
 
@@ -215,17 +186,16 @@ export function AppShell() {
               document.body.style.cursor = "row-resize";
               document.body.style.userSelect = "none";
             }}
-            className={`flex-shrink-0 bg-neutral-800 transition-colors ${
+            className={`flex-shrink-0 transition-colors ${
               showTerminal
-                ? "h-1.5 cursor-row-resize hover:bg-blue-600"
+                ? "h-1.5 cursor-row-resize"
                 : "h-0 overflow-hidden"
             }`}
+            style={{ background: showTerminal ? "var(--border)" : undefined }}
           />
           <div
-            style={{ height: showTerminal ? terminalHeight : 0 }}
-            className={`flex-shrink-0 overflow-hidden border-t border-neutral-800 ${
-              showTerminal ? "" : "pointer-events-none border-t-0"
-            }`}
+            style={{ height: showTerminal ? terminalHeight : 0, borderTop: showTerminal ? "1px solid var(--border)" : undefined }}
+            className={`flex-shrink-0 overflow-hidden ${showTerminal ? "" : "pointer-events-none"}`}
             aria-hidden={!showTerminal}
           >
             <TerminalPanel />

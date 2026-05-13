@@ -7,7 +7,26 @@ import { useGitStore } from "@/stores/gitStore";
 import { useAppStore } from "@/stores/appStore";
 import * as commands from "@/lib/commands";
 import type { McpServerStatus } from "@/types";
-import { BranchIcon } from "@/components/icons/GitIcons";
+
+function BranchIcon() {
+  return (
+    <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 6.75v9.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 11.5h4.5a3.5 3.5 0 0 0 3.5-3.5V6.75" />
+      <circle cx="8" cy="6.75" r="1.75" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="17.25" r="1.75" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="6.75" r="1.75" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function TerminalIcon() {
+  return (
+    <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
+    </svg>
+  );
+}
 
 export function StatusBar() {
   const vaultName = useVaultStore((s) => s.vaultName);
@@ -44,85 +63,103 @@ export function StatusBar() {
   const updateBusy = updateState === "downloading" || updateState === "installing";
   const versionLabel = updateReady && updateVersion ? `Update ${updateVersion}` : version ? `v${version}` : null;
 
+  const mcpColor = mcpRunning ? "var(--success)" : mcpEnabled ? "var(--warning)" : "var(--text-faint)";
+  const mcpTitle = mcpRunning
+    ? `MCP running on port ${stats?.mcp_port}`
+    : mcpEnabled
+      ? "MCP enabled but not running"
+      : "MCP disabled";
+
+  const authorColor =
+    frontMatter?.author === "ai"
+      ? "var(--magic)"
+      : frontMatter?.author === "both"
+        ? "var(--info)"
+        : "var(--success)";
+
   return (
-    <div className="flex flex-shrink-0 items-center gap-3 border-t border-neutral-800/50 bg-[linear-gradient(180deg,rgba(8,12,17,0.96),rgba(11,16,22,0.92))] px-3 py-1.5 text-[10px] text-neutral-500 backdrop-blur-sm">
-      {vaultName && (
-        <span className="rounded-full border border-neutral-800 bg-neutral-900/70 px-2 py-0.5 text-neutral-400">{vaultName}</span>
+    <div className="statusbar">
+      {/* Branch */}
+      {currentBranch && (
+        <div className="sb-cell">
+          <BranchIcon />
+          <span>{currentBranch}</span>
+        </div>
       )}
 
+      {/* MCP status */}
       {stats && (
-        <>
-          <span className="rounded-full border border-neutral-800 bg-neutral-900/60 px-2 py-0.5">{stats.project_count} projects</span>
-          <span className="rounded-full border border-neutral-800 bg-neutral-900/60 px-2 py-0.5">{stats.doc_count} docs</span>
-          <span className="flex items-center gap-1 rounded-full border border-neutral-800 bg-neutral-900/60 px-2 py-0.5" title={
-            mcpRunning
-              ? `MCP running on port ${stats.mcp_port}`
-              : mcpEnabled
-                ? "MCP enabled but not running"
-                : "MCP disabled"
-          }>
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                mcpRunning
-                  ? "bg-green-500"
-                  : mcpEnabled
-                    ? "bg-yellow-500"
-                    : "bg-red-500"
-              }`}
-            />
-            MCP {stats.mcp_port}
-          </span>
-          <span className="flex items-center gap-1 rounded-full border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-neutral-400">
-            <BranchIcon className="w-3 h-3" />
-            {currentBranch}
-          </span>
-        </>
+        <div className="sb-cell" title={mcpTitle}>
+          <span className="sb-dot" style={{ background: mcpColor }} />
+          <span>MCP {mcpRunning ? `· :${stats.mcp_port}` : "off"}</span>
+        </div>
       )}
 
-      <div className="flex-1" />
+      {/* Project / doc counts */}
+      {stats && (
+        <div className="sb-cell">
+          <span>{stats.project_count} projects</span>
+          <span style={{ color: "var(--text-faint)" }}>·</span>
+          <span>{stats.doc_count} docs</span>
+        </div>
+      )}
 
+      <div style={{ flex: 1 }} />
+
+      {/* Active file */}
       {activeProject && activePath && (
-        <span className="truncate rounded-full border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-neutral-400">
-          {activeProject}/{activePath}
-          {isDirty && " *"}
-        </span>
+        <div className="sb-cell r" style={{ maxWidth: 280, overflow: "hidden" }}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {activeProject}/{activePath}
+            {isDirty && " *"}
+          </span>
+        </div>
       )}
 
+      {/* Author indicator */}
       {frontMatter && (
-        <span className={
-          frontMatter.author === "ai"
-            ? "text-purple-400"
-            : frontMatter.author === "both"
-              ? "text-blue-400"
-              : "text-green-400"
-        }>
+        <div className="sb-cell" style={{ color: authorColor }}>
           {frontMatter.author}
-        </span>
+        </div>
       )}
 
+      {/* Vault name */}
+      {vaultName && (
+        <div className="sb-cell">
+          {vaultName}
+        </div>
+      )}
+
+      {/* Version / update */}
       {versionLabel && (
         <button
           type="button"
+          className="sb-cell"
           onClick={() => {
-            if (updateReady && !updateBusy) {
-              void installUpdate();
-            }
+            if (updateReady && !updateBusy) void installUpdate();
           }}
           disabled={!updateReady || updateBusy}
-          className={`rounded-full border px-2 py-0.5 text-neutral-300 transition-colors ${
-            updateReady
-              ? "border-emerald-700/60 bg-emerald-950/40 text-emerald-200 hover:bg-emerald-900/50"
-              : "border-neutral-800 bg-neutral-900/60 text-neutral-400"
-          } ${!updateReady ? "cursor-default" : "cursor-pointer"}`}
-          title={
-            updateReady
-              ? `Install update ${updateVersion}`
-              : "slateVault app version"
-          }
+          title={updateReady ? `Install update ${updateVersion}` : "slateVault version"}
+          style={{
+            color: updateReady ? "var(--success)" : undefined,
+            cursor: updateReady ? "pointer" : "default",
+          }}
         >
           {versionLabel}
         </button>
       )}
+
+      {/* Terminal shortcut */}
+      <button
+        className="sb-cell"
+        title="Toggle terminal (Ctrl+T)"
+        onClick={() => {
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "t", ctrlKey: true }));
+        }}
+      >
+        <TerminalIcon />
+        <span>Terminal</span>
+      </button>
     </div>
   );
 }

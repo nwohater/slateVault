@@ -32,7 +32,7 @@ export function SearchBar() {
   }, []);
 
   return (
-    <div className="app-sidebar-search relative">
+    <div className="sidebar-search relative">
       <input
         type="text"
         value={query}
@@ -40,10 +40,21 @@ export function SearchBar() {
         onFocus={() => results.length > 0 && setShowResults(true)}
         onBlur={() => setTimeout(() => setShowResults(false), 200)}
         placeholder="Search documents..."
-        className="w-full rounded-lg border border-neutral-800/80 bg-neutral-950/45 px-2.5 py-1.5 text-xs text-neutral-200 placeholder-neutral-600 outline-none focus:border-cyan-700"
       />
       {showResults && results.length > 0 && (
-        <div className="absolute left-3 right-3 z-10 mt-1 max-h-60 overflow-y-auto rounded-lg border border-neutral-700 bg-neutral-900 shadow-xl">
+        <div style={{
+          position: "absolute",
+          left: 8,
+          right: 8,
+          zIndex: 10,
+          marginTop: 4,
+          maxHeight: 240,
+          overflowY: "auto",
+          borderRadius: "var(--radius)",
+          border: "1px solid var(--border)",
+          background: "var(--bg-elevated)",
+          boxShadow: "var(--shadow-lg)",
+        }}>
           {results.map((r, i) => (
             <button
               key={i}
@@ -52,10 +63,20 @@ export function SearchBar() {
                 setShowResults(false);
                 setQuery("");
               }}
-              className="w-full px-2 py-1.5 text-left text-xs hover:bg-neutral-700"
+              style={{
+                display: "block",
+                width: "100%",
+                padding: "6px 10px",
+                textAlign: "left",
+                background: "transparent",
+                border: "none",
+                borderTop: i > 0 ? "1px solid var(--border-subtle)" : undefined,
+                cursor: "pointer",
+              }}
+              className="hover:bg-neutral-900"
             >
-              <div className="text-neutral-200 font-medium">{r.title}</div>
-              <div className="text-neutral-500 truncate">
+              <div style={{ fontSize: 12, fontWeight: 500, color: "var(--text)" }}>{r.title}</div>
+              <div style={{ fontSize: 11, color: "var(--text-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {r.project}/{r.path}
               </div>
             </button>
