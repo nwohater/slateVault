@@ -97,12 +97,37 @@ function SyncRiskWarning() {
   );
 }
 
+function DocFooter({ content }: { content: string }) {
+  const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
+  const minRead = Math.max(1, Math.round(wordCount / 200));
+
+  return (
+    <div
+      style={{
+        borderTop: "1px solid var(--border-subtle)",
+        background: "var(--bg-panel)",
+        padding: "6px 14px",
+        display: "flex",
+        alignItems: "center",
+        fontSize: 11.5,
+        color: "var(--text-muted)",
+        flexShrink: 0,
+      }}
+    >
+      <span>{wordCount.toLocaleString()} words</span>
+      <span style={{ margin: "0 5px", opacity: 0.4 }}>·</span>
+      <span>~{minRead} min read</span>
+    </div>
+  );
+}
+
 export function EditorPane() {
   const activePath = useEditorStore((s) => s.activePath);
   const content = useEditorStore((s) => s.content);
   const rawFilePath = useEditorStore((s) => s.rawFilePath);
   const workspaceView = useUIStore((s) => s.workspaceView);
   const showRawFileBar = Boolean(rawFilePath) && workspaceView !== "wiki";
+  const showFooter = Boolean(activePath) && !rawFilePath;
 
   if (!activePath) {
     return (
@@ -121,6 +146,7 @@ export function EditorPane() {
       <div className="flex-1 min-h-0">
         <CodeMirrorEditor />
       </div>
+      {showFooter && <DocFooter content={content} />}
     </div>
   );
 }

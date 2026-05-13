@@ -21,6 +21,7 @@ interface EditorState {
   saveDocument: () => Promise<void>;
   updateStatus: (status: string) => Promise<void>;
   closeDocument: () => void;
+  setActiveProject: (project: string) => void;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -175,5 +176,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       isDirty: false,
       rawFilePath: null,
     });
+  },
+  setActiveProject: (project: string) => {
+    set({ activeProject: project, activePath: null, content: "", frontMatter: null, isDirty: false });
   },
 }));
