@@ -126,29 +126,25 @@ export function SettingsIcon({ className = "w-5 h-5" }: IconProps) {
 
 export function FileIcon({ className = "w-3.5 h-3.5" }: IconProps) {
   return (
-    <ShieldFrame className={className}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9.1 7.9h3.3l1.8 2.05v6.1H9.1z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12.4 7.9v2.05h1.8" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10 12.6h3.2M10 14.6h2.3" />
-    </ShieldFrame>
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8zm-1 7V3.5L18.5 9z" />
+    </svg>
   );
 }
 
 export function FolderIcon({ className = "w-3.5 h-3.5" }: IconProps) {
   return (
-    <ShieldFrame className={className}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.2 9.5h2.45l1.1 1.25h4.05v4.75H8.2z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.2 10.75h7.6" />
-    </ShieldFrame>
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M10 4H2c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h20c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2H12z" />
+    </svg>
   );
 }
 
 export function FolderOpenIcon({ className = "w-3.5 h-3.5" }: IconProps) {
   return (
-    <ShieldFrame className={className}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.3 9.6h2.2l1 1.1h4.2" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.3 11.2h7.55l-1.05 3.6H9.15z" />
-    </ShieldFrame>
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c.86 0 1.6-.54 1.88-1.3l2.02-6c.43-1.3-.53-2.7-1.9-2.7H6.38l-.67 2H22l-2 6H4V8h16z" />
+    </svg>
   );
 }
 

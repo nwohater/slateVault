@@ -139,6 +139,33 @@ fn run_git_for_vault(vault: &Vault, args: &[&str]) -> std::io::Result<Output> {
     Ok(output)
 }
 
+fn git_output_text(output: &Output) -> String {
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
+    .trim()
+    .to_string()
+}
+
+fn run_git_checked(vault: &Vault, args: &[&str], label: &str) -> CmdResult<String> {
+    let output = run_git_for_vault(vault, args)
+        .map_err(|e| format!("Failed to run git: {}", e))?;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        Ok(git_output_text(&output))
+    } else {
+        Err(git_error(label, &stderr, vault))
+    }
+}
+
+fn vault_has_local_changes(vault: &Vault) -> CmdResult<bool> {
+    let root = vault.root.to_string_lossy();
+    let status = run_git_checked(vault, &["-C", &root, "status", "--porcelain"], "Status failed")?;
+    Ok(!status.trim().is_empty())
+}
+
 fn write_to_clipboard_command(command: &str, args: &[&str], text: &str) -> CmdResult<()> {
     let mut child = Command::new(command)
         .args(args)
@@ -207,12 +234,22 @@ pub fn open_vault(path: String, state: State<'_, VaultState>) -> CmdResult<Strin
     let vault = Vault::open(&root).map_err(|e| e.to_string())?;
     let name = vault.config.vault.name.clone();
 
-    // Pull on open if configured
+    // Pull on open if configured. Skip dirty worktrees so opening the app never
+    // surprises the user with a merge or overwrite while local edits exist.
     if vault.config.sync.pull_on_open && vault.config.sync.remote_url.is_some() {
-        let branch = &vault.config.sync.remote_branch;
-        let _ = std::process::Command::new("git")
-            .args(["-C", &root.to_string_lossy(), "pull", "origin", branch])
-            .output();
+        let root_str = root.to_string_lossy();
+        let is_dirty = std::process::Command::new("git")
+            .args(["-C", &root_str, "status", "--porcelain"])
+            .output()
+            .map(|output| !String::from_utf8_lossy(&output.stdout).trim().is_empty())
+            .unwrap_or(true);
+
+        if !is_dirty {
+            let branch = &vault.config.sync.remote_branch;
+            let _ = std::process::Command::new("git")
+                .args(["-C", &root_str, "pull", "origin", branch])
+                .output();
+        }
     }
 
     // Write active vault path so MCP server can find it
@@ -735,15 +772,103 @@ pub fn git_pull(state: State<'_, VaultState>) -> CmdResult<String> {
     let vault = lock.as_ref().ok_or("No vault is open")?;
     let branch = &vault.config.sync.remote_branch;
     let root = vault.root.to_string_lossy();
-    let output = run_git_for_vault(vault, &["-C", &root, "pull", "origin", branch])
-        .map_err(|e| format!("Failed to run git: {}", e))?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    if output.status.success() {
-        Ok(format!("{}{}", stdout, stderr).trim().to_string())
-    } else {
-        Err(git_error("Pull failed", &stderr, vault))
+    if vault_has_local_changes(vault)? {
+        return Err(
+            "Pull blocked: local changes exist. Use Safe Pull to stash and reapply them, or Discard Local & Pull to overwrite local edits."
+                .to_string(),
+        );
     }
+    run_git_checked(vault, &["-C", &root, "pull", "origin", branch], "Pull failed")
+}
+
+#[tauri::command]
+pub fn git_pull_with_stash(state: State<'_, VaultState>) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let branch = &vault.config.sync.remote_branch;
+    let root = vault.root.to_string_lossy();
+    let dirty = vault_has_local_changes(vault)?;
+
+    let mut messages = Vec::new();
+    if dirty {
+        let stash = run_git_checked(
+            vault,
+            &[
+                "-C",
+                &root,
+                "stash",
+                "push",
+                "--include-untracked",
+                "-m",
+                "slateVault safe pull",
+            ],
+            "Stash failed",
+        )?;
+        messages.push(if stash.is_empty() {
+            "Local changes stashed.".to_string()
+        } else {
+            stash
+        });
+    }
+
+    let pull_result = run_git_checked(vault, &["-C", &root, "pull", "origin", branch], "Pull failed");
+
+    if dirty {
+        match pull_result {
+            Ok(pull) => {
+                if !pull.is_empty() {
+                    messages.push(pull);
+                }
+                match run_git_checked(vault, &["-C", &root, "stash", "pop"], "Stash pop failed") {
+                    Ok(pop) => {
+                        messages.push(if pop.is_empty() {
+                            "Local changes reapplied.".to_string()
+                        } else {
+                            pop
+                        });
+                    }
+                    Err(err) => {
+                        return Err(format!(
+                            "{}\n\nYour local changes remain in the latest git stash. Resolve conflicts, then run git stash pop manually if needed.",
+                            err
+                        ));
+                    }
+                }
+            }
+            Err(err) => {
+                let _ = run_git_checked(vault, &["-C", &root, "stash", "pop"], "Stash restore failed");
+                return Err(format!(
+                    "{}\n\nSlateVault attempted to restore your stashed local changes.",
+                    err
+                ));
+            }
+        }
+    } else if let Ok(pull) = pull_result {
+        if !pull.is_empty() {
+            messages.push(pull);
+        }
+    } else if let Err(err) = pull_result {
+        return Err(err);
+    }
+
+    Ok(messages.join("\n\n"))
+}
+
+#[tauri::command]
+pub fn git_pull_discard_local(state: State<'_, VaultState>) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let branch = &vault.config.sync.remote_branch;
+    let root = vault.root.to_string_lossy();
+
+    run_git_checked(vault, &["-C", &root, "fetch", "origin", branch], "Fetch failed")?;
+    run_git_checked(vault, &["-C", &root, "reset", "--hard", &format!("origin/{}", branch)], "Reset failed")?;
+    run_git_checked(vault, &["-C", &root, "clean", "-fd"], "Clean failed")?;
+
+    Ok(format!(
+        "Local changes discarded. Vault reset to origin/{}.",
+        branch
+    ))
 }
 
 #[derive(Serialize)]

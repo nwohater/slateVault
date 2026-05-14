@@ -9,6 +9,7 @@ export function RemoteTab() {
   const setRemoteConfig = useGitStore((s) => s.setRemoteConfig);
   const pushRemote = useGitStore((s) => s.push);
   const pullRemote = useGitStore((s) => s.pull);
+  const pullWithStash = useGitStore((s) => s.pullWithStash);
 
   const [url, setUrl] = useState("");
   const [branch, setBranch] = useState("main");
@@ -64,6 +65,19 @@ export function RemoteTab() {
     }
   };
 
+  const safePull = async () => {
+    setRunning(true);
+    setOutput("Stashing local changes and pulling...");
+    try {
+      const result = await pullWithStash();
+      setOutput(result || "Pulled successfully");
+    } catch (e) {
+      setOutput(String(e));
+    } finally {
+      setRunning(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full text-xs p-2 space-y-3">
       <div>
@@ -101,6 +115,13 @@ export function RemoteTab() {
           className="flex-1 px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 disabled:text-neutral-600 text-neutral-300"
         >
           Pull
+        </button>
+        <button
+          onClick={safePull}
+          disabled={running || !url}
+          className="flex-1 px-2 py-1.5 rounded bg-amber-800 hover:bg-amber-700 disabled:bg-neutral-800 disabled:text-neutral-500 text-amber-100"
+        >
+          Safe Pull
         </button>
         <button
           onClick={push}

@@ -45,6 +45,8 @@ interface GitState {
   commit: () => Promise<void>;
   push: () => Promise<string>;
   pull: () => Promise<string>;
+  pullWithStash: () => Promise<string>;
+  pullDiscardLocal: () => Promise<string>;
   loadLog: () => Promise<void>;
   loadRemoteConfig: () => Promise<void>;
   loadSyncStatus: () => Promise<void>;
@@ -264,6 +266,32 @@ export const useGitStore = create<GitState>((set, get) => ({
       return result;
     } catch (e) {
       const message = `Pull failed: ${e}`;
+      set({ output: message });
+      throw e;
+    }
+  },
+
+  pullWithStash: async () => {
+    try {
+      const result = await commands.gitPullWithStash();
+      set({ output: result || "Pulled successfully" });
+      await get().refreshSyncState();
+      return result;
+    } catch (e) {
+      const message = `Safe pull failed: ${e}`;
+      set({ output: message });
+      throw e;
+    }
+  },
+
+  pullDiscardLocal: async () => {
+    try {
+      const result = await commands.gitPullDiscardLocal();
+      set({ output: result || "Local changes discarded and latest remote loaded" });
+      await get().refreshSyncState();
+      return result;
+    } catch (e) {
+      const message = `Discard local and pull failed: ${e}`;
       set({ output: message });
       throw e;
     }

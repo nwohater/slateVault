@@ -58,6 +58,8 @@ pub fn run() {
             commands::git_push,
             commands::git_push_branch,
             commands::git_pull,
+            commands::git_pull_with_stash,
+            commands::git_pull_discard_local,
             commands::git_current_branch,
             commands::git_list_branches,
             commands::git_create_branch,
