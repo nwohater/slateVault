@@ -418,7 +418,18 @@ export function MarkdownPreview() {
             <code>{(() => { try { return JSON.stringify(JSON.parse(content), null, 2); } catch { return content; } })()}</code>
           </pre>
         ) : (
-        <article className="prose prose-sm max-w-none [&_h1]:text-[color:var(--text)] [&_h2]:text-[color:var(--text)] [&_h3]:text-[color:var(--text)] [&_p]:text-[color:var(--text-muted)] [&_a]:text-[color:var(--info)] [&_code]:text-[color:var(--accent)] [&_code]:bg-[var(--bg-code)] [&_code]:px-1 [&_code]:rounded [&_pre]:bg-[var(--bg-code)] [&_strong]:text-[color:var(--text)]">
+        <article
+          className="prose prose-sm max-w-none
+            [&_h1]:text-[color:var(--text)] [&_h2]:text-[color:var(--text)] [&_h3]:text-[color:var(--text)] [&_h4]:text-[color:var(--text)]
+            [&_p]:text-[color:var(--text)] [&_li]:text-[color:var(--text)] [&_li_p]:text-[color:var(--text)]
+            [&_strong]:text-[color:var(--text)] [&_blockquote]:text-[color:var(--text-muted)]
+            [&_a]:text-[color:var(--info)] [&_a:hover]:text-[color:var(--info)]
+            [&_code]:text-[color:var(--accent)] [&_code]:bg-[var(--bg-code)] [&_code]:px-1 [&_code]:rounded [&_code]:before:content-none [&_code]:after:content-none
+            [&_pre]:bg-[var(--bg-code)] [&_pre]:text-[color:var(--text)]
+            [&_hr]:border-[color:var(--border)]
+            [&_th]:text-[color:var(--text)] [&_td]:text-[color:var(--text)]"
+          style={{ color: "var(--text)" }}
+        >
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkFrontmatter]}
           >
