@@ -297,93 +297,76 @@ export function MarkdownPreview() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-neutral-950">
-      {/* Toolbar */}
-      <div className="flex min-h-10 items-center justify-between gap-2 border-b border-neutral-800 px-4 py-1.5 flex-shrink-0">
-        <span className="min-w-0 flex-1 truncate text-[10px] text-neutral-500">
-          {frontMatter?.title || activePath}
-        </span>
-        <div className="flex min-w-0 flex-shrink-0 items-center gap-1.5">
+    <div className="h-full flex flex-col" style={{ background: "var(--bg-app)" }}>
+      {/* Toolbar — actions only, title lives in the DocHeader above */}
+      <div className="flex items-center justify-end gap-1.5 px-3 py-1.5 flex-shrink-0" style={{ borderBottom: "1px solid var(--border)", minHeight: 38 }}>
           <button
             onClick={handleCopyAsPrompt}
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-800 text-neutral-400 transition-colors hover:bg-neutral-700 hover:text-neutral-200 xl:w-auto xl:px-2.5"
+            className="icon-btn"
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", fontSize: 11, height: 26, borderRadius: 5 }}
             title="Copy as agent prompt"
-            aria-label={copied ? "Copied as prompt" : "Copy as prompt"}
           >
             <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
             </svg>
-            <span className="hidden whitespace-nowrap text-[10px] xl:inline">
-              {copied ? "Copied" : "Copy as Prompt"}
-            </span>
+            {copied ? "Copied" : "Copy as Prompt"}
           </button>
           <button
             onClick={handleGenerateBrief}
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-800 text-neutral-400 transition-colors hover:bg-neutral-700 hover:text-neutral-200 xl:w-auto xl:px-2.5"
-            title="Generate project brief and copy to clipboard"
-            aria-label={briefCopied ? "Agent brief copied" : "Copy agent brief"}
+            className="icon-btn"
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", fontSize: 11, height: 26, borderRadius: 5 }}
+            title="Generate agent brief"
           >
             <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
             </svg>
-            <span className="hidden whitespace-nowrap text-[10px] xl:inline">
-              {briefCopied ? "Copied" : "Agent Brief"}
-            </span>
+            {briefCopied ? "Copied" : "Agent Brief"}
           </button>
           {activeProject && (
             <button
               onClick={handleToggleHistory}
-              className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors xl:w-auto xl:px-2.5 bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200"
-              style={showHistory ? { background: "var(--info-soft)", color: "var(--info)" } : undefined}
-              title="Show Git history for this document"
-              aria-label="Show Git history"
+              className="icon-btn"
+              style={showHistory ? { display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", fontSize: 11, height: 26, borderRadius: 5, background: "var(--info-soft)", color: "var(--info)" } : { display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", fontSize: 11, height: 26, borderRadius: 5 }}
+              title="Show Git history"
             >
               <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l3.75 2.25M21 12a9 9 0 1 1-2.64-6.36" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 3v5h-5" />
               </svg>
-              <span className="hidden whitespace-nowrap text-[10px] xl:inline">
-                History
-              </span>
+              History
             </button>
           )}
           <button
             onClick={handleExportPdf}
             disabled={exporting}
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-800 text-neutral-400 transition-colors hover:bg-neutral-700 hover:text-neutral-200 disabled:opacity-50 xl:w-auto xl:px-2.5"
+            className="icon-btn"
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", fontSize: 11, height: 26, borderRadius: 5, opacity: exporting ? 0.5 : 1 }}
             title="Export to PDF"
-            aria-label={exporting ? "Exporting PDF" : "Export PDF"}
           >
             <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
             </svg>
-            <span className="hidden whitespace-nowrap text-[10px] xl:inline">
-              {exporting ? "Exporting" : "Export PDF"}
-            </span>
+            {exporting ? "Exporting…" : "Export PDF"}
           </button>
-        </div>
       </div>
 
       {showHistory && (
-        <div className="flex-shrink-0 border-b border-neutral-800 bg-neutral-950 px-4 py-3">
+        <div className="flex-shrink-0 px-4 py-3" style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-panel)" }}>
           <div className="mb-2 flex items-center justify-between">
             <div>
-              <div className="text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+              <div className="text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)", letterSpacing: "0.05em" }}>
                 File History
               </div>
-              <div className="mt-0.5 text-[10px] text-neutral-600">
+              <div className="mt-0.5 text-[10px]" style={{ color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
                 {activeProject}/{activePath}
               </div>
             </div>
-            <button
-              onClick={() => setShowHistory(false)}
-              className="rounded px-2 py-1 text-[10px] text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300"
-            >
+            <button onClick={() => setShowHistory(false)} className="btn sm" style={{ fontSize: 10 }}>
               Close
             </button>
           </div>
           {historyLoading ? (
-            <div className="rounded border border-neutral-800 bg-neutral-900/60 px-3 py-2 text-xs text-neutral-500">
+            <div className="rounded px-3 py-2 text-xs" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>
               Loading history...
             </div>
           ) : historyError ? (
@@ -391,27 +374,27 @@ export function MarkdownPreview() {
               {historyError}
             </div>
           ) : history.length === 0 ? (
-            <div className="rounded border border-neutral-800 bg-neutral-900/60 px-3 py-2 text-xs text-neutral-500">
+            <div className="rounded px-3 py-2 text-xs" style={{ border: "1px solid var(--border)", color: "var(--text-muted)" }}>
               No commit history yet.
             </div>
           ) : (
-            <div className="max-h-56 overflow-y-auto rounded border border-neutral-800 bg-neutral-900/40">
+            <div className="max-h-56 overflow-y-auto rounded" style={{ border: "1px solid var(--border)" }}>
               {history.map((entry) => (
                 <div
                   key={entry.full_oid}
-                  className="border-b border-neutral-800 px-3 py-2 last:border-b-0"
+                  style={{ borderBottom: "1px solid var(--border-subtle)", padding: "8px 12px" }}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-xs text-neutral-200">
+                      <div className="truncate text-xs" style={{ color: "var(--text)" }}>
                         {entry.message || "(no commit message)"}
                       </div>
-                      <div className="mt-1 text-[10px] text-neutral-500">
+                      <div className="mt-1 text-[10px]" style={{ color: "var(--text-faint)" }}>
                         {entry.author}
                         {entry.email ? ` <${entry.email}>` : ""} · {formatHistoryDate(entry.date)}
                       </div>
                     </div>
-                    <code className="rounded bg-neutral-950 px-1.5 py-0.5 text-[10px]" style={{ color: "var(--accent)" }}>
+                    <code className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: "var(--bg-code)", color: "var(--accent)" }}>
                       {entry.oid}
                     </code>
                   </div>
@@ -425,11 +408,11 @@ export function MarkdownPreview() {
       {/* Preview content */}
       <div ref={previewRef} id="print-preview" className="flex-1 overflow-y-auto p-6">
         {activePath?.endsWith(".json") ? (
-          <pre className="rounded-xl bg-neutral-900 p-4 text-xs leading-relaxed text-emerald-300 overflow-auto whitespace-pre-wrap break-words">
+          <pre className="rounded-xl p-4 text-xs leading-relaxed overflow-auto whitespace-pre-wrap break-words" style={{ background: "var(--bg-code)", color: "var(--success)" }}>
             <code>{(() => { try { return JSON.stringify(JSON.parse(content), null, 2); } catch { return content; } })()}</code>
           </pre>
         ) : (
-        <article className="prose prose-invert prose-sm max-w-none prose-headings:text-neutral-100 prose-p:text-neutral-300 prose-a:text-blue-400 prose-code:text-emerald-400 prose-code:bg-neutral-800 prose-code:px-1 prose-code:rounded prose-pre:bg-neutral-900 prose-strong:text-neutral-200">
+        <article className="prose prose-sm max-w-none [&_h1]:text-[color:var(--text)] [&_h2]:text-[color:var(--text)] [&_h3]:text-[color:var(--text)] [&_p]:text-[color:var(--text-muted)] [&_a]:text-[color:var(--info)] [&_code]:text-[color:var(--accent)] [&_code]:bg-[var(--bg-code)] [&_code]:px-1 [&_code]:rounded [&_pre]:bg-[var(--bg-code)] [&_strong]:text-[color:var(--text)]">
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkFrontmatter]}
           >
@@ -440,10 +423,10 @@ export function MarkdownPreview() {
 
         {/* Related docs & backlinks */}
         {(relatedDocs.length > 0 || backlinks.length > 0) && (
-          <div className="mt-6 pt-4 border-t border-neutral-800">
+          <div className="mt-6 pt-4" style={{ borderTop: "1px solid var(--border-subtle)" }}>
             {backlinks.length > 0 && (
               <div className="mb-4">
-                <h4 className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">
+                <h4 className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>
                   Linked From
                 </h4>
                 <div className="space-y-1">
@@ -451,12 +434,14 @@ export function MarkdownPreview() {
                     <button
                       key={bl.path}
                       onClick={() => openDocument(bl.project, bl.path)}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-neutral-800 text-left transition-colors"
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-colors"
+                      onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-subtle)")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                     >
-                      <svg className="w-3 h-3 text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <svg className="w-3 h-3 flex-shrink-0" style={{ color: "var(--info)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-2.04a4.5 4.5 0 0 0-1.242-7.244l4.5-4.5a4.5 4.5 0 1 1 6.364 6.364l-1.757 1.757" />
                       </svg>
-                      <span className="text-xs text-neutral-300 truncate flex-1">
+                      <span className="text-xs truncate flex-1" style={{ color: "var(--text-muted)" }}>
                         {bl.title}
                       </span>
                     </button>
@@ -467,7 +452,7 @@ export function MarkdownPreview() {
 
             {relatedDocs.length > 0 && (
               <div>
-                <h4 className="text-[10px] text-neutral-500 uppercase tracking-wider mb-2">
+                <h4 className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>
                   Related Documents
                 </h4>
                 <div className="space-y-1">
@@ -475,19 +460,16 @@ export function MarkdownPreview() {
                     <button
                       key={rd.path}
                       onClick={() => openDocument(rd.project, rd.path)}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-neutral-800 text-left transition-colors"
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-colors"
+                      onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-subtle)")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                     >
-                      <span className="text-xs text-neutral-300 truncate flex-1">
+                      <span className="text-xs truncate flex-1" style={{ color: "var(--text-muted)" }}>
                         {rd.title}
                       </span>
                       <div className="flex gap-1 flex-shrink-0">
                         {rd.shared_tags.slice(0, 2).map((tag) => (
-                          <span
-                            key={tag}
-                            className="px-1 rounded bg-neutral-800 text-neutral-500 text-[9px]"
-                          >
-                            {tag}
-                          </span>
+                          <span key={tag} className="chip" style={{ fontSize: 9 }}>{tag}</span>
                         ))}
                       </div>
                     </button>

@@ -139,7 +139,7 @@ export function AppShell() {
             ) : workspaceView === "sync" ? (
               <SyncView />
             ) : isDocumentsWorkspace ? (
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
                 <FrontMatterBar />
                 <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
                   {showEditor && (
