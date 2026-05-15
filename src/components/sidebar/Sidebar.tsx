@@ -5,7 +5,6 @@ import { useVaultStore } from "@/stores/vaultStore";
 import { useUIStore } from "@/stores/uiStore";
 import { FileTree } from "./FileTree";
 import { SearchBar } from "./SearchBar";
-import { SettingsPanel } from "../settings/SettingsPanel";
 import { AiChatPanel } from "../ai/AiChatPanel";
 import { CreateProjectForm } from "@/components/shared/CreateProjectForm";
 import * as commands from "@/lib/commands";
@@ -140,7 +139,7 @@ export function Sidebar() {
   const [view, setView] = useState<SidebarView>("home");
   const [refreshingFiles, setRefreshingFiles] = useState(false);
 
-  const showPanel = view === "files" || view === "settings" || view === "ai";
+  const showPanel = view === "files" || view === "ai";
 
   useEffect(() => {
     if (view === "settings") return;
@@ -294,11 +293,6 @@ export function Sidebar() {
             </div>
           )}
 
-          {view === "settings" && (
-            <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-              <SettingsPanel />
-            </div>
-          )}
         </div>
       )}
     </div>

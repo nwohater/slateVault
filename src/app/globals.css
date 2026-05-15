@@ -329,28 +329,19 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 .search-pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 10px 0 8px;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
   background: transparent;
   border: none;
   border-radius: 999px;
-  color: var(--text-faint);
+  color: var(--text-muted);
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
-.search-pill:hover { background: var(--bg-subtle); color: var(--text-muted); }
-.search-pill .kbd {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  padding: 0 4px;
-  background: var(--bg-tint);
-  border: 1px solid var(--border-subtle);
-  border-radius: 3px;
-  color: var(--text-faint);
-}
+.search-pill:hover { background: var(--bg-subtle); color: var(--text); }
 
 .icon-btn {
   width: 24px;
@@ -796,6 +787,31 @@ code *,
 .cm-editor { height: 100%; }
 .cm-editor .cm-content { padding: 8px 0; }
 .cm-editor .cm-line { padding: 0 16px; }
+
+/* ─── Settings ──────────────────────────────────────────────────────────── */
+.settings-input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  padding: 0 12px;
+  font-size: 14px;
+  outline: none;
+}
+
+.settings-input::placeholder {
+  color: var(--text-faint);
+}
+
+.settings-input:focus {
+  border-color: var(--accent);
+}
+
+.settings-input:disabled {
+  opacity: 0.55;
+}
 
 /* ─── Print ──────────────────────────────────────────────────────────────── */
 @page {

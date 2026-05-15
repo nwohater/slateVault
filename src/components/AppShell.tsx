@@ -13,6 +13,7 @@ import { VaultHome } from "./home/VaultHome";
 import { StartSessionView } from "./session/StartSessionView";
 import { DocsHealthView } from "./health/DocsHealthView";
 import { SyncView } from "./sync/SyncView";
+import { SettingsPanel } from "./settings/SettingsPanel";
 import { TerminalPanel } from "./terminal/TerminalPanel";
 import { VaultPicker } from "./vault/VaultPicker";
 import { ResizeHandle } from "./shared/ResizeHandle";
@@ -138,6 +139,8 @@ export function AppShell() {
               <DocsHealthView />
             ) : workspaceView === "sync" ? (
               <SyncView />
+            ) : workspaceView === "settings" ? (
+              <SettingsPanel />
             ) : isDocumentsWorkspace ? (
               <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
                 <FrontMatterBar />

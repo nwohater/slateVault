@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import * as commands from "@/lib/commands";
 import { copyToClipboard } from "@/lib/clipboard";
 import {
@@ -9,10 +9,40 @@ import {
   getMcpSetupCards,
   type McpPlatform,
 } from "@/lib/mcpSetup";
-import { useVaultStore } from "@/stores/vaultStore";
-import { useEditorStore } from "@/stores/editorStore";
 import { useAppStore } from "@/stores/appStore";
-import type { VaultSettings, CredentialsMasked } from "@/types";
+import { useEditorStore } from "@/stores/editorStore";
+import { useUIStore } from "@/stores/uiStore";
+import { useVaultStore } from "@/stores/vaultStore";
+import type { CredentialsMasked, McpServerStatus, VaultSettings, WikiDocInfo } from "@/types";
+
+type SettingsSection = "vault" | "mcp" | "ai" | "git" | "appearance" | "keyboard" | "updates" | "advanced";
+type VaultConfigPatch = {
+  name?: string;
+  mcp_enabled?: boolean;
+  mcp_port?: number;
+  auto_stage_ai_writes?: boolean;
+  compress_context?: boolean;
+  ssh_key_path?: string;
+  ai_enabled?: boolean;
+  ai_endpoint_url?: string;
+  ai_model?: string;
+};
+
+const SECTIONS: Array<{
+  id: SettingsSection;
+  group: "Workspace" | "Sync" | "Application";
+  label: string;
+  icon: string;
+}> = [
+  { id: "vault", group: "Workspace", label: "Vault", icon: "DB" },
+  { id: "mcp", group: "Workspace", label: "Agent access (MCP)", icon: "MCP" },
+  { id: "ai", group: "Workspace", label: "AI settings", icon: "AI" },
+  { id: "git", group: "Sync", label: "Git & credentials", icon: "Git" },
+  { id: "appearance", group: "Application", label: "Appearance", icon: "*" },
+  { id: "keyboard", group: "Application", label: "Keyboard", icon: "<>" },
+  { id: "updates", group: "Application", label: "Updates", icon: "Up" },
+  { id: "advanced", group: "Application", label: "Advanced", icon: "Gear" },
+];
 
 function formatBundleType(bundleType: string | null): string {
   if (!bundleType) return "dev";
@@ -21,15 +51,32 @@ function formatBundleType(bundleType: string | null): string {
 }
 
 function formatLastChecked(value: string | null): string {
-  if (!value) return "Not checked yet";
+  if (!value) return "not checked yet";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not checked yet";
+  if (Number.isNaN(date.getTime())) return "not checked yet";
   return date.toLocaleString();
 }
 
+function updateStatusLabel(state: string, version: string | null) {
+  if (state === "available" && version) return `Update available: v${version}`;
+  if (state === "up-to-date") return "You're on the latest version";
+  if (state === "checking") return "Checking for updates...";
+  if (state === "downloading") return "Downloading update...";
+  if (state === "installing") return "Installing update...";
+  if (state === "installed") return "Update downloaded. Restart slateVault to finish installing.";
+  if (state === "error") return "Update check failed";
+  return "Ready to check for updates";
+}
+
 export function SettingsPanel() {
+  const vaultPath = useVaultStore((s) => s.vaultPath);
+  const vaultName = useVaultStore((s) => s.vaultName);
+  const stats = useVaultStore((s) => s.stats);
   const loadStats = useVaultStore((s) => s.loadStats);
+  const closeVault = useVaultStore((s) => s.closeVault);
   const openVaultFile = useEditorStore((s) => s.openVaultFile);
+  const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
+  const setWorkspaceView = useUIStore((s) => s.setWorkspaceView);
   const version = useAppStore((s) => s.version);
   const bundleType = useAppStore((s) => s.bundleType);
   const channel = useAppStore((s) => s.channel);
@@ -41,69 +88,138 @@ export function SettingsPanel() {
   const initializeApp = useAppStore((s) => s.initialize);
   const checkForUpdates = useAppStore((s) => s.checkForUpdates);
   const installUpdate = useAppStore((s) => s.installUpdate);
+
+  const [activeSection, setActiveSection] = useState<SettingsSection>("vault");
   const [settings, setSettings] = useState<VaultSettings | null>(null);
+  const [mcpStatus, setMcpStatus] = useState<McpServerStatus | null>(null);
+  const [wikiDocs, setWikiDocs] = useState<WikiDocInfo[]>([]);
+  const [creds, setCreds] = useState<CredentialsMasked | null>(null);
   const [name, setName] = useState("");
   const [mcpEnabled, setMcpEnabled] = useState(true);
   const [mcpPort, setMcpPort] = useState(3742);
   const [autoStage, setAutoStage] = useState(true);
+  const [compressContext, setCompressContext] = useState(false);
   const [sshKeyPath, setSshKeyPath] = useState("");
-  const [output, setOutput] = useState<string | null>(null);
-  const [aiTestOutput, setAiTestOutput] = useState<string | null>(null);
-  const [aiTestStatus, setAiTestStatus] = useState<"idle" | "success" | "error">("idle");
-  const [isTestingAi, setIsTestingAi] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [platform, setPlatform] = useState<McpPlatform>("unknown");
-  const [selectedMcpSetup, setSelectedMcpSetup] = useState("Claude Code");
-
-  // Credentials state
-  const [creds, setCreds] = useState<CredentialsMasked | null>(null);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiEndpointUrl, setAiEndpointUrl] = useState("http://localhost:11434/v1");
+  const [aiModel, setAiModel] = useState("");
   const [githubPat, setGithubPat] = useState("");
   const [adoPat, setAdoPat] = useState("");
   const [adoOrg, setAdoOrg] = useState("");
   const [adoProject, setAdoProject] = useState("");
   const [showAzureDevOps, setShowAzureDevOps] = useState(false);
+  const [platform, setPlatform] = useState<McpPlatform>("unknown");
+  const [selectedMcpSetup, setSelectedMcpSetup] = useState("Claude Code");
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setPlatform(detectMcpPlatform());
-    loadSettings();
-    loadCredentials();
-    initializeApp().catch(() => {});
-  }, [initializeApp]);
-
-  const mcpSetupCards = getMcpSetupCards(platform);
-  const selectedMcpCard = mcpSetupCards.find((card) => card.name === selectedMcpSetup) ?? mcpSetupCards[0];
-  const azureDevOpsConfigured = Boolean(
-    creds?.ado_pat || creds?.ado_organization || creds?.ado_project,
-  );
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
+    setLoading(true);
     try {
-      const s = await commands.getVaultConfig();
-      setSettings(s);
-      setName(s.name);
-      setMcpEnabled(s.mcp_enabled);
-      setMcpPort(s.mcp_port);
-      setAutoStage(s.auto_stage_ai_writes);
-      setSshKeyPath(s.ssh_key_path || "");
-    } catch (e) {
-      setOutput(`Failed to load settings: ${e}`);
+      const [vaultConfig, credentials, status, docs] = await Promise.all([
+        commands.getVaultConfig(),
+        commands.gitLoadCredentials().catch(() => null),
+        commands.mcpServerStatus().catch(() => null),
+        commands.listWikiDocs().catch(() => []),
+      ]);
+
+      setSettings(vaultConfig);
+      setName(vaultConfig.name);
+      setMcpEnabled(vaultConfig.mcp_enabled);
+      setMcpPort(vaultConfig.mcp_port);
+      setAutoStage(vaultConfig.auto_stage_ai_writes);
+      setCompressContext(vaultConfig.compress_context);
+      setSshKeyPath(vaultConfig.ssh_key_path || "");
+      setAiEnabled(vaultConfig.ai_enabled);
+      setAiEndpointUrl(vaultConfig.ai_endpoint_url || "http://localhost:11434/v1");
+      setAiModel(vaultConfig.ai_model || "");
+      setCreds(credentials);
+      setAdoOrg(credentials?.ado_organization || "");
+      setAdoProject(credentials?.ado_project || "");
+      setMcpStatus(status);
+      setWikiDocs(docs);
+      setError(null);
+    } catch (err) {
+      setError(`Could not load settings: ${err}`);
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    setPlatform(detectMcpPlatform());
+    void initializeApp().catch(() => {});
+    void loadSettings();
+  }, [initializeApp, loadSettings]);
+
+  const mcpSetupCards = getMcpSetupCards(platform);
+  const selectedMcpCard = mcpSetupCards.find((card) => card.name === selectedMcpSetup) ?? mcpSetupCards[0];
+  const mcpLive = Boolean(mcpStatus?.running);
+  const azureDevOpsConfigured = Boolean(creds?.ado_pat || creds?.ado_organization || creds?.ado_project);
+  const updateBusy = updateState === "checking" || updateState === "downloading" || updateState === "installing";
+
+  const groupedSections = useMemo(() => {
+    return SECTIONS.reduce<Record<string, typeof SECTIONS>>((acc, section) => {
+      acc[section.group] = [...(acc[section.group] ?? []), section];
+      return acc;
+    }, {});
+  }, []);
+
+  const showMessage = (text: string) => {
+    setMessage(text);
+    setError(null);
+    window.setTimeout(() => setMessage(null), 2400);
   };
 
-  const loadCredentials = async () => {
+  const saveConfig = async (next?: VaultConfigPatch) => {
+    setSaving(true);
     try {
-      const c = await commands.gitLoadCredentials();
-      setCreds(c);
-      setAdoOrg(c.ado_organization || "");
-      setAdoProject(c.ado_project || "");
-    } catch {
-      // No credentials yet
+      await commands.setVaultConfig({
+        name,
+        mcp_enabled: mcpEnabled,
+        mcp_port: mcpPort,
+        auto_stage_ai_writes: autoStage,
+        compress_context: compressContext,
+        ssh_key_path: sshKeyPath,
+        ai_enabled: aiEnabled,
+        ai_endpoint_url: aiEndpointUrl,
+        ai_model: aiModel,
+        ...next,
+      });
+      await loadStats();
+      await loadSettings();
+      showMessage("Settings saved.");
+    } catch (err) {
+      setError(`Save failed: ${err}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleMcp = async (enabled: boolean) => {
+    setMcpEnabled(enabled);
+    setSaving(true);
+    try {
+      await commands.setVaultConfig({ mcp_enabled: enabled, mcp_port: mcpPort });
+      if (enabled && vaultPath) {
+        await commands.startMcpServer(vaultPath, mcpPort).catch(() => {});
+      } else {
+        await commands.stopMcpServer().catch(() => {});
+      }
+      await loadStats();
+      await loadSettings();
+      showMessage(enabled ? "MCP server enabled." : "MCP server disabled.");
+    } catch (err) {
+      setError(`Could not update MCP server: ${err}`);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleSaveCredentials = async () => {
+    setSaving(true);
     try {
       await commands.gitSaveCredentials({
         github_pat: githubPat || undefined,
@@ -111,566 +227,486 @@ export function SettingsPanel() {
         ado_organization: adoOrg || undefined,
         ado_project: adoProject || undefined,
       });
-      setOutput("Credentials saved");
       setGithubPat("");
       setAdoPat("");
-      await loadCredentials();
-      setTimeout(() => setOutput(null), 2000);
-    } catch (e) {
-      setOutput(`Save credentials failed: ${e}`);
+      await loadSettings();
+      showMessage("Credentials saved.");
+    } catch (err) {
+      setError(`Save credentials failed: ${err}`);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleSave = async () => {
+  const handleCopy = async (text: string, label: string) => {
     try {
-      await commands.setVaultConfig({
-        name,
-        mcp_enabled: mcpEnabled,
-        mcp_port: mcpPort,
-        auto_stage_ai_writes: autoStage,
-        ssh_key_path: sshKeyPath,
-      });
-      setOutput("Settings saved");
-      await loadStats();
-      setTimeout(() => setOutput(null), 2000);
-    } catch (e) {
-      setOutput(`Save failed: ${e}`);
+      await copyToClipboard(text);
+      showMessage(`${label} copied.`);
+    } catch (err) {
+      setError(`Could not copy ${label.toLowerCase()}: ${err}`);
     }
   };
 
-  if (loading) {
+  const handleBackup = async () => {
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const path = await save({
+        defaultPath: `slatevault-backup-${new Date().toISOString().slice(0, 10)}.zip`,
+        filters: [{ name: "ZIP", extensions: ["zip"] }],
+      });
+      if (!path) return;
+      const result = await commands.backupVault(path);
+      showMessage(result);
+    } catch (err) {
+      setError(`Backup failed: ${err}`);
+    }
+  };
+
+  const handleRestore = async () => {
+    try {
+      const { open, ask } = await import("@tauri-apps/plugin-dialog");
+      const zipPath = await open({
+        filters: [{ name: "ZIP", extensions: ["zip"] }],
+        title: "Select vault backup ZIP",
+      });
+      if (!zipPath) return;
+      const destPath = await open({
+        directory: true,
+        title: "Select destination folder for restore",
+      });
+      if (!destPath) return;
+      const confirmed = await ask(
+        "This will extract the backup to the selected folder. Existing files may be overwritten. Continue?",
+        { title: "Restore Vault", kind: "warning" }
+      );
+      if (!confirmed) return;
+      const result = await commands.restoreVault(zipPath as string, destPath as string);
+      showMessage(result);
+    } catch (err) {
+      setError(`Restore failed: ${err}`);
+    }
+  };
+
+  if (loading && !settings) {
     return (
-      <div className="p-4 text-neutral-500 text-xs">Loading settings...</div>
+      <div className="workspace-page h-full min-w-0 flex-1 overflow-y-auto px-6 py-6">
+        <div className="text-sm" style={{ color: "var(--text-muted)" }}>Loading settings...</div>
+      </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full text-xs overflow-y-auto">
-      {/* Vault section */}
-      <div className="p-3 border-b border-neutral-800">
-        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
-          Vault
-        </h3>
-        <div className="space-y-2">
-          <div>
-            <label className="block text-neutral-500 mb-1">Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 outline-none focus:border-blue-600"
-            />
-          </div>
-          {settings && (
-            <div>
-              <label className="block text-neutral-500 mb-1">Path</label>
-              <div className="px-2 py-1 bg-neutral-800/50 rounded text-neutral-400 truncate">
-                {settings.path}
+    <div className="workspace-page h-full min-w-0 flex-1 overflow-y-auto">
+      <div className="grid min-h-full grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="border-r px-4 py-5" style={{ borderColor: "var(--border)", background: "var(--bg-subtle)" }}>
+          <div className="workspace-label mb-6 text-sm font-semibold" style={{ color: "var(--text-muted)" }}>Settings</div>
+          <div className="space-y-6">
+            {Object.entries(groupedSections).map(([group, sections]) => (
+              <div key={group}>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>{group}</div>
+                <div className="space-y-1">
+                  {sections.map((section) => (
+                    <button
+                      key={section.id}
+                      onClick={() => setActiveSection(section.id)}
+                      className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm"
+                      style={{
+                        background: activeSection === section.id ? "var(--bg-tint)" : "transparent",
+                        color: activeSection === section.id ? "var(--text)" : "var(--text-muted)",
+                      }}
+                    >
+                      <span className="w-8 shrink-0 text-[11px] font-semibold" style={{ color: "var(--text-faint)" }}>{section.icon}</span>
+                      <span className="min-w-0 flex-1 truncate">{section.label}</span>
+                      {section.id === "mcp" && mcpLive && <span className="chip success">live</span>}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      </div>
+            ))}
+          </div>
+        </aside>
 
-      <div className="p-3 border-b border-neutral-800">
-        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
-          App
-        </h3>
-        <div className="space-y-2">
-          <div>
-            <label className="block text-neutral-500 mb-1">Version</label>
-            <div className="px-2 py-1 bg-neutral-800/50 rounded text-neutral-300">
-              {version ? `v${version}` : "Unavailable"}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-neutral-500 mb-1">Channel</label>
-              <div className="px-2 py-1 bg-neutral-800/50 rounded text-neutral-300 capitalize">
-                {channel}
-              </div>
-            </div>
-            <div>
-              <label className="block text-neutral-500 mb-1">Package</label>
-              <div className="px-2 py-1 bg-neutral-800/50 rounded text-neutral-300">
-                {formatBundleType(bundleType)}
-              </div>
-            </div>
-          </div>
-          <div>
-            <label className="block text-neutral-500 mb-1">Update status</label>
-            <div className="px-2 py-1 bg-neutral-800/50 rounded text-neutral-300">
-              {updateState === "available" && updateVersion
-                ? `Update available: v${updateVersion}`
-                : updateState === "up-to-date"
-                  ? "You're on the latest version"
-                  : updateState === "checking"
-                    ? "Checking for updates..."
-                    : updateState === "downloading"
-                      ? "Downloading update..."
-                      : updateState === "installing"
-                        ? "Installing update..."
-                        : updateState === "installed"
-                          ? "Update downloaded. Restart SlateVault to finish installing."
-                          : updateState === "error"
-                            ? "Update check failed"
-                            : "Ready to check for updates"}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => void checkForUpdates(true)}
-              disabled={updateState === "checking" || updateState === "downloading" || updateState === "installing"}
-              className="flex-1 px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 disabled:text-neutral-600 text-neutral-300"
-            >
-              {updateState === "checking" ? "Checking..." : "Check for Updates"}
-            </button>
-            <button
-              onClick={() => void installUpdate()}
-              disabled={updateState !== "available"}
-              className="btn primary sm flex-1 disabled:opacity-40"
-            >
-              Install Update
-            </button>
-          </div>
-          <p className="text-neutral-600 text-[10px]">
-            Last checked: {formatLastChecked(lastCheckedAt)}
-          </p>
-          {updateError && (
-            <div className="rounded px-2 py-1 text-[10px]" style={{ background: "var(--warning-soft)", border: "1px solid var(--warning)", color: "var(--warning)" }}>
-              {updateError}
-            </div>
-          )}
-          {updateBody && updateState === "available" && (
-            <div className="rounded border border-neutral-800 bg-neutral-900/50 px-2 py-1 text-[10px] text-neutral-400 whitespace-pre-wrap">
-              {updateBody}
-            </div>
-          )}
-          <p className="text-neutral-600 text-[10px]">
-            Version and update status come from the installed Tauri app, so this stays aligned with packaged installers.
-          </p>
-        </div>
-      </div>
-
-      <div className="p-3 border-b border-neutral-800">
-        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
-          Workspace Files
-        </h3>
-        <div className="space-y-2">
-          <button
-            onClick={() => openVaultFile("templates.json")}
-            className="w-full px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs text-left"
-          >
-            Edit project templates
-          </button>
-          <button
-            onClick={() => openVaultFile("playbooks.json")}
-            className="w-full px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs text-left"
-          >
-            Edit session playbooks
-          </button>
-          <p className="text-neutral-600 text-[10px]">
-            Advanced workspace files live here instead of the primary sidebar.
-          </p>
-        </div>
-      </div>
-
-      {/* AI Assistant section - hidden, config still lives in vault settings */}
-      {false && <div className="p-3 border-b border-neutral-800">
-        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
-          AI Assistant
-        </h3>
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-neutral-400">
-            <input
-              type="checkbox"
-              checked={settings?.ai_enabled ?? false}
-              onChange={async (e) => {
-                try {
-                  await commands.setVaultConfig({ ai_enabled: e.target.checked } as any);
-                  await loadSettings();
-                } catch {}
-              }}
-              className="rounded"
-            />
-            Enabled
-          </label>
-          <div>
-            <label className="block text-neutral-500 mb-1">Endpoint URL</label>
-            <input
-              type="text"
-              value={settings?.ai_endpoint_url ?? "http://localhost:11434/v1"}
-              onChange={async (e) => {
-                try {
-                  await commands.setVaultConfig({ ai_endpoint_url: e.target.value } as any);
-                  await loadSettings();
-                } catch {}
-              }}
-              onBlur={loadSettings}
-              placeholder="http://localhost:11434/v1"
-              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
-            />
-          </div>
-          <div>
-            <label className="block text-neutral-500 mb-1">Model</label>
-            <div className="flex gap-1">
-              <input
-                type="text"
-                value={settings?.ai_model ?? ""}
-                onChange={async (e) => {
-                  try {
-                    await commands.setVaultConfig({ ai_model: e.target.value } as any);
-                    await loadSettings();
-                  } catch {}
-                }}
-                onBlur={loadSettings}
-                placeholder="e.g. llama3, gpt-4o, claude-sonnet-4-20250514"
-                className="flex-1 px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
-              />
-              <button
-                onClick={async () => {
-                  setIsTestingAi(true);
-                  setAiTestStatus("idle");
-                  setAiTestOutput("Testing endpoint...");
-                  try {
-                    const models = await commands.aiListModels();
-                    if (models.length > 0) {
-                      setAiTestStatus("success");
-                      setAiTestOutput(`Found ${models.length} models: ${models.slice(0, 5).join(", ")}${models.length > 5 ? "..." : ""}`);
-                    } else {
-                      setAiTestStatus("error");
-                      setAiTestOutput("No models found at endpoint");
-                    }
-                  } catch (e) {
-                    setAiTestStatus("error");
-                    setAiTestOutput(`Connection failed: ${e}`);
-                  } finally {
-                    setIsTestingAi(false);
-                  }
-                }}
-                disabled={isTestingAi}
-                className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 disabled:text-neutral-600 rounded text-neutral-400 text-[10px] flex-shrink-0"
-              >
-                {isTestingAi ? "Testing..." : "Test"}
-              </button>
-            </div>
-            {aiTestOutput && (
+        <main className="min-w-0 px-8 py-8">
+          <div className="mx-auto max-w-[1180px]">
+            {(message || error) && (
               <div
-                className="mt-1 rounded px-2 py-1 text-[10px]"
-                style={
-                  aiTestStatus === "success"
-                    ? { background: "var(--success-soft)", border: "1px solid var(--success)", color: "var(--success)" }
-                    : aiTestStatus === "error"
-                      ? { background: "var(--danger-soft)", border: "1px solid var(--danger)", color: "var(--danger)" }
-                      : { background: "var(--bg-tint)", color: "var(--text-muted)" }
+                className="mb-5 rounded-lg px-4 py-3 text-sm"
+                style={error
+                  ? { background: "var(--danger-soft)", border: "1px solid var(--danger)", color: "var(--danger)" }
+                  : { background: "var(--success-soft)", border: "1px solid var(--success)", color: "var(--success)" }
                 }
               >
-                {aiTestOutput}
+                {error || message}
               </div>
             )}
-          </div>
-          <div>
-            <label className="block text-neutral-500 mb-1">
-              API Key
-              {creds?.ai_api_key && (
-                <span style={{ color: "var(--success)", marginLeft: 4 }}>({creds?.ai_api_key})</span>
-              )}
-            </label>
-            <input
-              type="password"
-              value=""
-              onChange={async (e) => {
-                if (e.target.value) {
-                  try {
-                    await commands.gitSaveCredentials({ ai_api_key: e.target.value });
-                    await loadCredentials();
-                    setOutput("AI API key saved");
-                    setTimeout(() => setOutput(null), 2000);
-                  } catch {}
-                }
-              }}
-              placeholder="Optional - not needed for Ollama"
-              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
-            />
-          </div>
-          <p className="text-neutral-600 text-[10px]">
-            Works with Ollama, LM Studio, OpenAI, Anthropic, or any OpenAI-compatible endpoint.
-          </p>
-        </div>
-      </div>}
 
-      {/* MCP section */}
-      <div className="p-3 border-b border-neutral-800">
-        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
-          MCP Server
-        </h3>
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-neutral-400">
-            <input
-              type="checkbox"
-              checked={mcpEnabled}
-              onChange={(e) => setMcpEnabled(e.target.checked)}
-              className="rounded"
-            />
-            Enabled
-            <span className="w-2 h-2 rounded-full" style={{ background: mcpEnabled ? "var(--success)" : "var(--danger)" }} />
-          </label>
-          <div>
-            <label className="block text-neutral-500 mb-1">Port</label>
-            <input
-              type="number"
-              value={mcpPort}
-              onChange={(e) => setMcpPort(Number(e.target.value))}
-              min={1024}
-              max={65535}
-              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 outline-none focus:border-blue-600"
-            />
-          </div>
-          <label className="flex items-center gap-2 text-neutral-400">
-            <input
-              type="checkbox"
-              checked={autoStage}
-              onChange={(e) => setAutoStage(e.target.checked)}
-              className="rounded"
-            />
-            Auto-stage AI writes
-          </label>
-          <label className="flex items-center gap-2 text-neutral-400">
-            <input
-              type="checkbox"
-              checked={settings?.compress_context ?? false}
-              onChange={async (e) => {
-                try {
-                  await commands.setVaultConfig({ compress_context: e.target.checked } as any);
-                  await loadSettings();
-                  setOutput(e.target.checked ? "Compression enabled" : "Compression disabled");
-                  setTimeout(() => setOutput(null), 2000);
-                } catch {}
-              }}
-              className="rounded"
-            />
-            Compress context (AI shorthand)
-          </label>
-          <div className="pt-1">
-            <label className="block text-neutral-500 mb-1">AI tool setup</label>
-            <select
-              value={selectedMcpSetup}
-              onChange={(e) => setSelectedMcpSetup(e.target.value)}
-              className="mb-2 w-full rounded border border-neutral-700 bg-neutral-800 px-2 py-1 text-xs text-neutral-200 outline-none focus:border-blue-600"
-            >
-              {mcpSetupCards.map((card) => (
-                <option key={card.name} value={card.name}>
-                  {card.name}
-                </option>
-              ))}
-            </select>
-            <div className="flex gap-1">
-              <pre className="max-h-32 flex-1 overflow-auto whitespace-pre-wrap rounded bg-neutral-800 px-2 py-2 font-mono text-[10px] text-neutral-400">
-                {selectedMcpCard.command}
-              </pre>
-              <button
-                onClick={async () => {
-                  await copyToClipboard(selectedMcpCard.command);
-                  setOutput(`Copied ${selectedMcpCard.name} setup!`);
-                  setTimeout(() => setOutput(null), 2000);
-                }}
-                className="self-start rounded bg-neutral-800 px-2 py-1 text-neutral-400 hover:bg-neutral-700"
+            {activeSection === "vault" && (
+              <SettingsSectionShell
+                icon="DB"
+                title="Vault"
+                description="The local-first folder that holds every project's docs. Edits here are written directly to disk; git is what makes them shared."
               >
-                Copy
-              </button>
-            </div>
-            <p className="mt-1 text-neutral-600">
-              {selectedMcpCard.note} {getMcpInstallNote(platform)}
-            </p>
-          </div>
-        </div>
-      </div>
+                <SettingRow label="Vault name" help="Used as the brand mark and in MCP responses.">
+                  <input className="settings-input" value={name} onChange={(event) => setName(event.target.value)} />
+                </SettingRow>
+                <SettingRow label="Vault path" help="Local folder containing the vault.">
+                  <div className="flex min-w-0 gap-2">
+                    <input className="settings-input min-w-0 flex-1" value={settings?.path || vaultPath || ""} readOnly />
+                    <button className="btn" onClick={closeVault}>Choose...</button>
+                  </div>
+                </SettingRow>
+                <SettingRow label="Default editor mode" help="Documents can still be switched from the document toolbar.">
+                  <select className="settings-input max-w-[260px]" defaultValue="split">
+                    <option value="split">Split (editor + preview)</option>
+                    <option value="editor">Editor</option>
+                    <option value="preview">Preview</option>
+                  </select>
+                </SettingRow>
+                <SettingRow label="Backups" help="Manual backups include projects, documents, and config.">
+                  <div className="flex flex-wrap gap-2">
+                    <button className="btn" onClick={() => void handleBackup()}>Backup vault...</button>
+                    <button className="btn" onClick={() => void handleRestore()}>Restore backup...</button>
+                  </div>
+                </SettingRow>
+                <SettingRow label="Danger zone">
+                  <button className="btn danger" onClick={closeVault}>Close vault</button>
+                </SettingRow>
+                <div className="pt-4">
+                  <button className="btn primary" disabled={saving} onClick={() => void saveConfig()}>
+                    {saving ? "Saving..." : "Save vault settings"}
+                  </button>
+                </div>
+              </SettingsSectionShell>
+            )}
 
-      {/* Git/SSH section */}
-      <div className="p-3 border-b border-neutral-800">
-        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
-          Git
-        </h3>
-        <div className="space-y-2">
-          <div>
-            <label className="block text-neutral-500 mb-1">SSH Key Path</label>
-            <input
-              type="text"
-              value={sshKeyPath}
-              onChange={(e) => setSshKeyPath(e.target.value)}
-              placeholder="~/.ssh/id_ed25519"
-              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
-            />
-          </div>
-            </div>
-      </div>
+            {activeSection === "mcp" && (
+              <SettingsSectionShell
+                icon="MCP"
+                title="Agent access (MCP)"
+                description="slateVault runs a Model Context Protocol server on localhost. Connected coding agents can read trusted project docs without scraping or guessing."
+              >
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="panel p-5">
+                    <div className="flex items-center gap-3">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: mcpLive ? "var(--success)" : "var(--warning)" }} />
+                      <h3 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
+                        {mcpLive ? "Server running" : mcpEnabled ? "Server enabled" : "Server disabled"}
+                      </h3>
+                    </div>
+                    <div className="mt-3 font-mono text-lg" style={{ color: "var(--text-muted)" }}>
+                      localhost:{mcpStatus?.port ?? mcpPort}
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button className="btn" disabled={saving || mcpLive || !vaultPath} onClick={() => void handleToggleMcp(true)}>Start</button>
+                      <button className="btn" disabled={saving || !mcpLive} onClick={() => void handleToggleMcp(false)}>Stop</button>
+                    </div>
+                  </div>
+                  <div className="panel p-5">
+                    <h3 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Available to agents</h3>
+                    <div className="mt-3 space-y-1 text-sm" style={{ color: "var(--text-muted)" }}>
+                      <div>- {stats?.doc_count ?? 0} project docs</div>
+                      <div>- {wikiDocs.length} wiki docs</div>
+                      <div>- Brief generator and session context</div>
+                      <div>- Search and read-only discovery tools</div>
+                    </div>
+                  </div>
+                </div>
 
-      {/* Credentials section */}
-      <div className="p-3 border-b border-neutral-800">
-        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
-          Pull Request Credentials
-        </h3>
-        <div className="space-y-2">
-          <p className="text-neutral-600 text-[10px]">
-            These are only used when SlateVault creates pull requests for you. MCP setup does not need them.
-          </p>
-          <div>
-            <label className="block text-neutral-500 mb-1">
-              GitHub PAT
-              {creds?.github_pat && (
-                <span style={{ color: "var(--success)", marginLeft: 4 }}>({creds.github_pat})</span>
-              )}
-            </label>
-            <input
-              type="password"
-              value={githubPat}
-              onChange={(e) => setGithubPat(e.target.value)}
-              placeholder="ghp_..."
-              className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
-            />
-          </div>
+                <SettingRow label="Enabled">
+                  <Toggle checked={mcpEnabled} onChange={(checked) => void handleToggleMcp(checked)} label="Run MCP server when vault is open" />
+                </SettingRow>
+                <SettingRow label="Port">
+                  <input className="settings-input max-w-[260px]" type="number" min={1024} max={65535} value={mcpPort} onChange={(event) => setMcpPort(Number(event.target.value))} />
+                </SettingRow>
+                <SettingRow label="Auto-stage AI writes" help="When an agent writes a doc, stage it for review automatically.">
+                  <Toggle checked={autoStage} onChange={setAutoStage} label="Stage and flag as AI-authored" />
+                </SettingRow>
+                <SettingRow label="Compression mode" help="Uses terse agent brief output for long session summaries.">
+                  <Toggle checked={compressContext} onChange={setCompressContext} label="Use compressed context output" />
+                </SettingRow>
 
-          <div className="rounded border border-neutral-800 bg-neutral-900/40">
-            <button
-              type="button"
-              onClick={() => setShowAzureDevOps((value) => !value)}
-              className="flex w-full items-center justify-between px-2 py-1.5 text-left text-neutral-400 hover:bg-neutral-800"
-            >
-              <span>Azure DevOps PR support</span>
-              <span className="text-[10px] text-neutral-600">
-                {azureDevOpsConfigured ? "Configured" : showAzureDevOps ? "Hide" : "Optional"}
-              </span>
-            </button>
-            {showAzureDevOps && (
-              <div className="space-y-2 border-t border-neutral-800 p-2">
-                <p className="text-neutral-600 text-[10px]">
-                  Only fill these in if this vault pushes to Azure DevOps and you want SlateVault to create PRs there.
-                </p>
-                <div>
-                  <label className="block text-neutral-500 mb-1">
-                    Azure DevOps PAT
-                    {creds?.ado_pat && (
-                      <span style={{ color: "var(--success)", marginLeft: 4 }}>({creds.ado_pat})</span>
-                    )}
-                  </label>
+                <section className="pt-6">
+                  <h3 className="mb-4 text-lg font-semibold" style={{ color: "var(--text)" }}>Connect your agent</h3>
+                  <div className="grid gap-3 lg:grid-cols-3">
+                    {mcpSetupCards.slice(0, 3).map((card) => (
+                      <button
+                        key={card.name}
+                        onClick={() => setSelectedMcpSetup(card.name)}
+                        className="panel p-4 text-left"
+                        style={{ borderColor: selectedMcpSetup === card.name ? "var(--accent)" : "var(--border)" }}
+                      >
+                        <div className="font-semibold" style={{ color: "var(--text)" }}>{card.name}</div>
+                        <div className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>Copy setup config</div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-4 rounded-lg border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+                    <pre className="max-h-48 overflow-auto whitespace-pre-wrap font-mono text-xs" style={{ color: "var(--text-muted)" }}>{selectedMcpCard.command}</pre>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button className="btn" onClick={() => void handleCopy(selectedMcpCard.command, selectedMcpCard.name)}>Copy config</button>
+                      <span className="text-xs" style={{ color: "var(--text-faint)" }}>{selectedMcpCard.note} {getMcpInstallNote(platform)}</span>
+                    </div>
+                  </div>
+                </section>
+                <div className="pt-4">
+                  <button className="btn primary" disabled={saving} onClick={() => void saveConfig()}>
+                    {saving ? "Saving..." : "Save agent settings"}
+                  </button>
+                </div>
+              </SettingsSectionShell>
+            )}
+
+            {activeSection === "ai" && (
+              <SettingsSectionShell
+                icon="AI"
+                title="AI settings"
+                description="Optional local or OpenAI-compatible assistant settings for features that call a model directly."
+              >
+                <SettingRow label="Enabled">
+                  <Toggle checked={aiEnabled} onChange={setAiEnabled} label="Enable built-in AI assistant features" />
+                </SettingRow>
+                <SettingRow label="Endpoint URL" help="Works with Ollama, LM Studio, OpenAI-compatible gateways, or local servers.">
+                  <input className="settings-input" value={aiEndpointUrl} onChange={(event) => setAiEndpointUrl(event.target.value)} placeholder="http://localhost:11434/v1" />
+                </SettingRow>
+                <SettingRow label="Model">
+                  <input className="settings-input" value={aiModel} onChange={(event) => setAiModel(event.target.value)} placeholder="llama3.1, gpt-4.1, claude..." />
+                </SettingRow>
+                <SettingRow label="API key" help="Stored outside the vault repo with other credentials.">
                   <input
+                    className="settings-input"
                     type="password"
-                    value={adoPat}
-                    onChange={(e) => setAdoPat(e.target.value)}
-                    placeholder="PAT token..."
-                    className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
+                    placeholder={creds?.ai_api_key ? `Saved (${creds.ai_api_key})` : "Optional for local models"}
+                    onChange={async (event) => {
+                      if (!event.target.value) return;
+                      await commands.gitSaveCredentials({ ai_api_key: event.target.value });
+                      await loadSettings();
+                      showMessage("AI API key saved.");
+                    }}
                   />
+                </SettingRow>
+                <button className="btn primary" disabled={saving} onClick={() => void saveConfig()}>
+                  {saving ? "Saving..." : "Save AI settings"}
+                </button>
+              </SettingsSectionShell>
+            )}
+
+            {activeSection === "git" && (
+              <SettingsSectionShell
+                icon="Git"
+                title="Git & credentials"
+                description="Configure how slateVault talks to your remote and creates pull requests on your behalf."
+              >
+                <SettingRow label="SSH key path">
+                  <input className="settings-input" value={sshKeyPath} onChange={(event) => setSshKeyPath(event.target.value)} placeholder="~/.ssh/id_ed25519" />
+                </SettingRow>
+                <SettingRow label="GitHub credentials" help="Used to create pull requests. Git SSH push uses your SSH key.">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {creds?.github_pat ? <span className="chip success">Connected</span> : <span className="chip warning">Not connected</span>}
+                    <input className="settings-input max-w-[360px]" type="password" value={githubPat} onChange={(event) => setGithubPat(event.target.value)} placeholder="ghp_..." />
+                  </div>
+                </SettingRow>
+                <SettingRow label="Azure DevOps" help="Optional. For org repos hosted on Azure.">
+                  <div className="space-y-3">
+                    <button className="btn" onClick={() => setShowAzureDevOps((value) => !value)}>
+                      {azureDevOpsConfigured ? "Edit Azure DevOps..." : "Connect..."}
+                    </button>
+                    {showAzureDevOps && (
+                      <div className="grid gap-3 lg:grid-cols-3">
+                        <input className="settings-input" type="password" value={adoPat} onChange={(event) => setAdoPat(event.target.value)} placeholder={creds?.ado_pat ? `Saved (${creds.ado_pat})` : "PAT token"} />
+                        <input className="settings-input" value={adoOrg} onChange={(event) => setAdoOrg(event.target.value)} placeholder="organization" />
+                        <input className="settings-input" value={adoProject} onChange={(event) => setAdoProject(event.target.value)} placeholder="project" />
+                      </div>
+                    )}
+                  </div>
+                </SettingRow>
+                <SettingRow label="Commit signing">
+                  <Toggle checked={false} onChange={() => {}} label="Sign commits with SSH key" disabled />
+                </SettingRow>
+                <div className="flex flex-wrap gap-2 pt-4">
+                  <button className="btn primary" disabled={saving} onClick={() => void saveConfig()}>
+                    Save Git settings
+                  </button>
+                  <button className="btn" disabled={saving} onClick={() => void handleSaveCredentials()}>
+                    Save credentials
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-neutral-500 mb-1">ADO Organization</label>
-                  <input
-                    type="text"
-                    value={adoOrg}
-                    onChange={(e) => setAdoOrg(e.target.value)}
-                    placeholder="myorg"
-                    className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
-                  />
+              </SettingsSectionShell>
+            )}
+
+            {activeSection === "appearance" && (
+              <SettingsSectionShell icon="*" title="Appearance" description="Small display preferences for the local app shell.">
+                <SettingRow label="Theme">
+                  <select className="settings-input max-w-[220px]" defaultValue="system">
+                    <option value="system">System</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                </SettingRow>
+                <SettingRow label="Density">
+                  <select className="settings-input max-w-[220px]" defaultValue="comfortable">
+                    <option value="comfortable">Comfortable</option>
+                    <option value="compact">Compact</option>
+                  </select>
+                </SettingRow>
+              </SettingsSectionShell>
+            )}
+
+            {activeSection === "keyboard" && (
+              <SettingsSectionShell icon="<>" title="Keyboard" description="Shortcuts used across the app.">
+                <ShortcutRow label="Search docs" value="Command K" />
+                <ShortcutRow label="Toggle terminal" value="Control T" />
+                <ShortcutRow label="Save current document" value="Command S" />
+              </SettingsSectionShell>
+            )}
+
+            {activeSection === "updates" && (
+              <SettingsSectionShell icon="Up" title="Updates">
+                <div className="panel flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
+                      {updateStatusLabel(updateState, updateVersion)}
+                    </h3>
+                    <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+                      slateVault {version ? `v${version}` : "version unavailable"} - {formatBundleType(bundleType)} - checked {formatLastChecked(lastCheckedAt)}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="btn" disabled={updateBusy} onClick={() => void checkForUpdates(true)}>
+                      {updateState === "checking" ? "Checking..." : "Check for updates"}
+                    </button>
+                    <button className="btn primary" disabled={updateState !== "available"} onClick={() => void installUpdate()}>
+                      Install update
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-neutral-500 mb-1">ADO Project</label>
-                  <input
-                    type="text"
-                    value={adoProject}
-                    onChange={(e) => setAdoProject(e.target.value)}
-                    placeholder="myproject"
-                    className="w-full px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-600 outline-none focus:border-blue-600"
-                  />
-                </div>
-              </div>
+                <SettingRow label="Update channel">
+                  <select className="settings-input max-w-[180px]" value={channel} disabled>
+                    <option value={channel}>{channel}</option>
+                  </select>
+                </SettingRow>
+                <SettingRow label="Install automatically">
+                  <Toggle checked={false} onChange={() => {}} label="Download and install in the background" disabled />
+                </SettingRow>
+                {updateError && <div className="rounded-lg p-4 text-sm" style={{ background: "var(--warning-soft)", border: "1px solid var(--warning)", color: "var(--warning)" }}>{updateError}</div>}
+                {updateBody && updateState === "available" && (
+                  <pre className="rounded-lg border p-4 text-xs whitespace-pre-wrap" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)", color: "var(--text-muted)" }}>{updateBody}</pre>
+                )}
+              </SettingsSectionShell>
+            )}
+
+            {activeSection === "advanced" && (
+              <SettingsSectionShell icon="Gear" title="Advanced" description="For users who want to look under the hood.">
+                <SettingRow label="Vault config file" help="The raw JSON that backs workspace-level settings.">
+                  <button className="btn" onClick={() => openVaultFile("vault.local.toml")}>Open config</button>
+                </SettingRow>
+                <SettingRow label="Project templates">
+                  <button className="btn" onClick={() => openVaultFile("templates.json")}>Open templates.json</button>
+                </SettingRow>
+                <SettingRow label="Session playbooks">
+                  <button className="btn" onClick={() => openVaultFile("playbooks.json")}>Open playbooks.json</button>
+                </SettingRow>
+                <SettingRow label="Reset onboarding">
+                  <button className="btn" onClick={() => { setShowOnboarding(true); setWorkspaceView("home"); }}>Show onboarding again</button>
+                </SettingRow>
+                <SettingRow label="Diagnostic logs">
+                  <button className="btn" disabled>Reveal in Finder</button>
+                </SettingRow>
+                <SettingRow label="Telemetry">
+                  <Toggle checked={false} onChange={() => {}} label="Share anonymous usage data" disabled />
+                </SettingRow>
+              </SettingsSectionShell>
             )}
           </div>
-          <button
-            onClick={handleSaveCredentials}
-            className="w-full px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
-          >
-            Save Credentials
-          </button>
-          <p className="text-neutral-600 text-[10px]">
-            Stored in ~/.slatevault/credentials.toml (not in your vault repo).
-          </p>
-        </div>
-      </div>
-
-      {/* Backup & Restore */}
-      <div className="p-3 border-b border-neutral-800">
-        <h3 className="text-neutral-400 font-medium mb-2 uppercase tracking-wider text-[10px]">
-          Backup &amp; Restore
-        </h3>
-        <div className="space-y-2">
-          <button
-            onClick={async () => {
-              try {
-                const { save } = await import("@tauri-apps/plugin-dialog");
-                const path = await save({
-                  defaultPath: `slatevault-backup-${new Date().toISOString().slice(0, 10)}.zip`,
-                  filters: [{ name: "ZIP", extensions: ["zip"] }],
-                });
-                if (path) {
-                  const result = await commands.backupVault(path);
-                  setOutput(result);
-                  setTimeout(() => setOutput(null), 3000);
-                }
-              } catch (e) {
-                setOutput(`Backup failed: ${e}`);
-              }
-            }}
-            className="w-full px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs"
-          >
-            Backup Vault to ZIP
-          </button>
-          <button
-            onClick={async () => {
-              try {
-                const { open, ask } = await import("@tauri-apps/plugin-dialog");
-                const zipPath = await open({
-                  filters: [{ name: "ZIP", extensions: ["zip"] }],
-                  title: "Select vault backup ZIP",
-                });
-                if (!zipPath) return;
-                const destPath = await open({
-                  directory: true,
-                  title: "Select destination folder for restore",
-                });
-                if (!destPath) return;
-                const confirmed = await ask(
-                  "This will extract the backup to the selected folder. Existing files may be overwritten. Continue?",
-                  { title: "Restore Vault", kind: "warning" }
-                );
-                if (confirmed) {
-                  const result = await commands.restoreVault(zipPath as string, destPath as string);
-                  setOutput(result);
-                }
-              } catch (e) {
-                setOutput(`Restore failed: ${e}`);
-              }
-            }}
-            className="w-full px-2 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs"
-          >
-            Restore Vault from ZIP
-          </button>
-          <p className="text-neutral-600 text-[10px]">
-            Backup includes all projects, documents, and config. Excludes search index and .git history.
-          </p>
-        </div>
-      </div>
-
-      {/* Save */}
-      <div className="p-3">
-        <button
-          onClick={handleSave}
-          className="btn primary w-full"
-        >
-          Save Settings
-        </button>
-        {output && (
-          <div className="mt-2 text-neutral-400">{output}</div>
-        )}
+        </main>
       </div>
     </div>
+  );
+}
+
+function SettingsSectionShell({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: string;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <div className="workspace-kicker mb-3">
+        <span>{icon}</span>
+        Settings
+      </div>
+      <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--text)" }}>{title}</h1>
+      {description && (
+        <p className="mt-4 max-w-4xl text-sm leading-6" style={{ color: "var(--text-muted)" }}>{description}</p>
+      )}
+      <div className="mt-8 space-y-0 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function SettingRow({
+  label,
+  help,
+  children,
+}: {
+  label: string;
+  help?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-4 border-b py-5 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start" style={{ borderColor: "var(--border-subtle)" }}>
+      <div>
+        <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>{label}</div>
+        {help && <div className="mt-1 max-w-[260px] text-sm leading-5" style={{ color: "var(--text-muted)" }}>{help}</div>}
+      </div>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange,
+  label,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className="flex items-center gap-3 text-left disabled:opacity-50"
+      style={{ color: "var(--text)" }}
+    >
+      <span
+        className="relative h-6 w-11 rounded-full transition-colors"
+        style={{ background: checked ? "var(--success)" : "var(--text-faint)" }}
+      >
+        <span
+          className="absolute top-1 h-4 w-4 rounded-full bg-white transition-all"
+          style={{ left: checked ? 23 : 4 }}
+        />
+      </span>
+      <span className="text-sm">{label}</span>
+    </button>
+  );
+}
+
+function ShortcutRow({ label, value }: { label: string; value: string }) {
+  return (
+    <SettingRow label={label}>
+      <kbd className="rounded-md border px-3 py-1.5 text-sm" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)", color: "var(--text)" }}>{value}</kbd>
+    </SettingRow>
   );
 }

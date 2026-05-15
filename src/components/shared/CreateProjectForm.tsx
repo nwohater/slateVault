@@ -267,11 +267,11 @@ export function CreateProjectForm({
         </div>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex items-center gap-3">
         {onBack && (
           <button
             onClick={onBack}
-            className="rounded-xl border border-neutral-700 px-4 py-2.5 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+            className="btn h-11 px-5"
           >
             Back
           </button>
@@ -279,14 +279,14 @@ export function CreateProjectForm({
         <button
           onClick={() => void handleSubmit()}
           disabled={loading || !name.trim() || !selectedTemplate}
-          className="btn primary"
+          className="btn primary h-11 px-5"
         >
           {loading ? "Creating…" : "Create project"}
         </button>
         {onCancel && (
           <button
             onClick={onCancel}
-            className="rounded-xl border border-neutral-700 px-4 py-2.5 text-sm text-neutral-300 transition-colors hover:bg-neutral-800"
+            className="btn h-11 px-5"
           >
             Cancel
           </button>

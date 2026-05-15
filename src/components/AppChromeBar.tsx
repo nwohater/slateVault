@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { WorkspaceView } from "@/stores/uiStore";
 
 type AppChromeBarProps = {
@@ -29,19 +30,34 @@ const NAV: { id: WorkspaceView; label: string }[] = [
 ];
 
 function WinControls() {
+  const appWindow = getCurrentWindow();
+
   return (
     <div className="win-ctrls">
-      <button title="Minimize">
+      <button
+        onClick={() => void appWindow.minimize()}
+        title="Minimize"
+        aria-label="Minimize window"
+      >
         <svg width="10" height="10" viewBox="0 0 10 10">
           <path d="M0 5h10" stroke="currentColor" strokeWidth="1" />
         </svg>
       </button>
-      <button title="Maximize">
+      <button
+        onClick={() => void appWindow.toggleMaximize()}
+        title="Maximize"
+        aria-label="Maximize window"
+      >
         <svg width="10" height="10" viewBox="0 0 10 10">
           <rect x="0.5" y="0.5" width="9" height="9" stroke="currentColor" strokeWidth="1" fill="none" />
         </svg>
       </button>
-      <button className="close" title="Close">
+      <button
+        className="close"
+        onClick={() => void appWindow.close()}
+        title="Close"
+        aria-label="Close window"
+      >
         <svg width="10" height="10" viewBox="0 0 10 10">
           <path d="M0 0l10 10M10 0L0 10" stroke="currentColor" strokeWidth="1" />
         </svg>
@@ -175,12 +191,10 @@ export function AppChromeBar({
         <button
           className="search-pill"
           onClick={onToggleSearch}
-          title="Search vault (Ctrl+Shift+F)"
-          style={{ background: "transparent", border: "none" }}
+          title="Search"
         >
           <SearchIcon />
-          <span>Search vault…</span>
-          <span className="kbd">⌘K</span>
+          <span>Search</span>
         </button>
 
 

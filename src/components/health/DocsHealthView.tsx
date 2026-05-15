@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import * as commands from "@/lib/commands";
 import { useEditorStore } from "@/stores/editorStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useVaultStore } from "@/stores/vaultStore";
-import type { DocumentInfo, RecentChange } from "@/types";
+import type { DocumentInfo } from "@/types";
 
 type ProjectHealth = {
   name: string;
@@ -18,17 +18,19 @@ type ProjectHealth = {
   staleCount: number;
 };
 
-type StaleDoc = {
+type VaultDoc = DocumentInfo & {
+  project: string;
+  ageDays: number;
+};
+
+type GapDoc = {
   project: string;
   path: string;
   title: string;
-  modified: string;
-  ageDays: number;
-  canonical: boolean;
-  status: string;
 };
 
 const STALE_DAYS = 45;
+const PROJECT_COLORS = ["#c84a2f", "#2f7394", "#4f7f39", "#a36f10", "#7a56a4", "#5c6f82"];
 
 function formatRelativeDays(ageDays: number) {
   if (ageDays <= 0) return "today";
@@ -43,53 +45,66 @@ function getAgeDays(dateString: string) {
   return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
 }
 
+function includesAnchorPath(docs: DocumentInfo[], path: string) {
+  return docs.some((doc) => doc.path === path || doc.path.endsWith(`/${path}`));
+}
+
+function statusRatio(count: number, total: number) {
+  if (total === 0) return 0;
+  return Math.max(8, Math.round((count / total) * 100));
+}
+
 export function DocsHealthView() {
   const projects = useVaultStore((s) => s.projects);
+  const expandProject = useVaultStore((s) => s.expandProject);
   const openDocument = useEditorStore((s) => s.openDocument);
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const setWorkspaceView = useUIStore((s) => s.setWorkspaceView);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [projectDocs, setProjectDocs] = useState<Record<string, DocumentInfo[]>>({});
-  const [recentChanges, setRecentChanges] = useState<RecentChange[]>([]);
+  const [reviewedKeys, setReviewedKeys] = useState<Set<string>>(new Set());
+  const [creatingGap, setCreatingGap] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
+  const loadHealth = useCallback(async (activeRef?: { active: boolean }) => {
+    setLoading(true);
+    try {
+      const docsByProject = await Promise.all(
+        projects.map(async (project) => {
+          const docs = await commands.listDocuments(project.name);
+          return [project.name, docs] as const;
+        })
+      );
 
-    const load = async () => {
-      setLoading(true);
-      try {
-        const [docsByProject, changes] = await Promise.all([
-          Promise.all(
-            projects.map(async (project) => {
-              const docs = await commands.listDocuments(project.name);
-              return [project.name, docs] as const;
-            })
-          ),
-          commands.getRecentChanges(20),
-        ]);
+      if (activeRef && !activeRef.active) return;
 
-        if (!active) return;
-
-        setProjectDocs(Object.fromEntries(docsByProject));
-        setRecentChanges(changes);
-        setError(null);
-      } catch (err) {
-        if (!active) return;
-        setError(`Could not load docs health: ${err}`);
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-
-    void load();
-    return () => {
-      active = false;
-    };
+      setProjectDocs(Object.fromEntries(docsByProject));
+      setError(null);
+    } catch (err) {
+      if (activeRef && !activeRef.active) return;
+      setError(`Could not load docs health: ${err}`);
+    } finally {
+      if (!activeRef || activeRef.active) setLoading(false);
+    }
   }, [projects]);
 
-  const allDocs = useMemo(
-    () => Object.entries(projectDocs).flatMap(([project, docs]) => docs.map((doc) => ({ project, ...doc }))),
+  useEffect(() => {
+    const activeRef = { active: true };
+    void loadHealth(activeRef);
+    return () => {
+      activeRef.active = false;
+    };
+  }, [loadHealth]);
+
+  const allDocs = useMemo<VaultDoc[]>(
+    () =>
+      Object.entries(projectDocs).flatMap(([project, docs]) =>
+        docs.map((doc) => ({
+          project,
+          ...doc,
+          ageDays: getAgeDays(doc.modified),
+        }))
+      ),
     [projectDocs]
   );
 
@@ -108,305 +123,386 @@ export function DocsHealthView() {
           staleCount: docs.filter((doc) => getAgeDays(doc.modified) >= STALE_DAYS).length,
         };
       })
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => {
+        const aRisk = (a.canonicalCount === 0 ? 100 : 0) + a.staleCount;
+        const bRisk = (b.canonicalCount === 0 ? 100 : 0) + b.staleCount;
+        if (aRisk !== bRisk) return bRisk - aRisk;
+        return a.name.localeCompare(b.name);
+      });
   }, [projectDocs, projects]);
 
-  const staleDocs = useMemo<StaleDoc[]>(() => {
+  const staleDocs = useMemo(() => {
     return allDocs
-      .map((doc) => ({
-        project: doc.project,
-        path: doc.path,
-        title: doc.title,
-        modified: doc.modified,
-        ageDays: getAgeDays(doc.modified),
-        canonical: doc.canonical,
-        status: doc.status,
-      }))
-      .filter((doc) => doc.ageDays >= STALE_DAYS)
+      .filter((doc) => doc.ageDays >= STALE_DAYS && !reviewedKeys.has(`${doc.project}/${doc.path}`))
       .sort((a, b) => b.ageDays - a.ageDays)
       .slice(0, 12);
-  }, [allDocs]);
+  }, [allDocs, reviewedKeys]);
 
   const summary = useMemo(() => {
     const totalDocs = allDocs.length;
+    const totalProjects = projects.length;
+    const projectsWithCanonical = projectHealth.filter((project) => project.canonicalCount > 0).length;
+    const healthyProjects = projectHealth.filter((project) => project.canonicalCount > 0 && project.staleCount === 0).length;
+    const atRiskProjects = projectHealth.filter((project) => project.docCount === 0 || project.canonicalCount === 0 || project.staleCount > 0);
     const canonicalDocs = allDocs.filter((doc) => doc.canonical).length;
     const protectedDocs = allDocs.filter((doc) => doc.protected).length;
     const draftDocs = allDocs.filter((doc) => doc.status === "draft").length;
     const reviewDocs = allDocs.filter((doc) => doc.status === "review").length;
     const finalDocs = allDocs.filter((doc) => doc.status === "final").length;
-    const staleCount = staleDocs.length;
 
     return {
       totalDocs,
+      totalProjects,
+      projectsWithCanonical,
+      healthyProjects,
+      atRiskProjects,
+      atRiskCount: atRiskProjects.length,
       canonicalDocs,
       protectedDocs,
       draftDocs,
       reviewDocs,
       finalDocs,
-      staleCount,
+      staleCount: staleDocs.length,
       canonicalCoverage:
-        totalDocs === 0 ? 0 : Math.round((canonicalDocs / totalDocs) * 100),
+        totalProjects === 0 ? 0 : Math.round((projectsWithCanonical / totalProjects) * 100),
     };
-  }, [allDocs, staleDocs]);
+  }, [allDocs, projectHealth, projects.length, staleDocs.length]);
 
-  const atRiskProjects = useMemo(() => {
-    return projectHealth
-      .filter((project) => project.docCount === 0 || project.canonicalCount === 0 || project.staleCount > 0)
-      .slice(0, 6);
-  }, [projectHealth]);
+  const primaryRisk = summary.atRiskProjects[0] ?? null;
+
+  const canonicalGaps = useMemo<GapDoc[]>(() => {
+    const gaps: GapDoc[] = [];
+    for (const project of projectHealth) {
+      const docs = projectDocs[project.name] ?? [];
+      if (!includesAnchorPath(docs, "system-overview.md")) {
+        gaps.push({
+          project: project.name,
+          path: "system-overview.md",
+          title: "System Overview",
+        });
+      }
+      if (!includesAnchorPath(docs, "release-process.md")) {
+        gaps.push({
+          project: project.name,
+          path: "release-process.md",
+          title: "Release Process",
+        });
+      }
+    }
+    return gaps.slice(0, 5);
+  }, [projectDocs, projectHealth]);
+
+  const statusBars = [
+    { label: "draft", value: summary.draftDocs, color: "var(--text-muted)" },
+    { label: "review", value: summary.reviewDocs, color: "var(--info)" },
+    { label: "final", value: summary.finalDocs, color: "var(--success)" },
+    { label: "canonical", value: summary.canonicalDocs, color: "var(--danger)" },
+    { label: "protected", value: summary.protectedDocs, color: "var(--text-faint)" },
+  ];
 
   const handleOpen = (project: string, path: string) => {
+    expandProject(project);
     setShowOnboarding(false);
     setWorkspaceView("documents");
     void openDocument(project, path);
   };
 
+  const handleMarkReviewed = (doc: VaultDoc) => {
+    setReviewedKeys((current) => new Set([...current, `${doc.project}/${doc.path}`]));
+  };
+
+  const handleCreateGap = async (gap: GapDoc) => {
+    const key = `${gap.project}/${gap.path}`;
+    setCreatingGap(key);
+    try {
+      await commands.writeDocument(
+        gap.project,
+        gap.path,
+        gap.title,
+        `# ${gap.title}\n\n## Purpose\n\nDescribe the trusted project context agents and teammates should know before making changes.\n\n## Current State\n\n- \n\n## Maintenance Notes\n\n- Owner:\n- Review cadence:\n`,
+        ["canonical", "anchor"],
+        "slatevault",
+        true,
+        false,
+        "draft"
+      );
+      await loadHealth();
+      handleOpen(gap.project, gap.path);
+    } catch (err) {
+      setError(`Could not create ${gap.path}: ${err}`);
+    } finally {
+      setCreatingGap(null);
+    }
+  };
+
   return (
     <div className="workspace-page h-full min-w-0 flex-1 overflow-y-auto px-6 py-6">
-      <div className="flex w-full flex-col gap-6">
-        <section className="workspace-hero rounded-3xl p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-2xl">
-              <div className="workspace-kicker mb-3">
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--accent)" }} />
-                Keep project memory trustworthy
-              </div>
-              <h1 className="workspace-label text-3xl font-semibold tracking-tight" style={{ color: "var(--text)" }}>
-                Docs Health
-              </h1>
-              <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
-                Review where documentation is aging, missing canonical anchors, or
-                piling up in draft so the vault stays useful for both people and agents.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 lg:min-w-[320px]">
-              <div className="workspace-stat rounded-2xl px-4 py-3">
-                <div className="workspace-stat-label">
-                  Canonical coverage
-                </div>
-                <div className="mt-1 text-xl font-semibold text-neutral-100">
-                  {summary.canonicalCoverage}%
-                </div>
-              </div>
-              <div className="workspace-stat rounded-2xl px-4 py-3">
-                <div className="workspace-stat-label">
-                  Stale docs
-                </div>
-                <div className="mt-1 text-xl font-semibold text-neutral-100">
-                  {summary.staleCount}
-                </div>
-              </div>
-            </div>
+      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6">
+        <section className="px-1 py-2">
+          <div className="workspace-kicker mb-3">
+            <span className="text-base">~</span>
+            Docs Health
           </div>
+          <h1 className="max-w-4xl text-3xl font-semibold tracking-tight" style={{ color: "var(--text)" }}>
+            Project memory looks {summary.atRiskCount > 0 ? "mostly trustworthy." : "trustworthy."}
+          </h1>
+          <p className="mt-4 max-w-4xl text-sm leading-6" style={{ color: "var(--text-muted)" }}>
+            {loading
+              ? "Checking project coverage, stale docs, and canonical anchors across the vault."
+              : `${summary.healthyProjects} projects are healthy; ${primaryRisk ? `${primaryRisk.name} has ${primaryRisk.staleCount} stale docs${primaryRisk.canonicalCount === 0 ? " and is missing a canonical anchor" : ""}.` : "no project-level risks are currently standing out."} Agents start with better ground truth when these anchors stay fresh.`}
+          </p>
         </section>
 
         {error && (
-          <div className="rounded-2xl px-4 py-3 text-sm" style={{ background: "var(--danger-soft)", border: "1px solid var(--danger)", color: "var(--danger)" }}>
+          <div className="rounded-lg px-4 py-3 text-sm" style={{ background: "var(--danger-soft)", border: "1px solid var(--danger)", color: "var(--danger)" }}>
             {error}
           </div>
         )}
 
-        <section className="grid gap-4 md:grid-cols-4">
-          <div className="workspace-stat rounded-2xl p-4">
-            <div className="workspace-stat-label">Documents</div>
-            <div className="mt-2 text-2xl font-semibold text-neutral-100">{summary.totalDocs}</div>
-            <div className="mt-1 text-[11px] text-neutral-500">Across all projects</div>
-          </div>
-          <div className="workspace-stat rounded-2xl p-4">
-            <div className="workspace-stat-label">Canonical docs</div>
-            <div className="mt-2 text-2xl font-semibold text-neutral-100">{summary.canonicalDocs}</div>
-            <div className="mt-1 text-[11px] text-neutral-500">Trusted starting points</div>
-          </div>
-          <div className="workspace-stat rounded-2xl p-4">
-            <div className="workspace-stat-label">Protected docs</div>
-            <div className="mt-2 text-2xl font-semibold text-neutral-100">{summary.protectedDocs}</div>
-            <div className="mt-1 text-[11px] text-neutral-500">Should prefer proposal flow</div>
-          </div>
-          <div className="workspace-stat rounded-2xl p-4">
-            <div className="workspace-stat-label">Draft / Review</div>
-            <div className="mt-2 text-2xl font-semibold text-neutral-100">
-              {summary.draftDocs + summary.reviewDocs}
-            </div>
-            <div className="mt-1 text-[11px] text-neutral-500">
-              {summary.draftDocs} draft, {summary.reviewDocs} review
-            </div>
-          </div>
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <HealthStatCard
+            label="Canonical coverage"
+            value={`${summary.canonicalCoverage}%`}
+            detail={`${summary.canonicalDocs} anchors across ${summary.totalProjects} projects`}
+            accent="var(--success)"
+          />
+          <HealthStatCard
+            label="Stale docs"
+            value={summary.staleCount}
+            detail={`not edited in ${STALE_DAYS}+ days`}
+            accent="var(--warning)"
+          />
+          <HealthStatCard
+            label="Total documents"
+            value={summary.totalDocs}
+            detail={`across ${summary.totalProjects} projects`}
+            accent="var(--info)"
+          />
+          <HealthStatCard
+            label="Projects at risk"
+            value={summary.atRiskCount}
+            detail={primaryRisk?.name || "none"}
+            accent="var(--danger)"
+          />
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="workspace-section rounded-3xl p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-neutral-100">Project health</h2>
-                <p className="mt-1 text-xs text-neutral-500">
-                  Spot thin coverage, stale docs, and projects missing canonical anchors.
-                </p>
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="min-w-0">
+            <h2 className="workspace-label mb-3 text-base font-semibold" style={{ color: "var(--text-muted)" }}>
+              Per-project health
+            </h2>
+            <div className="panel overflow-hidden">
+              <div className="grid grid-cols-[minmax(190px,1.4fr)_90px_120px_90px_minmax(150px,1fr)_76px] gap-4 border-b px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
+                <div>Project</div>
+                <div>Docs</div>
+                <div>Canonical</div>
+                <div>Stale</div>
+                <div>Status mix</div>
+                <div />
               </div>
-            </div>
-
-            {loading ? (
-              <div className="py-10 text-sm text-neutral-500">Loading project health...</div>
-            ) : (
-              <div className="mt-5 space-y-3">
-                {projectHealth.map((project) => (
+              {loading ? (
+                <div className="px-4 py-8 text-sm" style={{ color: "var(--text-muted)" }}>Loading project health...</div>
+              ) : projectHealth.length === 0 ? (
+                <div className="px-4 py-8 text-sm" style={{ color: "var(--text-muted)" }}>No projects found.</div>
+              ) : (
+                projectHealth.map((project, index) => (
                   <div
                     key={project.name}
-                    className="workspace-subsection rounded-2xl p-4"
+                    className="grid grid-cols-[minmax(190px,1.4fr)_90px_120px_90px_minmax(150px,1fr)_76px] items-center gap-4 border-b px-4 py-4 text-sm last:border-b-0"
+                    style={{ borderColor: "var(--border-subtle)" }}
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="text-sm font-medium text-neutral-200">{project.name}</div>
-                        <div className="mt-1 text-[11px] text-neutral-500">
-                          {project.docCount} docs, {project.canonicalCount} canonical, {project.protectedCount} protected
-                        </div>
-                      </div>
-                      <div className="text-right text-[11px] text-neutral-500">
-                        {project.staleCount > 0 ? `${project.staleCount} stale` : "Up to date"}
-                      </div>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: PROJECT_COLORS[index % PROJECT_COLORS.length] }} />
+                      <span className="truncate font-semibold" style={{ color: "var(--text)" }}>{project.name}</span>
+                      {(project.canonicalCount === 0 || project.staleCount > 0) && (
+                        <span className="chip warning shrink-0">at risk</span>
+                      )}
                     </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                      <div className="workspace-action rounded-xl px-3 py-2 text-[11px] text-neutral-400">
-                        Draft: <span className="text-neutral-200">{project.draftCount}</span>
-                      </div>
-                      <div className="workspace-action rounded-xl px-3 py-2 text-[11px] text-neutral-400">
-                        Review: <span className="text-neutral-200">{project.reviewCount}</span>
-                      </div>
-                      <div className="workspace-action rounded-xl px-3 py-2 text-[11px] text-neutral-400">
-                        Final: <span className="text-neutral-200">{project.finalCount}</span>
-                      </div>
+                    <div style={{ color: "var(--text-muted)" }}>{project.docCount}</div>
+                    <div style={{ color: project.canonicalCount === 0 ? "var(--danger)" : "var(--text)" }}>{project.canonicalCount}</div>
+                    <div style={{ color: project.staleCount > 0 ? "var(--warning)" : "var(--text-muted)" }}>
+                      {project.staleCount > 0 ? project.staleCount : "-"}
                     </div>
+                    <StatusMix project={project} />
+                    <button
+                      onClick={() => {
+                        expandProject(project.name);
+                        setShowOnboarding(false);
+                        setWorkspaceView("documents");
+                      }}
+                      className="btn justify-center"
+                    >
+                      Open
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <aside className="space-y-5">
+            <section className="panel p-5">
+              <h2 className="workspace-label text-sm font-semibold" style={{ color: "var(--text-muted)" }}>
+                Status across vault
+              </h2>
+              <div className="mt-5 flex h-32 items-end gap-3">
+                {statusBars.map((bar) => (
+                  <div key={bar.label} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                    <div className="text-sm font-semibold tabular-nums" style={{ color: "var(--text)" }}>{bar.value}</div>
+                    <div
+                      className="w-full rounded-t"
+                      style={{
+                        height: `${Math.max(12, statusRatio(bar.value, summary.totalDocs))}%`,
+                        background: bar.color,
+                      }}
+                    />
+                    <div className="truncate text-[11px]" style={{ color: "var(--text-muted)" }}>{bar.label}</div>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            </section>
 
-          <div className="space-y-6">
-            <div className="workspace-section rounded-3xl p-5">
-              <h2 className="text-lg font-semibold text-neutral-100">Needs attention</h2>
-              <div className="mt-4 space-y-3">
-                {atRiskProjects.length === 0 ? (
-                  <div className="workspace-empty rounded-2xl p-4 text-[11px] text-neutral-500">
-                    No obvious project-level gaps right now.
+            <section className="panel p-5">
+              <h2 className="workspace-label text-sm font-semibold" style={{ color: "var(--text-muted)" }}>
+                Canonical gaps
+              </h2>
+              <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
+                Anchors agents rely on but cannot find.
+              </p>
+              <div className="mt-4 space-y-2">
+                {canonicalGaps.length === 0 ? (
+                  <div className="rounded-lg px-3 py-3 text-sm" style={{ background: "var(--bg-elevated)", color: "var(--text-muted)" }}>
+                    No obvious canonical gaps detected.
                   </div>
                 ) : (
-                  atRiskProjects.map((project) => (
-                    <div
-                      key={project.name}
-                      className="workspace-subsection rounded-2xl p-4"
-                    >
-                      <div className="text-sm font-medium text-neutral-200">{project.name}</div>
-                      <div className="mt-2 text-[11px] leading-5 text-neutral-500">
-                        {project.docCount === 0
-                          ? "No docs yet."
-                          : project.canonicalCount === 0
-                            ? "No canonical docs yet."
-                            : `${project.staleCount} docs may need review.`}
+                  canonicalGaps.map((gap) => {
+                    const key = `${gap.project}/${gap.path}`;
+                    return (
+                      <div key={key} className="flex items-center gap-3 rounded-lg px-3 py-3" style={{ background: "var(--bg-elevated)" }}>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-mono text-sm" style={{ color: "var(--text)" }}>{gap.path}</div>
+                          <div className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{gap.project}</div>
+                        </div>
+                        <button
+                          onClick={() => void handleCreateGap(gap)}
+                          disabled={creatingGap === key}
+                          className="btn"
+                        >
+                          {creatingGap === key ? "Creating..." : "+ Create"}
+                        </button>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
-            </div>
+            </section>
 
-            <div className="workspace-section rounded-3xl p-5">
-              <h2 className="text-lg font-semibold text-neutral-100">Status mix</h2>
-              <div className="mt-4 space-y-3 text-[12px] text-neutral-400">
-                <div className="workspace-subsection rounded-2xl px-4 py-3">
-                  Draft docs: <span className="text-neutral-200">{summary.draftDocs}</span>
-                </div>
-                <div className="workspace-subsection rounded-2xl px-4 py-3">
-                  Review docs: <span className="text-neutral-200">{summary.reviewDocs}</span>
-                </div>
-                <div className="workspace-subsection rounded-2xl px-4 py-3">
-                  Final docs: <span className="text-neutral-200">{summary.finalDocs}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+            {primaryRisk && (
+              <section className="rounded-lg border p-5" style={{ borderColor: "color-mix(in srgb, var(--danger) 40%, var(--border))", background: "var(--danger-soft)" }}>
+                <h2 className="workspace-label text-sm font-semibold" style={{ color: "var(--danger)" }}>
+                  Suggestion
+                </h2>
+                <p className="mt-3 text-sm leading-6" style={{ color: "var(--text)" }}>
+                  Spend a short pass refreshing <strong>{primaryRisk.name}</strong>. Adding or updating its canonical anchor would improve generated briefs and make agent handoff safer.
+                </p>
+              </section>
+            )}
+          </aside>
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-2">
-          <div className="workspace-section rounded-3xl p-5">
-            <h2 className="text-lg font-semibold text-neutral-100">Stale documents</h2>
-            <p className="mt-1 text-xs text-neutral-500">
-              Documents untouched for at least {STALE_DAYS} days.
-            </p>
-
-            <div className="mt-5 space-y-3">
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="min-w-0">
+            <h2 className="workspace-label mb-3 text-base font-semibold" style={{ color: "var(--text-muted)" }}>
+              Docs needing attention
+            </h2>
+            <div className="panel overflow-hidden">
               {staleDocs.length === 0 ? (
-                <div className="workspace-empty rounded-2xl p-4 text-[11px] text-neutral-500">
-                  No stale docs right now.
-                </div>
+                <div className="px-5 py-8 text-sm" style={{ color: "var(--text-muted)" }}>No stale docs need attention right now.</div>
               ) : (
-                staleDocs.map((doc) => (
-                  <button
+                staleDocs.map((doc, index) => (
+                  <div
                     key={`${doc.project}/${doc.path}`}
-                    onClick={() => handleOpen(doc.project, doc.path)}
-                    className="workspace-action w-full rounded-2xl p-4 text-left transition-colors"
+                    className="flex items-center gap-4 px-5 py-4"
+                    style={{ borderTop: index === 0 ? "none" : "1px solid var(--border-subtle)" }}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-neutral-200">{doc.title}</div>
-                        <div className="mt-1 text-[11px] text-neutral-500">
-                          {doc.project}/{doc.path}
-                        </div>
+                    <span className="h-12 w-1 shrink-0 rounded-full" style={{ background: "var(--warning)" }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate font-mono text-sm font-semibold" style={{ color: "var(--text)" }}>{doc.path}</span>
+                        <span className="chip">{doc.project}</span>
+                        {doc.canonical && <span className="chip warning">canonical</span>}
+                        {doc.protected && <span className="chip danger">protected</span>}
                       </div>
-                      <div className="text-[11px] text-neutral-500">{formatRelativeDays(doc.ageDays)}</div>
+                      <div className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+                        <span style={{ color: "var(--warning)" }}>{formatRelativeDays(doc.ageDays)}</span>
+                        <span> - last touched by {doc.author}</span>
+                      </div>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-neutral-400">
-                      <span className="rounded-full border border-neutral-700 px-2 py-0.5">{doc.status}</span>
-                      {doc.canonical && (
-                        <span
-                          className="rounded-full px-2 py-0.5"
-                          style={{ border: "1px solid var(--warning)", color: "var(--warning)", background: "var(--warning-soft)" }}
-                        >
-                          canonical
-                        </span>
-                      )}
+                    <div className="flex shrink-0 gap-2">
+                      <button onClick={() => handleOpen(doc.project, doc.path)} className="btn">
+                        Open
+                      </button>
+                      <button onClick={() => handleMarkReviewed(doc)} className="btn">
+                        Mark reviewed
+                      </button>
                     </div>
-                  </button>
+                  </div>
                 ))
               )}
             </div>
           </div>
 
-          <div className="workspace-section rounded-3xl p-5">
-            <h2 className="text-lg font-semibold text-neutral-100">Recent changes</h2>
-            <p className="mt-1 text-xs text-neutral-500">
-              Useful for deciding which docs might need canonical review next.
-            </p>
-
-            <div className="mt-5 space-y-3">
-              {recentChanges.length === 0 ? (
-                <div className="workspace-empty rounded-2xl p-4 text-[11px] text-neutral-500">
-                  No recent doc changes found.
-                </div>
-              ) : (
-                recentChanges.slice(0, 12).map((change) => (
-                  <button
-                    key={`${change.project}/${change.path}/${change.modified}`}
-                    onClick={() => handleOpen(change.project, change.path)}
-                    className="workspace-action w-full rounded-2xl p-4 text-left transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-neutral-200">{change.title}</div>
-                        <div className="mt-1 text-[11px] text-neutral-500">
-                          {change.project}/{change.path}
-                        </div>
-                      </div>
-                      <div className="text-[11px] text-neutral-500">
-                        {formatRelativeDays(getAgeDays(change.modified))}
-                      </div>
-                    </div>
-                    <div className="mt-2 text-[11px] text-neutral-500">Last touched by {change.author}</div>
-                  </button>
-                ))
-              )}
+          <div className="panel h-fit p-5">
+            <h2 className="workspace-label text-sm font-semibold" style={{ color: "var(--text-muted)" }}>
+              Review rhythm
+            </h2>
+            <div className="mt-4 space-y-3 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
+              <p>Open stale docs before starting agent work in affected projects.</p>
+              <p>Canonical docs should be refreshed first because session briefs treat them as source-of-truth material.</p>
+              <p>Mark reviewed hides a stale item for this session so you can work down the list without losing flow.</p>
             </div>
           </div>
         </section>
+      </div>
+    </div>
+  );
+}
+
+function HealthStatCard({
+  label,
+  value,
+  detail,
+  accent,
+}: {
+  label: string;
+  value: string | number;
+  detail: string;
+  accent: string;
+}) {
+  return (
+    <div className="panel relative overflow-hidden p-5">
+      <div
+        className="absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-15"
+        style={{ background: accent }}
+      />
+      <div className="workspace-label text-sm font-semibold" style={{ color: "var(--text-muted)" }}>{label}</div>
+      <div className="mt-2 text-3xl font-semibold tabular-nums" style={{ color: accent }}>{value}</div>
+      <div className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>{detail}</div>
+    </div>
+  );
+}
+
+function StatusMix({ project }: { project: ProjectHealth }) {
+  const total = Math.max(1, project.docCount);
+  return (
+    <div>
+      <div className="flex h-2 overflow-hidden rounded-full" style={{ background: "var(--bg-elevated)" }}>
+        <span style={{ width: `${(project.finalCount / total) * 100}%`, background: "var(--success)" }} />
+        <span style={{ width: `${(project.reviewCount / total) * 100}%`, background: "var(--info)" }} />
+        <span style={{ width: `${(project.draftCount / total) * 100}%`, background: "var(--text-muted)" }} />
+      </div>
+      <div className="mt-1 text-xs" style={{ color: "var(--text-faint)" }}>
+        {project.finalCount}f - {project.reviewCount}r - {project.draftCount}d
       </div>
     </div>
   );
