@@ -520,13 +520,7 @@ export function FileTree() {
                 </div>
                 {project.name in sourceFolders && (
                   <span
-                    className="mr-2 h-2.5 w-2.5 flex-shrink-0 rounded-full shadow-sm"
-                    style={{
-                      background: sourceFolders[project.name] ? "#22c55e" : "#ef4444",
-                      boxShadow: sourceFolders[project.name]
-                        ? "0 0 0 2px color-mix(in srgb, #22c55e 24%, transparent)"
-                        : "0 0 0 2px color-mix(in srgb, #ef4444 24%, transparent)",
-                    }}
+                    className={`source-folder-dot ${sourceFolders[project.name] ? "ready" : "missing"}`}
                     title={
                       sourceFolders[project.name]
                         ? `Source: ${sourceFolders[project.name]}`

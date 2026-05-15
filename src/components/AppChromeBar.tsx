@@ -10,6 +10,7 @@ type AppChromeBarProps = {
   showEditor: boolean;
   showPreview: boolean;
   showTerminal: boolean;
+  sidebarCollapsed: boolean;
   isDirty: boolean;
   isDocumentsWorkspace: boolean;
   onWorkspaceChange: (view: WorkspaceView) => void;
@@ -17,6 +18,7 @@ type AppChromeBarProps = {
   onToggleEditor: () => void;
   onTogglePreview: () => void;
   onToggleTerminal: () => void;
+  onToggleSidebar: () => void;
   onSaveDocument: () => void;
 };
 
@@ -82,6 +84,20 @@ function TerminalIcon() {
   );
 }
 
+function SidebarIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+      <rect x="3.75" y="5" width="16.5" height="14" rx="2" />
+      <path strokeLinecap="round" d="M9 5v14" />
+      {collapsed ? (
+        <path strokeLinecap="round" strokeLinejoin="round" d="m14 9 3 3-3 3" />
+      ) : (
+        <path strokeLinecap="round" strokeLinejoin="round" d="m17 9-3 3 3 3" />
+      )}
+    </svg>
+  );
+}
+
 function EditorIcon() {
   return (
     <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
@@ -131,6 +147,7 @@ export function AppChromeBar({
   showEditor,
   showPreview,
   showTerminal,
+  sidebarCollapsed,
   isDirty,
   isDocumentsWorkspace,
   onWorkspaceChange,
@@ -138,6 +155,7 @@ export function AppChromeBar({
   onToggleEditor,
   onTogglePreview,
   onToggleTerminal,
+  onToggleSidebar,
   onSaveDocument,
 }: AppChromeBarProps) {
   const isMac =
@@ -167,7 +185,7 @@ export function AppChromeBar({
 
       {/* Vault identity */}
       <div className="vault-id">
-        <div className="brand-mark" />
+        <img className="brand-mark" src="/icon.png" alt="" aria-hidden="true" />
         <span>{vaultName || "slateVault"}</span>
       </div>
 
@@ -204,6 +222,15 @@ export function AppChromeBar({
           title="Toggle terminal (Ctrl+T)"
         >
           <TerminalIcon />
+        </button>
+
+        <button
+          className={`icon-btn${sidebarCollapsed ? " on" : ""}`}
+          onClick={onToggleSidebar}
+          title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+          aria-pressed={sidebarCollapsed}
+        >
+          <SidebarIcon collapsed={sidebarCollapsed} />
         </button>
 
         <button

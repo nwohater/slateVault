@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useEditorStore } from "@/stores/editorStore";
@@ -44,6 +44,7 @@ export function AppShell() {
   const projects = useVaultStore((s) => s.projects);
   const isDirty = useEditorStore((s) => s.isDirty);
   const saveDocument = useEditorStore((s) => s.saveDocument);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Restore saved theme preference (defaults to warm paper light if none set)
   useEffect(() => {
@@ -53,6 +54,10 @@ export function AppShell() {
     } else {
       document.documentElement.removeAttribute("data-theme");
     }
+  }, []);
+
+  useEffect(() => {
+    setSidebarCollapsed(localStorage.getItem("sv-sidebar-collapsed") === "true");
   }, []);
 
   // Keyboard shortcuts
@@ -93,6 +98,13 @@ export function AppShell() {
     setShowOnboarding(false);
     setWorkspaceView(view);
   };
+  const toggleSidebar = () => {
+    setSidebarCollapsed((collapsed) => {
+      const next = !collapsed;
+      localStorage.setItem("sv-sidebar-collapsed", String(next));
+      return next;
+    });
+  };
 
   return (
     <div className="app-shell">
@@ -102,6 +114,7 @@ export function AppShell() {
         showEditor={showEditor}
         showPreview={showPreview}
         showTerminal={showTerminal}
+        sidebarCollapsed={sidebarCollapsed}
         isDirty={isDirty}
         isDocumentsWorkspace={isDocumentsWorkspace && activeView === "editor"}
         onWorkspaceChange={openWorkspaceView}
@@ -109,13 +122,14 @@ export function AppShell() {
         onToggleEditor={toggleEditor}
         onTogglePreview={togglePreview}
         onToggleTerminal={toggleTerminal}
+        onToggleSidebar={toggleSidebar}
         onSaveDocument={saveDocument}
       />
 
       <div className="app-body">
         {/* Sidebar — rail + optional panel, self-sizing */}
-        <div className="flex-shrink-0">
-          <Sidebar />
+        <div className="app-sidebar-wrap">
+          <Sidebar railCollapsed={sidebarCollapsed} />
         </div>
 
 

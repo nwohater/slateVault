@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useVaultStore } from "@/stores/vaultStore";
 import * as commands from "@/lib/commands";
@@ -34,6 +34,15 @@ function addRecentVault(path: string, name: string) {
 function removeRecentVault(path: string) {
   const recent = getRecentVaults().filter((v) => v.path !== path);
   localStorage.setItem(RECENT_VAULTS_KEY, JSON.stringify(recent));
+}
+
+function VaultMark() {
+  return (
+    <div className="vault-picker-mark" aria-hidden="true">
+      <div className="vault-picker-arch" />
+      <div className="vault-picker-glow" />
+    </div>
+  );
 }
 
 export function VaultPicker() {
@@ -74,18 +83,20 @@ export function VaultPicker() {
   const handleSubmit = async () => {
     if (mode === "clone") {
       if (!repoUrl.trim() || !path.trim()) return;
-    } else if (!path.trim()) return;
+    } else if (!path.trim()) {
+      return;
+    }
+
     setError(null);
     setLoading(true);
     try {
       if (mode === "clone") {
         await commands.gitClone(repoUrl.trim(), path.trim());
-        // Derive vault name from repo URL
-        const repoName = repoUrl.trim().split("/").pop()?.replace(/\.git$/, "") || "vault";
+        const repoName =
+          repoUrl.trim().split("/").pop()?.replace(/\.git$/, "") || "vault";
         try {
           await openVault(path.trim());
         } catch {
-          // No vault.toml — initialize as a vault first
           await createVault(path.trim(), repoName);
         }
         addRecentVault(path.trim(), repoName);
@@ -103,39 +114,132 @@ export function VaultPicker() {
     }
   };
 
-  return (
-    <div className="flex items-center justify-center h-screen bg-neutral-950 overflow-auto">
-      <div className="w-full max-w-md p-8">
-        <div className="flex justify-center mb-6">
-          <img src="/slatevault1.png" alt="slateVault" className="h-64 object-contain" />
-        </div>
-        <p className="text-neutral-500 text-center text-sm mb-8">
-          Local-first, AI-native markdown vault
-        </p>
+  const submitLabel = loading
+    ? mode === "clone"
+      ? "Cloning..."
+      : "Opening..."
+    : mode === "clone"
+      ? "Clone & Open"
+      : mode === "create"
+        ? "Create & Open"
+        : "Open Vault";
 
-        {/* Recent vaults */}
-        {recentVaults.length > 0 && (
-          <div className="mb-6">
-            <label className="block text-xs text-neutral-500 mb-2">
-              Recent Vaults
+  return (
+    <div className="vault-picker-shell">
+      <div className="vault-picker-card">
+        <section className="vault-picker-hero">
+          <VaultMark />
+          <div>
+            <div className="workspace-kicker mb-3">
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: "var(--info)" }}
+              />
+              Local-first project memory
+            </div>
+            <h1 className="workspace-label text-3xl font-semibold tracking-tight">
+              Open slateVault
+            </h1>
+            <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
+              Choose a shared markdown vault, create a new one, or clone a team
+              repository to start working with docs and AI-ready context.
+            </p>
+          </div>
+        </section>
+
+        <section className="vault-picker-panel">
+          <div className="vault-picker-tabs">
+            {(["open", "create", "clone"] as const).map((nextMode) => (
+              <button
+                key={nextMode}
+                onClick={() => setMode(nextMode)}
+                className={mode === nextMode ? "active" : ""}
+              >
+                {nextMode === "open"
+                  ? "Open Vault"
+                  : nextMode === "create"
+                    ? "Create Vault"
+                    : "Clone Repo"}
+              </button>
+            ))}
+          </div>
+
+          <div className="vault-picker-form">
+            {mode === "clone" && (
+              <label className="vault-picker-field">
+                <span>Repository URL</span>
+                <input
+                  type="text"
+                  value={repoUrl}
+                  onChange={(e) => setRepoUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && void handleSubmit()}
+                  placeholder="https://github.com/user/repo.git"
+                />
+              </label>
+            )}
+
+            <label className="vault-picker-field">
+              <span>{mode === "clone" ? "Destination path" : "Vault path"}</span>
+              <div className="vault-picker-path-row">
+                <input
+                  type="text"
+                  value={path}
+                  onChange={(e) => setPath(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && void handleSubmit()}
+                  placeholder="Select a folder..."
+                />
+                <button onClick={handleBrowse} className="btn lg">
+                  Browse
+                </button>
+              </div>
             </label>
-            <div className="space-y-1">
+
+            {mode === "create" && (
+              <label className="vault-picker-field">
+                <span>Vault name</span>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && void handleSubmit()}
+                  placeholder="my-vault"
+                />
+              </label>
+            )}
+
+            {error && <div className="vault-picker-error">{error}</div>}
+
+            <button
+              onClick={handleSubmit}
+              disabled={loading || !path.trim() || (mode === "clone" && !repoUrl.trim())}
+              className="btn primary lg vault-picker-submit"
+            >
+              {submitLabel}
+            </button>
+          </div>
+        </section>
+
+        <aside className="vault-picker-recents">
+          <div>
+            <h2>Recent Vaults</h2>
+            <p>Jump back into a workspace you have opened on this machine.</p>
+          </div>
+          {recentVaults.length === 0 ? (
+            <div className="vault-picker-empty">No recent vaults yet.</div>
+          ) : (
+            <div className="vault-picker-recent-list">
               {recentVaults.map((v) => (
-                <div key={v.path} className="relative group">
+                <div key={v.path} className="vault-picker-recent">
                   <button
                     onClick={() => handleOpen(v.path, v.name)}
                     disabled={loading}
-                    className="w-full flex items-center gap-3 px-3 py-2 pr-8 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left transition-colors disabled:opacity-50"
+                    className="vault-picker-recent-main"
                   >
-                    <span className="text-sm" style={{ color: "var(--info)" }}>V</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm text-neutral-200 truncate">
-                        {v.name}
-                      </div>
-                      <div className="text-xs text-neutral-500 truncate">
-                        {v.path}
-                      </div>
-                    </div>
+                    <span className="vault-picker-recent-icon">V</span>
+                    <span>
+                      <strong>{v.name}</strong>
+                      <small>{v.path}</small>
+                    </span>
                   </button>
                   <button
                     onClick={(e) => {
@@ -143,124 +247,17 @@ export function VaultPicker() {
                       removeRecentVault(v.path);
                       setRecentVaults(getRecentVaults());
                     }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-neutral-500 hover:text-neutral-200 transition-opacity text-base leading-none"
+                    className="vault-picker-remove"
                     title="Remove from recent"
+                    aria-label={`Remove ${v.name} from recent vaults`}
                   >
-                    ×
+                    x
                   </button>
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {/* Mode tabs */}
-        <div className="flex mb-4 bg-neutral-900 rounded-lg p-0.5">
-          <button
-            onClick={() => setMode("open")}
-            className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${
-              mode === "open"
-                ? "bg-neutral-800 text-neutral-100"
-                : "text-neutral-500 hover:text-neutral-300"
-            }`}
-          >
-            Open Vault
-          </button>
-          <button
-            onClick={() => setMode("create")}
-            className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${
-              mode === "create"
-                ? "bg-neutral-800 text-neutral-100"
-                : "text-neutral-500 hover:text-neutral-300"
-            }`}
-          >
-            Create Vault
-          </button>
-          <button
-            onClick={() => setMode("clone")}
-            className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${
-              mode === "clone"
-                ? "bg-neutral-800 text-neutral-100"
-                : "text-neutral-500 hover:text-neutral-300"
-            }`}
-          >
-            Clone Repo
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {mode === "clone" && (
-            <div>
-              <label className="block text-xs text-neutral-400 mb-1">
-                Repository URL
-              </label>
-              <input
-                type="text"
-                value={repoUrl}
-                onChange={(e) => setRepoUrl(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-                placeholder="https://github.com/user/repo.git"
-                className="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-600 outline-none focus:border-[var(--accent)] text-sm"
-              />
-            </div>
           )}
-
-          <div>
-            <label className="block text-xs text-neutral-400 mb-1">
-              {mode === "clone" ? "Destination path" : "Vault path"}
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={path}
-                onChange={(e) => setPath(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-                placeholder="Select a folder..."
-                className="flex-1 px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-600 outline-none focus:border-[var(--accent)] text-sm"
-              />
-              <button
-                onClick={handleBrowse}
-                className="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-lg text-neutral-300 text-sm transition-colors"
-              >
-                Browse
-              </button>
-            </div>
-          </div>
-
-          {mode === "create" && (
-            <div>
-              <label className="block text-xs text-neutral-400 mb-1">
-                Vault name
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-                placeholder="my-vault"
-                className="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-200 placeholder-neutral-600 outline-none focus:border-[var(--accent)] text-sm"
-              />
-            </div>
-          )}
-
-          {error && (
-            <p className="text-xs" style={{ color: "var(--danger)" }}>{error}</p>
-          )}
-
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !path.trim() || (mode === "clone" && !repoUrl.trim())}
-            className="btn primary w-full py-2 rounded-lg text-sm"
-          >
-            {loading
-              ? (mode === "clone" ? "Cloning..." : "...")
-              : mode === "clone"
-                ? "Clone & Open"
-                : mode === "create"
-                  ? "Create & Open"
-                  : "Open Vault"}
-          </button>
-        </div>
+        </aside>
       </div>
     </div>
   );

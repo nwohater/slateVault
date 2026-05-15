@@ -70,22 +70,6 @@ function GitIcon() {
     </svg>
   );
 }
-function HideSidebarIcon() {
-  return (
-    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4.75 5.75h14.5v12.5H4.75z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5.75v12.5M14.5 9.25 12 12l2.5 2.75" />
-    </svg>
-  );
-}
-function ShowSidebarIcon() {
-  return (
-    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4.75 5.75h14.5v12.5H4.75z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5.75v12.5M12 9.25 14.5 12 12 14.75" />
-    </svg>
-  );
-}
 function SettingsIcon() {
   return (
     <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
@@ -130,7 +114,11 @@ const RAIL_ITEMS: { view: SidebarView; label: string; icon: React.ReactNode }[] 
   { view: "git",           label: "Team Sync",    icon: <GitIcon /> },
 ];
 
-export function Sidebar() {
+type SidebarProps = {
+  railCollapsed?: boolean;
+};
+
+export function Sidebar({ railCollapsed = false }: SidebarProps) {
   const vaultName = useVaultStore((s) => s.vaultName);
   const closeVault = useVaultStore((s) => s.closeVault);
   const expandedProjects = useVaultStore((s) => s.expandedProjects);
@@ -143,18 +131,8 @@ export function Sidebar() {
   const [showNewProject, setShowNewProject] = useState(false);
   const [view, setView] = useState<SidebarView>("home");
   const [refreshingFiles, setRefreshingFiles] = useState(false);
-  const [sidebarHidden, setSidebarHidden] = useState(false);
 
   const showPanel = view === "files";
-
-  useEffect(() => {
-    setSidebarHidden(localStorage.getItem("sv-sidebar-hidden") === "true");
-  }, []);
-
-  const setSidebarCollapsed = (hidden: boolean) => {
-    setSidebarHidden(hidden);
-    localStorage.setItem("sv-sidebar-hidden", String(hidden));
-  };
 
   useEffect(() => {
     if (workspaceView === "settings" && view !== "settings") {
@@ -195,21 +173,8 @@ export function Sidebar() {
 
   return (
     <div style={{ display: "flex", height: "100%" }}>
-      {sidebarHidden ? (
-        <div className="rail-collapsed">
-          <button
-            className="rail-reveal-btn"
-            onClick={() => setSidebarCollapsed(false)}
-            title="Show sidebar"
-            aria-label="Show sidebar"
-          >
-            <ShowSidebarIcon />
-          </button>
-        </div>
-      ) : (
-        <>
       {/* ── Icon rail ── */}
-      <div className="rail">
+      <div className={`rail${railCollapsed ? " collapsed" : ""}`}>
         {RAIL_ITEMS.map(({ view: v, label, icon }) => {
           const isActive = view === v && !showOnboarding;
           return (
@@ -228,16 +193,6 @@ export function Sidebar() {
 
         <div style={{ flex: 1 }} />
 
-        <button
-          className="rail-btn"
-          onClick={() => setSidebarCollapsed(true)}
-          title="Hide sidebar"
-          aria-label="Hide sidebar"
-        >
-          <HideSidebarIcon />
-          <span className="rail-tooltip">Hide sidebar</span>
-        </button>
-
         {/* Settings at bottom */}
         <button
           className={`rail-btn${view === "settings" ? " active" : ""}`}
@@ -249,11 +204,9 @@ export function Sidebar() {
           <span className="rail-tooltip">Settings</span>
         </button>
       </div>
-      </>
-      )}
 
       {/* ── Sidebar panel ── */}
-      {!sidebarHidden && showPanel && (
+      {showPanel && (
         <div className="sidebar">
           {/* Panel header */}
           <div className="sidebar-h">
