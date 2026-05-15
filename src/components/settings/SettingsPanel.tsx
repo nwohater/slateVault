@@ -36,10 +36,7 @@ const SECTIONS: Array<{
 }> = [
   { id: "vault", group: "Workspace", label: "Vault", icon: "DB" },
   { id: "mcp", group: "Workspace", label: "Agent access (MCP)", icon: "MCP" },
-  { id: "ai", group: "Workspace", label: "AI settings", icon: "AI" },
   { id: "git", group: "Sync", label: "Git & credentials", icon: "Git" },
-  { id: "appearance", group: "Application", label: "Appearance", icon: "*" },
-  { id: "keyboard", group: "Application", label: "Keyboard", icon: "<>" },
   { id: "updates", group: "Application", label: "Updates", icon: "Up" },
   { id: "advanced", group: "Application", label: "Advanced", icon: "Gear" },
 ];
