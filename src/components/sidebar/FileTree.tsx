@@ -520,8 +520,13 @@ export function FileTree() {
                 </div>
                 {project.name in sourceFolders && (
                   <span
-                    className="w-1.5 h-1.5 rounded-full flex-shrink-0 mr-1"
-                    style={{ background: sourceFolders[project.name] ? "var(--success)" : "var(--warning)" }}
+                    className="mr-2 h-2.5 w-2.5 flex-shrink-0 rounded-full shadow-sm"
+                    style={{
+                      background: sourceFolders[project.name] ? "#22c55e" : "#ef4444",
+                      boxShadow: sourceFolders[project.name]
+                        ? "0 0 0 2px color-mix(in srgb, #22c55e 24%, transparent)"
+                        : "0 0 0 2px color-mix(in srgb, #ef4444 24%, transparent)",
+                    }}
                     title={
                       sourceFolders[project.name]
                         ? `Source: ${sourceFolders[project.name]}`

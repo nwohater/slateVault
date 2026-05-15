@@ -462,6 +462,32 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 }
 .rail-btn:hover .rail-tooltip { opacity: 1; }
 
+.rail-collapsed {
+  width: 18px;
+  background: var(--bg-tint);
+  border-right: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10px;
+  flex-shrink: 0;
+}
+.rail-reveal-btn {
+  width: 16px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: var(--text-muted);
+}
+.rail-reveal-btn:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
 /* ─── Sidebar panel ──────────────────────────────────────────────────────── */
 .sidebar {
   width: var(--sidebar-w);

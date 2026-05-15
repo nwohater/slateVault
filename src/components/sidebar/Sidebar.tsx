@@ -5,7 +5,6 @@ import { useVaultStore } from "@/stores/vaultStore";
 import { useUIStore } from "@/stores/uiStore";
 import { FileTree } from "./FileTree";
 import { SearchBar } from "./SearchBar";
-import { AiChatPanel } from "../ai/AiChatPanel";
 import { CreateProjectForm } from "@/components/shared/CreateProjectForm";
 import * as commands from "@/lib/commands";
 
@@ -16,7 +15,6 @@ type SidebarView =
   | "start-session"
   | "docs-health"
   | "git"
-  | "ai"
   | "settings";
 
 /* ── Icons ── */
@@ -72,11 +70,19 @@ function GitIcon() {
     </svg>
   );
 }
-function SparkIcon() {
+function HideSidebarIcon() {
   return (
     <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="m12 4.75 1.6 4.15 4.15 1.6-4.15 1.6L12 16.25l-1.6-4.15-4.15-1.6 4.15-1.6z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="m17.25 15.5.55 1.45 1.45.55-1.45.55-.55 1.45-.55-1.45-1.45-.55 1.45-.55z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.75 5.75h14.5v12.5H4.75z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5.75v12.5M14.5 9.25 12 12l2.5 2.75" />
+    </svg>
+  );
+}
+function ShowSidebarIcon() {
+  return (
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.75 5.75h14.5v12.5H4.75z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5.75v12.5M12 9.25 14.5 12 12 14.75" />
     </svg>
   );
 }
@@ -122,7 +128,6 @@ const RAIL_ITEMS: { view: SidebarView; label: string; icon: React.ReactNode }[] 
   { view: "start-session", label: "Start Session",icon: <SessionIcon /> },
   { view: "docs-health",   label: "Docs Health",  icon: <HealthIcon /> },
   { view: "git",           label: "Team Sync",    icon: <GitIcon /> },
-  { view: "ai",            label: "AI Chat",      icon: <SparkIcon /> },
 ];
 
 export function Sidebar() {
@@ -138,10 +143,24 @@ export function Sidebar() {
   const [showNewProject, setShowNewProject] = useState(false);
   const [view, setView] = useState<SidebarView>("home");
   const [refreshingFiles, setRefreshingFiles] = useState(false);
+  const [sidebarHidden, setSidebarHidden] = useState(false);
 
-  const showPanel = view === "files" || view === "ai";
+  const showPanel = view === "files";
 
   useEffect(() => {
+    setSidebarHidden(localStorage.getItem("sv-sidebar-hidden") === "true");
+  }, []);
+
+  const setSidebarCollapsed = (hidden: boolean) => {
+    setSidebarHidden(hidden);
+    localStorage.setItem("sv-sidebar-hidden", String(hidden));
+  };
+
+  useEffect(() => {
+    if (workspaceView === "settings" && view !== "settings") {
+      setView("settings");
+      return;
+    }
     if (view === "settings") return;
     if (workspaceView === "documents" && view !== "files")         setView("files");
     if (workspaceView === "home" && view !== "home")               setView("home");
@@ -176,6 +195,19 @@ export function Sidebar() {
 
   return (
     <div style={{ display: "flex", height: "100%" }}>
+      {sidebarHidden ? (
+        <div className="rail-collapsed">
+          <button
+            className="rail-reveal-btn"
+            onClick={() => setSidebarCollapsed(false)}
+            title="Show sidebar"
+            aria-label="Show sidebar"
+          >
+            <ShowSidebarIcon />
+          </button>
+        </div>
+      ) : (
+        <>
       {/* ── Icon rail ── */}
       <div className="rail">
         {RAIL_ITEMS.map(({ view: v, label, icon }) => {
@@ -196,6 +228,16 @@ export function Sidebar() {
 
         <div style={{ flex: 1 }} />
 
+        <button
+          className="rail-btn"
+          onClick={() => setSidebarCollapsed(true)}
+          title="Hide sidebar"
+          aria-label="Hide sidebar"
+        >
+          <HideSidebarIcon />
+          <span className="rail-tooltip">Hide sidebar</span>
+        </button>
+
         {/* Settings at bottom */}
         <button
           className={`rail-btn${view === "settings" ? " active" : ""}`}
@@ -207,9 +249,11 @@ export function Sidebar() {
           <span className="rail-tooltip">Settings</span>
         </button>
       </div>
+      </>
+      )}
 
       {/* ── Sidebar panel ── */}
-      {showPanel && (
+      {!sidebarHidden && showPanel && (
         <div className="sidebar">
           {/* Panel header */}
           <div className="sidebar-h">
@@ -228,7 +272,7 @@ export function Sidebar() {
               </button>
             ) : (
               <span className="label">
-                {view === "ai" ? "AI Assistant" : "Settings"}
+                Settings
               </span>
             )}
 
@@ -285,12 +329,6 @@ export function Sidebar() {
                 <span>Drag files in to import. Right-click for actions.</span>
               </div>
             </>
-          )}
-
-          {view === "ai" && (
-            <div style={{ flex: 1, minHeight: 0 }}>
-              <AiChatPanel />
-            </div>
           )}
 
         </div>
