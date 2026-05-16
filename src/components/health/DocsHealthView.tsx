@@ -237,7 +237,7 @@ export function DocsHealthView() {
 
   return (
     <div className="workspace-page h-full min-w-0 flex-1 overflow-y-auto px-6 py-6">
-      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6">
+      <div className="flex w-full max-w-[1500px] flex-col gap-6">
         <section className="px-1 py-2">
           <div className="workspace-kicker mb-3">
             <span className="text-base">~</span>
@@ -338,6 +338,47 @@ export function DocsHealthView() {
                 ))
               )}
             </div>
+
+            <div className="mt-6">
+              <h2 className="workspace-label mb-3 text-base font-semibold" style={{ color: "var(--text-muted)" }}>
+                Docs needing attention
+              </h2>
+              <div className="panel overflow-hidden">
+                {staleDocs.length === 0 ? (
+                  <div className="px-5 py-8 text-sm" style={{ color: "var(--text-muted)" }}>No stale docs need attention right now.</div>
+                ) : (
+                  staleDocs.map((doc, index) => (
+                    <div
+                      key={`${doc.project}/${doc.path}`}
+                      className="flex items-center gap-4 px-5 py-4"
+                      style={{ borderTop: index === 0 ? "none" : "1px solid var(--border-subtle)" }}
+                    >
+                      <span className="h-12 w-1 shrink-0 rounded-full" style={{ background: "var(--warning)" }} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="truncate font-mono text-sm font-semibold" style={{ color: "var(--text)" }}>{doc.path}</span>
+                          <span className="chip">{doc.project}</span>
+                          {doc.canonical && <span className="chip warning">canonical</span>}
+                          {doc.protected && <span className="chip danger">protected</span>}
+                        </div>
+                        <div className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+                          <span style={{ color: "var(--warning)" }}>{formatRelativeDays(doc.ageDays)}</span>
+                          <span> - last touched by {doc.author}</span>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <button onClick={() => handleOpen(doc.project, doc.path)} className="btn">
+                          Open
+                        </button>
+                        <button onClick={() => handleMarkReviewed(doc)} className="btn">
+                          Mark reviewed
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
 
           <aside className="space-y-5">
@@ -407,61 +448,18 @@ export function DocsHealthView() {
                 </p>
               </section>
             )}
+
+            <div className="panel h-fit p-5">
+              <h2 className="workspace-label text-sm font-semibold" style={{ color: "var(--text-muted)" }}>
+                Review rhythm
+              </h2>
+              <div className="mt-4 space-y-3 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
+                <p>Open stale docs before starting agent work in affected projects.</p>
+                <p>Canonical docs should be refreshed first because session briefs treat them as source-of-truth material.</p>
+                <p>Mark reviewed hides a stale item for this session so you can work down the list without losing flow.</p>
+              </div>
+            </div>
           </aside>
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="min-w-0">
-            <h2 className="workspace-label mb-3 text-base font-semibold" style={{ color: "var(--text-muted)" }}>
-              Docs needing attention
-            </h2>
-            <div className="panel overflow-hidden">
-              {staleDocs.length === 0 ? (
-                <div className="px-5 py-8 text-sm" style={{ color: "var(--text-muted)" }}>No stale docs need attention right now.</div>
-              ) : (
-                staleDocs.map((doc, index) => (
-                  <div
-                    key={`${doc.project}/${doc.path}`}
-                    className="flex items-center gap-4 px-5 py-4"
-                    style={{ borderTop: index === 0 ? "none" : "1px solid var(--border-subtle)" }}
-                  >
-                    <span className="h-12 w-1 shrink-0 rounded-full" style={{ background: "var(--warning)" }} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="truncate font-mono text-sm font-semibold" style={{ color: "var(--text)" }}>{doc.path}</span>
-                        <span className="chip">{doc.project}</span>
-                        {doc.canonical && <span className="chip warning">canonical</span>}
-                        {doc.protected && <span className="chip danger">protected</span>}
-                      </div>
-                      <div className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-                        <span style={{ color: "var(--warning)" }}>{formatRelativeDays(doc.ageDays)}</span>
-                        <span> - last touched by {doc.author}</span>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 gap-2">
-                      <button onClick={() => handleOpen(doc.project, doc.path)} className="btn">
-                        Open
-                      </button>
-                      <button onClick={() => handleMarkReviewed(doc)} className="btn">
-                        Mark reviewed
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="panel h-fit p-5">
-            <h2 className="workspace-label text-sm font-semibold" style={{ color: "var(--text-muted)" }}>
-              Review rhythm
-            </h2>
-            <div className="mt-4 space-y-3 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
-              <p>Open stale docs before starting agent work in affected projects.</p>
-              <p>Canonical docs should be refreshed first because session briefs treat them as source-of-truth material.</p>
-              <p>Mark reviewed hides a stale item for this session so you can work down the list without losing flow.</p>
-            </div>
-          </div>
         </section>
       </div>
     </div>

@@ -373,7 +373,7 @@ export function StartSessionView() {
 
   return (
     <div className="workspace-page h-full min-w-0 flex-1 overflow-y-auto px-6 py-6">
-      <div style={{ maxWidth: 1400, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ width: "100%", maxWidth: 1400, display: "flex", flexDirection: "column", gap: 20 }}>
 
         {/* ── Header ── */}
         <div>
@@ -505,7 +505,7 @@ export function StartSessionView() {
                           {p.name}
                         </div>
                         <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
-                          {cnt ? `${cnt.canonical} docs · ${cnt.canonical} canonical` : "Loading…"}
+                          {cnt ? `${cnt.total} docs · ${cnt.canonical} canonical` : "Loading…"}
                         </div>
                       </div>
                       {/* Checkmark */}

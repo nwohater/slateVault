@@ -567,22 +567,22 @@ export function SyncView() {
           )}
 
           <section className="mt-8">
-            <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="mb-3 space-y-3">
               <h2 className="text-base font-semibold" style={{ color: "var(--text)" }}>
                 Local changes <span className="font-normal" style={{ color: "var(--text-faint)" }}>- {filteredChangedDocs.length} docs - ready to commit</span>
               </h2>
-              <div className="flex min-w-0 gap-2">
+              <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
                 <input
                   value={commitMessage}
                   onChange={(e) => setCommitMessage(e.target.value)}
                   placeholder="Commit message... e.g. Update session timeout ADR"
-                  className="h-9 min-w-0 flex-1 rounded-md border px-3 text-sm"
+                  className="h-12 min-w-0 flex-1 rounded-lg border px-4 text-sm"
                   style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}
                 />
                 <button
                   onClick={() => void handleCommitAll()}
                   disabled={!commitMessage.trim() || files.length === 0 || syncing !== null}
-                  className="btn primary lg"
+                  className="btn primary lg h-12 justify-center sm:w-[160px]"
                 >
                   Commit all
                 </button>

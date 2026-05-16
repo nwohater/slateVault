@@ -324,7 +324,7 @@ export function SettingsPanel() {
         </aside>
 
         <main className="min-w-0 px-8 py-8">
-          <div className="mx-auto max-w-[1180px]">
+          <div className="max-w-[1180px]">
             {(message || error) && (
               <div
                 className="mb-5 rounded-lg px-4 py-3 text-sm"

@@ -191,7 +191,7 @@ export function VaultHome() {
 
   return (
     <div style={{ height: "100%", minWidth: 0, flex: 1, overflowY: "auto", padding: "28px 36px 40px" }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
+      <div style={{ width: "100%", maxWidth: 1200, display: "flex", flexDirection: "column", gap: 24 }}>
 
         {/* ── Hero ── */}
         <div>
