@@ -7,8 +7,6 @@ fn deserialize_flexible_tags<'de, D>(deserializer: D) -> Result<Option<Vec<Strin
 where
     D: Deserializer<'de>,
 {
-    use serde::de;
-
     #[derive(Deserialize)]
     #[serde(untagged)]
     enum FlexTags {

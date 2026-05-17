@@ -10,6 +10,19 @@ use slatevault_core::Vault;
 
 use crate::tools::*;
 
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+fn hidden_command(program: &str) -> std::process::Command {
+    let mut command = std::process::Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
+}
+
 fn is_about_doc(path: &str) -> bool {
     path == "_about.md" || path.ends_with("/_about.md")
 }
@@ -1268,11 +1281,11 @@ impl SlateVaultMcpServer {
         let branch = vault.config.sync.remote_branch.clone();
 
         // Ensure local branch name matches remote branch
-        let _ = std::process::Command::new("git")
+        let _ = hidden_command("git")
             .args(["-C", &root, "branch", "-M", &branch])
             .output();
 
-        let output = std::process::Command::new("git")
+        let output = hidden_command("git")
             .args(["-C", &root, "push", "-u", "origin", &branch])
             .output()
             .map_err(|e| McpError::internal_error(format!("Failed to run git: {}", e), None))?;

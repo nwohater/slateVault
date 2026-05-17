@@ -12,6 +12,9 @@ pub struct VaultState(pub Mutex<Option<Vault>>);
 
 type CmdResult<T> = Result<T, String>;
 
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 fn invalid_input(message: impl Into<String>) -> slatevault_core::CoreError {
     slatevault_core::CoreError::Io(std::io::Error::new(
         std::io::ErrorKind::InvalidInput,
@@ -75,8 +78,22 @@ fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\"'\"'"))
 }
 
+fn hidden_command(program: &str) -> Command {
+    let mut command = Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
+}
+
+fn git_command() -> Command {
+    hidden_command("git")
+}
+
 fn git_command_for_vault(vault: &Vault) -> Command {
-    let mut command = Command::new("git");
+    let mut command = git_command();
     if let Some(path) = vault.config.sync.ssh_key_path.as_deref() {
         if !path.trim().is_empty() {
             #[cfg(target_os = "macos")]
@@ -133,7 +150,7 @@ fn run_git_for_vault(vault: &Vault, args: &[&str]) -> std::io::Result<Output> {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     if stderr.contains("Permission denied (publickey)") {
-        return Command::new("git").args(args).output();
+        return git_command().args(args).output();
     }
 
     Ok(output)
@@ -238,7 +255,7 @@ pub fn open_vault(path: String, state: State<'_, VaultState>) -> CmdResult<Strin
     // surprises the user with a merge or overwrite while local edits exist.
     if vault.config.sync.pull_on_open && vault.config.sync.remote_url.is_some() {
         let root_str = root.to_string_lossy();
-        let is_dirty = std::process::Command::new("git")
+        let is_dirty = git_command()
             .args(["-C", &root_str, "status", "--porcelain"])
             .output()
             .map(|output| !String::from_utf8_lossy(&output.stdout).trim().is_empty())
@@ -246,7 +263,7 @@ pub fn open_vault(path: String, state: State<'_, VaultState>) -> CmdResult<Strin
 
         if !is_dirty {
             let branch = &vault.config.sync.remote_branch;
-            let _ = std::process::Command::new("git")
+            let _ = git_command()
                 .args(["-C", &root_str, "pull", "origin", branch])
                 .output();
         }
@@ -598,7 +615,7 @@ pub fn git_file_history(
             .join(doc_path);
         let max_count = limit.unwrap_or(25).clamp(1, 200);
 
-        let output = Command::new("git")
+        let output = git_command()
             .arg("-C")
             .arg(&vault.root)
             .arg("log")
@@ -733,7 +750,7 @@ pub fn git_clone(url: String, path: String) -> CmdResult<String> {
     {
         return Err("Destination directory already exists and is not empty".to_string());
     }
-    let output = std::process::Command::new("git")
+    let output = git_command()
         .args(["clone", &url, &path])
         .output()
         .map_err(|e| format!("Failed to run git: {}", e))?;
@@ -751,7 +768,7 @@ pub fn git_push(state: State<'_, VaultState>) -> CmdResult<String> {
     let vault = lock.as_ref().ok_or("No vault is open")?;
     let branch = &vault.config.sync.remote_branch;
     // Ensure branch name matches by renaming if needed
-    let _ = std::process::Command::new("git")
+    let _ = git_command()
         .args(["-C", &vault.root.to_string_lossy(), "branch", "-M", branch])
         .output();
     let root = vault.root.to_string_lossy();

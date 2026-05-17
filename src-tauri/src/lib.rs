@@ -8,6 +8,19 @@ use std::sync::Mutex;
 use tauri::Manager;
 use terminal::PtyState;
 
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+fn hidden_command(program: &str) -> std::process::Command {
+    let mut command = std::process::Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -129,7 +142,7 @@ pub fn run() {
                         {
                             let branch = &vault.config.sync.remote_branch;
                             let root = vault.root.to_string_lossy().to_string();
-                            let _ = std::process::Command::new("git")
+                            let _ = hidden_command("git")
                                 .args(["-C", &root, "push", "origin", branch])
                                 .output();
                         }
