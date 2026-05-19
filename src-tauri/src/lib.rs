@@ -28,6 +28,7 @@ pub fn run() {
         .manage(VaultState(Mutex::new(None)))
         .manage(PtyState::new())
         .manage(McpProcessState::new())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

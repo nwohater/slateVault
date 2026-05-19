@@ -1,10 +1,9 @@
 use serde::{Deserialize, Serialize};
 use slatevault_core::credentials::{Credentials, CredentialsMasked};
 use slatevault_core::pr::{self, PrCreateRequest, PrCreateResponse};
-use std::io::Write;
 use slatevault_core::Vault;
 use std::path::{Component, Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Output};
 use std::sync::Mutex;
 use tauri::State;
 
@@ -183,59 +182,10 @@ fn vault_has_local_changes(vault: &Vault) -> CmdResult<bool> {
     Ok(!status.trim().is_empty())
 }
 
-fn write_to_clipboard_command(command: &str, args: &[&str], text: &str) -> CmdResult<()> {
-    let mut child = Command::new(command)
-        .args(args)
-        .stdin(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Could not start clipboard command '{}': {}", command, e))?;
-
-    {
-        let stdin = child
-            .stdin
-            .as_mut()
-            .ok_or_else(|| format!("Could not open stdin for clipboard command '{}'", command))?;
-        stdin
-            .write_all(text.as_bytes())
-            .map_err(|e| format!("Could not write clipboard text to '{}': {}", command, e))?;
-    }
-
-    let status = child
-        .wait()
-        .map_err(|e| format!("Clipboard command '{}' failed to finish: {}", command, e))?;
-
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!("Clipboard command '{}' exited with {}", command, status))
-    }
-}
-
 #[tauri::command]
-pub fn copy_to_clipboard(text: String) -> CmdResult<()> {
-    #[cfg(target_os = "macos")]
-    {
-        return write_to_clipboard_command("pbcopy", &[], &text);
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        return write_to_clipboard_command("clip", &[], &text);
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        if write_to_clipboard_command("wl-copy", &[], &text).is_ok() {
-            return Ok(());
-        }
-        if write_to_clipboard_command("xclip", &["-selection", "clipboard"], &text).is_ok() {
-            return Ok(());
-        }
-        return write_to_clipboard_command("xsel", &["--clipboard", "--input"], &text);
-    }
-
-    #[allow(unreachable_code)]
-    Err("Clipboard copy is not supported on this platform.".to_string())
+pub fn copy_to_clipboard(app: tauri::AppHandle, text: String) -> CmdResult<()> {
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+    app.clipboard().write_text(text).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -254,15 +204,16 @@ pub fn open_vault(path: String, state: State<'_, VaultState>) -> CmdResult<Strin
     // Pull on open if configured. Skip dirty worktrees so opening the app never
     // surprises the user with a merge or overwrite while local edits exist.
     if vault.config.sync.pull_on_open && vault.config.sync.remote_url.is_some() {
-        let root_str = root.to_string_lossy();
-        let is_dirty = git_command()
-            .args(["-C", &root_str, "status", "--porcelain"])
-            .output()
-            .map(|output| !String::from_utf8_lossy(&output.stdout).trim().is_empty())
-            .unwrap_or(true);
+        let is_dirty = (|| -> Result<bool, git2::Error> {
+            let repo = git2::Repository::open(&root)?;
+            let statuses = repo.statuses(None)?;
+            Ok(statuses.iter().any(|s| s.status() != git2::Status::CURRENT))
+        })()
+        .unwrap_or(true);
 
         if !is_dirty {
             let branch = &vault.config.sync.remote_branch;
+            let root_str = root.to_string_lossy();
             let _ = git_command()
                 .args(["-C", &root_str, "pull", "origin", branch])
                 .output();
