@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useEditorStore } from "@/stores/editorStore";
 import { useGitStore } from "@/stores/gitStore";
@@ -40,6 +41,7 @@ export function StatusBar() {
   const version = useAppStore((s) => s.version);
   const updateState = useAppStore((s) => s.updateState);
   const updateVersion = useAppStore((s) => s.updateVersion);
+  const updateProgress = useAppStore((s) => s.updateProgress);
   const initializeApp = useAppStore((s) => s.initialize);
   const checkForUpdates = useAppStore((s) => s.checkForUpdates);
   const installUpdate = useAppStore((s) => s.installUpdate);
@@ -61,7 +63,19 @@ export function StatusBar() {
   const mcpEnabled = stats?.mcp_enabled ?? false;
   const updateReady = updateState === "available";
   const updateBusy = updateState === "downloading" || updateState === "installing";
-  const versionLabel = updateReady && updateVersion ? `Update ${updateVersion}` : version ? `v${version}` : null;
+  const updateInstalled = updateState === "installed";
+  const versionLabel =
+    updateBusy
+      ? updateProgress !== null
+        ? `Downloading ${updateProgress}%`
+        : "Downloading update..."
+      : updateInstalled
+        ? "Restart to update"
+        : updateReady && updateVersion
+          ? `Update ${updateVersion}`
+          : version
+            ? `v${version}`
+            : null;
 
   const mcpColor = mcpRunning ? "var(--success)" : mcpEnabled ? "var(--warning)" : "var(--text-faint)";
   const mcpTitle = mcpRunning
@@ -78,6 +92,7 @@ export function StatusBar() {
         : "var(--success)";
 
   return (
+    <>
     <div className="statusbar">
       {/* Branch */}
       {currentBranch && (
@@ -137,12 +152,21 @@ export function StatusBar() {
           className="sb-cell"
           onClick={() => {
             if (updateReady && !updateBusy) void installUpdate();
+            if (updateInstalled) void getCurrentWindow().close();
           }}
-          disabled={!updateReady || updateBusy}
-          title={updateReady ? `Install update ${updateVersion}` : "slateVault version"}
+          disabled={(!updateReady && !updateInstalled) || updateBusy}
+          title={
+            updateInstalled
+              ? "Close slateVault to finish installing the update"
+              : updateReady
+                ? `Install update ${updateVersion}`
+                : updateBusy
+                  ? "Downloading update"
+                  : "slateVault version"
+          }
           style={{
-            color: updateReady ? "var(--success)" : undefined,
-            cursor: updateReady ? "pointer" : "default",
+            color: updateReady || updateBusy || updateInstalled ? "var(--success)" : undefined,
+            cursor: updateReady || updateInstalled ? "pointer" : "default",
           }}
         >
           {versionLabel}
@@ -161,5 +185,17 @@ export function StatusBar() {
         <span>Terminal</span>
       </button>
     </div>
+    {updateInstalled && (
+      <div className="update-restart-prompt">
+        <div>
+          <strong>Update ready</strong>
+          <span>Close slateVault to finish installing the update.</span>
+        </div>
+        <button className="btn primary sm" onClick={() => void getCurrentWindow().close()}>
+          Close app
+        </button>
+      </div>
+    )}
+    </>
   );
 }

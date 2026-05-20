@@ -21,6 +21,9 @@ interface AppState {
   updateVersion: string | null;
   updateBody: string | null;
   updateError: string | null;
+  updateDownloadedBytes: number;
+  updateTotalBytes: number | null;
+  updateProgress: number | null;
   lastCheckedAt: string | null;
   pendingUpdate: Update | null;
   initialize: () => Promise<void>;
@@ -63,6 +66,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateVersion: null,
   updateBody: null,
   updateError: null,
+  updateDownloadedBytes: 0,
+  updateTotalBytes: null,
+  updateProgress: null,
   lastCheckedAt: null,
   pendingUpdate: null,
 
@@ -107,6 +113,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           updateBody: null,
           updateState: "up-to-date",
           updateError: null,
+          updateDownloadedBytes: 0,
+          updateTotalBytes: null,
+          updateProgress: null,
           lastCheckedAt: new Date().toISOString(),
         });
         return;
@@ -118,6 +127,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         updateBody: update.body ?? null,
         updateState: "available",
         updateError: null,
+        updateDownloadedBytes: 0,
+        updateTotalBytes: null,
+        updateProgress: null,
         lastCheckedAt: new Date().toISOString(),
       });
     } catch (error) {
@@ -125,6 +137,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         pendingUpdate: null,
         updateState: "error",
         updateError: formatUpdaterError(error),
+        updateDownloadedBytes: 0,
+        updateTotalBytes: null,
+        updateProgress: null,
         lastCheckedAt: new Date().toISOString(),
       });
     }
@@ -135,11 +150,54 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!pendingUpdate) return;
 
     try {
-      set({ updateState: "downloading", updateError: null });
-      await pendingUpdate.downloadAndInstall(() => {});
+      let downloadedBytes = 0;
+      let totalBytes: number | null = null;
+
+      set({
+        updateState: "downloading",
+        updateError: null,
+        updateDownloadedBytes: 0,
+        updateTotalBytes: null,
+        updateProgress: null,
+      });
+
+      await pendingUpdate.downloadAndInstall((event) => {
+        if (event.event === "Started") {
+          downloadedBytes = 0;
+          totalBytes = event.data.contentLength ?? null;
+          set({
+            updateState: "downloading",
+            updateDownloadedBytes: downloadedBytes,
+            updateTotalBytes: totalBytes,
+            updateProgress: totalBytes ? 0 : null,
+          });
+          return;
+        }
+
+        if (event.event === "Progress") {
+          downloadedBytes += event.data.chunkLength;
+          const progress = totalBytes
+            ? Math.min(100, Math.round((downloadedBytes / totalBytes) * 100))
+            : null;
+          set({
+            updateDownloadedBytes: downloadedBytes,
+            updateTotalBytes: totalBytes,
+            updateProgress: progress,
+          });
+          return;
+        }
+
+        set({
+          updateState: "installing",
+          updateDownloadedBytes: downloadedBytes,
+          updateTotalBytes: totalBytes,
+          updateProgress: 100,
+        });
+      });
       set({
         updateState: "installed",
-        updateError: "Update downloaded. Restart SlateVault to finish installing.",
+        updateProgress: 100,
+        updateError: null,
       });
     } catch (error) {
       set({

@@ -22,6 +22,14 @@ type ChangedDocSummary = {
 };
 
 function parseDocPath(path: string) {
+  const wikiMatch = path.match(/^wiki\/(.+\.md)$/);
+  if (wikiMatch) {
+    return {
+      project: "wiki",
+      path: wikiMatch[1],
+    };
+  }
+
   const match = path.match(/^projects\/([^/]+)\/docs\/(.+\.md)$/);
   if (!match) return null;
   return {
@@ -72,6 +80,7 @@ export function SyncView() {
   const setWorkspaceView = useUIStore((s) => s.setWorkspaceView);
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const openDocument = useEditorStore((s) => s.openDocument);
+  const openWikiFile = useEditorStore((s) => s.openWikiFile);
   const [syncing, setSyncing] = useState<"pull" | "push" | "safe-pull" | "safe-sync" | "discard-pull" | "commit" | null>(null);
   const [confirmDiscardPull, setConfirmDiscardPull] = useState(false);
   const [activeFilter, setActiveFilter] = useState<"all" | "conflict" | "ai" | "sensitive" | "mine">("all");
@@ -115,6 +124,9 @@ export function SyncView() {
       try {
         const docsByProject = await Promise.all(
           changedProjects.map(async (project) => {
+            if (project === "wiki") {
+              return [project, []] as const;
+            }
             const docs = await commands.listDocuments(project);
             return [project, docs] as const;
           })
@@ -312,12 +324,22 @@ export function SyncView() {
       return;
     }
     setShowOnboarding(false);
+    if (doc.project === "wiki") {
+      setWorkspaceView("wiki");
+      void openWikiFile(doc.path);
+      return;
+    }
     setWorkspaceView("documents");
     void openDocument(doc.project, doc.path);
   };
 
   const handleOpenRiskDoc = (risk: { project: string; path: string }) => {
     setShowOnboarding(false);
+    if (risk.project === "wiki") {
+      setWorkspaceView("wiki");
+      void openWikiFile(risk.path);
+      return;
+    }
     setWorkspaceView("documents");
     void openDocument(risk.project, risk.path);
   };

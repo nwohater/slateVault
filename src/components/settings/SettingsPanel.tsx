@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import * as commands from "@/lib/commands";
 import { copyToClipboard } from "@/lib/clipboard";
 import {
@@ -65,6 +66,11 @@ function updateStatusLabel(state: string, version: string | null) {
   return "Ready to check for updates";
 }
 
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 MB";
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export function SettingsPanel() {
   const vaultPath = useVaultStore((s) => s.vaultPath);
   const vaultName = useVaultStore((s) => s.vaultName);
@@ -81,6 +87,9 @@ export function SettingsPanel() {
   const updateVersion = useAppStore((s) => s.updateVersion);
   const updateError = useAppStore((s) => s.updateError);
   const updateBody = useAppStore((s) => s.updateBody);
+  const updateDownloadedBytes = useAppStore((s) => s.updateDownloadedBytes);
+  const updateTotalBytes = useAppStore((s) => s.updateTotalBytes);
+  const updateProgress = useAppStore((s) => s.updateProgress);
   const lastCheckedAt = useAppStore((s) => s.lastCheckedAt);
   const initializeApp = useAppStore((s) => s.initialize);
   const checkForUpdates = useAppStore((s) => s.checkForUpdates);
@@ -575,6 +584,35 @@ export function SettingsPanel() {
                     </button>
                   </div>
                 </div>
+                {(updateState === "downloading" || updateState === "installing") && (
+                  <div className="panel p-5">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span style={{ color: "var(--text)" }}>
+                        {updateState === "installing" ? "Installing update..." : "Downloading update..."}
+                      </span>
+                      <span style={{ color: "var(--text-muted)" }}>
+                        {updateProgress !== null
+                          ? `${updateProgress}%`
+                          : updateTotalBytes
+                            ? `${formatBytes(updateDownloadedBytes)} of ${formatBytes(updateTotalBytes)}`
+                            : formatBytes(updateDownloadedBytes)}
+                      </span>
+                    </div>
+                    <div className="update-progress mt-3" aria-label="Update download progress">
+                      <span style={{ width: `${updateProgress ?? 12}%` }} />
+                    </div>
+                  </div>
+                )}
+                {updateState === "installed" && (
+                  <div className="rounded-lg p-4 text-sm" style={{ background: "var(--success-soft)", border: "1px solid var(--success)", color: "var(--success)" }}>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span>Update installed. Close and reopen slateVault to finish.</span>
+                      <button className="btn primary sm" onClick={() => void getCurrentWindow().close()}>
+                        Close app
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <SettingRow label="Update channel">
                   <select className="settings-input max-w-[180px]" value={channel} disabled>
                     <option value={channel}>{channel}</option>

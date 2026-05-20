@@ -92,6 +92,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const vaultPath = `wiki/${path}`;
     const raw = await commands.readVaultFile(vaultPath);
+    const syncRisk = await commands
+      .gitDocSyncRisks()
+      .then((risks) => risks.find((risk) => risk.project === "wiki" && risk.path === path) ?? null)
+      .catch(() => null);
     useUIStore.getState().setShowOnboarding(false);
     useUIStore.getState().setWorkspaceView("wiki");
     set({
@@ -99,7 +103,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       activePath: path,
       content: raw,
       frontMatter: null,
-      activeDocSyncRisk: null,
+      activeDocSyncRisk: syncRisk,
       isDirty: false,
       rawFilePath: vaultPath,
     });

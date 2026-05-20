@@ -1386,6 +1386,13 @@ fn normalize_relative_path(path: &Path) -> String {
 
 fn parse_project_doc_path(path: &str) -> Option<(String, String)> {
     let normalized = path.replace('\\', "/");
+    if let Some(wiki_path) = normalized.strip_prefix("wiki/") {
+        if wiki_path.is_empty() || !wiki_path.ends_with(".md") {
+            return None;
+        }
+        return Some(("wiki".to_string(), wiki_path.to_string()));
+    }
+
     let rest = normalized.strip_prefix("projects/")?;
     let (project, doc_path) = rest.split_once("/docs/")?;
     if project.is_empty() || !doc_path.ends_with(".md") {

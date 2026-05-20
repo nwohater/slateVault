@@ -128,6 +128,7 @@ export function EditorPane() {
   const workspaceView = useUIStore((s) => s.workspaceView);
   const showRawFileBar = Boolean(rawFilePath) && workspaceView !== "wiki";
   const showFooter = Boolean(activePath) && !rawFilePath;
+  const showSyncRiskWarning = !rawFilePath || workspaceView === "wiki";
 
   if (!activePath) {
     return (
@@ -142,7 +143,7 @@ export function EditorPane() {
     <div className="flex flex-col h-full">
       {showRawFileBar && <RawFileBar />}
       <SecretWarning content={content} />
-      {!rawFilePath && <SyncRiskWarning />}
+      {showSyncRiskWarning && <SyncRiskWarning />}
       <div className="flex-1 min-h-0">
         <CodeMirrorEditor />
       </div>

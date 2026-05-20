@@ -339,6 +339,9 @@ pub fn write_document(
                 &format!("{:?}", doc.front_matter.status).to_lowercase(),
                 doc.front_matter.canonical,
             )?;
+            if vault.config.mcp.auto_stage_ai_writes && doc.front_matter.ai_tool.is_some() {
+                vault.stage_file(&file_path)?;
+            }
         }
         Ok(format!("Document written: {}/{}", project, path))
     })

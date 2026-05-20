@@ -967,6 +967,50 @@ button.sb-cell:hover { background: var(--bg-subtle); color: var(--text); }
   flex-shrink: 0;
 }
 
+.update-progress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-tint);
+  border: 1px solid var(--border);
+}
+.update-progress span {
+  display: block;
+  height: 100%;
+  min-width: 8px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--success), var(--info));
+  transition: width 160ms ease;
+}
+.update-restart-prompt {
+  position: fixed;
+  right: 16px;
+  bottom: calc(var(--statusbar-h) + 16px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border: 1px solid var(--success);
+  border-radius: 14px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+}
+.update-restart-prompt strong,
+.update-restart-prompt span {
+  display: block;
+}
+.update-restart-prompt strong {
+  font-size: 13px;
+}
+.update-restart-prompt span {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 /* ─── Workspace screen helpers (used by content views) ───────────────────── */
 .workspace-page {
   min-height: 100%;
