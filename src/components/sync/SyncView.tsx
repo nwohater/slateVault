@@ -63,6 +63,7 @@ export function SyncView() {
   const remoteConfig = useGitStore((s) => s.remoteConfig);
   const syncStatus = useGitStore((s) => s.syncStatus);
   const docSyncRisks = useGitStore((s) => s.docSyncRisks);
+  const conflictFiles = useGitStore((s) => s.conflictFiles);
   const output = useGitStore((s) => s.output);
   const clearOutput = useGitStore((s) => s.clearOutput);
   const loadStatus = useGitStore((s) => s.loadStatus);
@@ -70,9 +71,12 @@ export function SyncView() {
   const loadRemoteConfig = useGitStore((s) => s.loadRemoteConfig);
   const loadSyncStatus = useGitStore((s) => s.loadSyncStatus);
   const loadDocSyncRisks = useGitStore((s) => s.loadDocSyncRisks);
+  const loadConflictFiles = useGitStore((s) => s.loadConflictFiles);
   const pushRemote = useGitStore((s) => s.push);
-  const pullWithStash = useGitStore((s) => s.pullWithStash);
+  const updateSafely = useGitStore((s) => s.updateSafely);
   const pullDiscardLocal = useGitStore((s) => s.pullDiscardLocal);
+  const resolveConflictFile = useGitStore((s) => s.resolveConflictFile);
+  const continueUpdate = useGitStore((s) => s.continueUpdate);
   const stageAll = useGitStore((s) => s.stageAll);
   const commit = useGitStore((s) => s.commit);
   const commitMessage = useGitStore((s) => s.commitMessage);
@@ -81,22 +85,54 @@ export function SyncView() {
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const openDocument = useEditorStore((s) => s.openDocument);
   const openWikiFile = useEditorStore((s) => s.openWikiFile);
-  const [syncing, setSyncing] = useState<"pull" | "push" | "safe-pull" | "safe-sync" | "discard-pull" | "commit" | null>(null);
+  const [syncing, setSyncing] = useState<"pull" | "push" | "safe-pull" | "safe-sync" | "discard-pull" | "commit" | "fetch" | "resolve" | "continue" | null>(null);
   const [confirmDiscardPull, setConfirmDiscardPull] = useState(false);
   const [activeFilter, setActiveFilter] = useState<"all" | "conflict" | "ai" | "sensitive" | "mine">("all");
   const [showGitTools, setShowGitTools] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [updatePaused, setUpdatePaused] = useState(false);
   const [docMetaByKey, setDocMetaByKey] = useState<Record<string, DocumentInfo>>({});
 
   useEffect(() => {
-    void loadStatus();
-    void loadBranches();
-    void loadRemoteConfig();
-    void loadSyncStatus();
-    void loadDocSyncRisks();
+    let active = true;
+
+    const refreshLocal = async () => {
+      await Promise.all([
+        loadStatus(),
+        loadBranches(),
+        loadRemoteConfig(),
+        loadConflictFiles(),
+        loadSyncStatus(),
+        loadDocSyncRisks(),
+      ]);
+    };
+
+    const refreshRemote = async () => {
+      try {
+        await commands.gitFetchRemote();
+      } catch {
+        // Keep local status usable even when offline/auth is unavailable.
+      }
+      if (!active) return;
+      await Promise.all([
+        loadSyncStatus(),
+        loadDocSyncRisks(),
+      ]);
+    };
+
+    void refreshLocal();
+    const timer = window.setTimeout(() => {
+      void refreshRemote();
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
   }, [
     loadBranches,
+    loadConflictFiles,
     loadDocSyncRisks,
     loadRemoteConfig,
     loadStatus,
@@ -220,9 +256,14 @@ export function SyncView() {
     return changedDocs;
   }, [activeFilter, changedDocs, conflictRiskDocs]);
   const needsPullStrategy = Boolean(syncStatus && (syncStatus.behind > 0 || syncStatus.diverged));
-  const canSafePull = hasRemote && needsPullStrategy && files.length > 0;
+  const hasPausedConflicts = conflictFiles.length > 0 || updatePaused;
+  const canUpdateSafely = hasRemote && needsPullStrategy && !hasPausedConflicts;
   const canPush = Boolean(hasRemote && syncStatus && syncStatus.ahead > 0 && syncStatus.behind === 0 && !syncStatus.diverged);
-  const recommendedLabel = canSafePull && (syncStatus?.ahead ?? 0) > 0 ? "Safe Pull, then Push" : "Run Safe Pull";
+  const recommendedLabel = syncStatus?.diverged
+    ? "Update safely"
+    : canUpdateSafely && (syncStatus?.ahead ?? 0) > 0
+      ? "Update, then Push"
+      : "Get latest safely";
   const pushLabel = syncing === "push" ? "Pushing..." : (syncStatus?.ahead ?? 0) > 0 ? `Push ${syncStatus?.ahead} commit${syncStatus?.ahead === 1 ? "" : "s"}` : "Push";
   const pushHint = !hasRemote
     ? "Configure a remote before pushing."
@@ -235,12 +276,16 @@ export function SyncView() {
   const handleSafePull = async () => {
     setSyncing("safe-pull");
     setError(null);
-    setMessage("Stashing local changes, pulling latest, then reapplying your work...");
+    setMessage(syncStatus?.diverged
+      ? "Applying shared changes first, then replaying your local commits..."
+      : "Getting latest safely and preserving local work...");
     try {
-      const result = await pullWithStash();
-      setMessage(result || "Pulled latest and reapplied local changes.");
+      const result = await updateSafely();
+      setUpdatePaused(false);
+      setMessage(result || "Updated safely.");
       window.setTimeout(() => setMessage(null), 3200);
     } catch (err) {
+      setUpdatePaused(true);
       setError(String(err));
     } finally {
       setSyncing(null);
@@ -250,17 +295,19 @@ export function SyncView() {
   const handleSafePullThenPush = async () => {
     setSyncing("safe-sync");
     setError(null);
-    setMessage("Stashing local changes, pulling latest, then checking whether commits can be pushed...");
+    setMessage("Updating safely, then checking whether commits can be pushed...");
     try {
-      const pullResult = await pullWithStash();
-      if ((syncStatus?.ahead ?? 0) > 0) {
+      const pullResult = await updateSafely();
+      setUpdatePaused(false);
+      if ((syncStatus?.ahead ?? 0) > 0 && !syncStatus?.diverged) {
         const pushResult = await pushRemote();
         setMessage([pullResult, pushResult].filter(Boolean).join("\n") || "Pulled latest and pushed committed changes.");
       } else {
-        setMessage(pullResult || "Pulled latest and reapplied local changes.");
+        setMessage(pullResult || "Updated safely.");
       }
       window.setTimeout(() => setMessage(null), 3600);
     } catch (err) {
+      setUpdatePaused(true);
       setError(String(err));
     } finally {
       setSyncing(null);
@@ -311,6 +358,40 @@ export function SyncView() {
       const result = await pullDiscardLocal();
       setMessage(result || "Local changes discarded and latest remote loaded.");
       setConfirmDiscardPull(false);
+      window.setTimeout(() => setMessage(null), 3200);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  const handleResolveConflict = async (
+    path: string,
+    resolution: "keep_both" | "use_shared" | "use_local"
+  ) => {
+    setSyncing("resolve");
+    setError(null);
+    setMessage("Resolving conflicted document...");
+    try {
+      const result = await resolveConflictFile(path, resolution);
+      setMessage(result || "Conflict resolved.");
+      window.setTimeout(() => setMessage(null), 2200);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  const handleContinueUpdate = async () => {
+    setSyncing("continue");
+    setError(null);
+    setMessage("Continuing the paused update...");
+    try {
+      const result = await continueUpdate();
+      setUpdatePaused(false);
+      setMessage(result || "Update completed.");
       window.setTimeout(() => setMessage(null), 3200);
     } catch (err) {
       setError(String(err));
@@ -449,7 +530,7 @@ export function SyncView() {
                 <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row 2xl:justify-end">
                   <button
                     onClick={() => void handleSafePullThenPush()}
-                    disabled={!canSafePull || syncing !== null}
+                    disabled={!canUpdateSafely || syncing !== null}
                     className="btn primary lg justify-center"
                   >
                     {syncing === "safe-sync" ? "Working..." : recommendedLabel}
@@ -464,36 +545,138 @@ export function SyncView() {
                   </button>
                 </div>
                 <div className="max-w-[360px] text-xs leading-5 2xl:text-right" style={{ color: "var(--text-faint)" }}>
-                  {canSafePull ? "Stashes your changes, pulls, reapplies, then pushes commits." : pushHint}
+                  {hasPausedConflicts
+                    ? "Resolve conflicts below, then continue the update."
+                    : canUpdateSafely
+                      ? syncStatus?.diverged
+                        ? "Applies shared changes first, then replays your local commits."
+                        : "Stashes local edits if needed, gets latest, then reapplies them."
+                      : pushHint}
                 </div>
               </div>
             </div>
           </section>
 
-          {needsPullStrategy && files.length > 0 && (
+          {hasPausedConflicts && (
+            <section className="mt-6 rounded-lg border-2 p-4" style={{ borderColor: "var(--warning)", background: "var(--warning-soft)" }}>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
+                    Update paused
+                  </div>
+                  <h2 className="mt-2 text-xl font-semibold" style={{ color: "var(--text)" }}>
+                    Resolve document conflicts
+                  </h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6" style={{ color: "var(--text-muted)" }}>
+                    The shared vault and your local work changed the same document. Pick how to resolve each file, then continue the update.
+                  </p>
+                </div>
+                <button
+                  onClick={() => void handleContinueUpdate()}
+                  disabled={syncing !== null || conflictFiles.length > 0}
+                  className="btn primary lg"
+                  title={conflictFiles.length > 0 ? "Resolve all conflicts first." : "Continue the paused update."}
+                >
+                  {syncing === "continue" ? "Continuing..." : "Continue update"}
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {conflictFiles.map((conflict) => (
+                  <div key={conflict.path} className="rounded-lg border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}>
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="min-w-0">
+                        <div className="font-mono text-sm font-semibold" style={{ color: "var(--text)" }}>{conflict.path}</div>
+                        <div className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{conflict.summary}</div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => void handleResolveConflict(conflict.path, "keep_both")}
+                          disabled={syncing !== null}
+                          className="btn primary"
+                        >
+                          Keep both
+                        </button>
+                        <button
+                          onClick={() => void handleResolveConflict(conflict.path, "use_shared")}
+                          disabled={syncing !== null}
+                          className="btn"
+                        >
+                          Use shared
+                        </button>
+                        <button
+                          onClick={() => void handleResolveConflict(conflict.path, "use_local")}
+                          disabled={syncing !== null}
+                          className="btn"
+                        >
+                          Use mine
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                      <div className="rounded-md border p-3" style={{ borderColor: "var(--border-subtle)", background: "var(--bg-elevated)" }}>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>
+                          Shared vault
+                        </div>
+                        <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-xs leading-5" style={{ color: "var(--text)" }}>
+                          {conflict.shared_sections.join("\n\n") || "No shared-side text detected."}
+                        </pre>
+                      </div>
+                      <div className="rounded-md border p-3" style={{ borderColor: "var(--border-subtle)", background: "var(--bg-elevated)" }}>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>
+                          My local work
+                        </div>
+                        <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-xs leading-5" style={{ color: "var(--text)" }}>
+                          {conflict.local_sections.join("\n\n") || "No local-side text detected."}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {needsPullStrategy && !hasPausedConflicts && (
             <section className="mt-6">
-              <h2 className="mb-3 text-base font-semibold" style={{ color: "var(--text)" }}>How would you like to pull?</h2>
+              <h2 className="mb-3 text-base font-semibold" style={{ color: "var(--text)" }}>
+                {syncStatus?.diverged ? "Your vault has changes in two places" : "How would you like to update?"}
+              </h2>
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-lg border-2 p-4" style={{ borderColor: "var(--accent)", background: "var(--bg-panel)" }}>
                   <div className="flex items-center gap-3">
                     <span className="chip accent">recommended</span>
-                    <h3 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Safe Pull</h3>
+                    <h3 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
+                      {syncStatus?.diverged ? "Update safely" : "Safe update"}
+                    </h3>
                   </div>
                   <p className="mt-3 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
-                    Stash your {changedDocs.length} local doc changes, pull from origin, then reapply your changes on top.
-                    We will show conflicts file-by-file if any appear.
+                    {syncStatus?.diverged
+                      ? `The shared vault has ${syncStatus.behind} newer commit${syncStatus.behind === 1 ? "" : "s"} and your vault has ${syncStatus.ahead} local commit${syncStatus.ahead === 1 ? "" : "s"}. SlateVault will apply shared changes first, then replay your local commits.`
+                      : `SlateVault will set aside your ${changedDocs.length} local doc change${changedDocs.length === 1 ? "" : "s"}, load the latest shared vault, then reapply your work.`}
                   </p>
                   <ol className="mt-4 space-y-2 text-sm" style={{ color: "var(--text-muted)" }}>
-                    <li>1. Stash local changes</li>
-                    <li>2. Pull origin/{remoteConfig?.remote_branch || currentBranch}</li>
-                    <li>3. Pop stash and resolve overlaps if any</li>
+                    {syncStatus?.diverged ? (
+                      <>
+                        <li>1. Fetch origin/{remoteConfig?.remote_branch || currentBranch}</li>
+                        <li>2. Apply shared commits first</li>
+                        <li>3. Replay your local commits and pause if conflicts appear</li>
+                      </>
+                    ) : (
+                      <>
+                        <li>1. Set aside local edits if needed</li>
+                        <li>2. Load origin/{remoteConfig?.remote_branch || currentBranch}</li>
+                        <li>3. Reapply local edits and pause if conflicts appear</li>
+                      </>
+                    )}
                   </ol>
                   <button
                     onClick={() => void handleSafePull()}
                     disabled={syncing !== null}
                     className="btn primary mt-5 lg"
                   >
-                    {syncing === "safe-pull" ? "Running..." : "Run Safe Pull"}
+                    {syncing === "safe-pull" ? "Running..." : syncStatus?.diverged ? "Run safe update" : "Run safe update"}
                   </button>
                 </div>
 

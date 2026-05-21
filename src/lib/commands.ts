@@ -26,6 +26,7 @@ import type {
   AiChatMessage,
   AiChatResult,
   WikiDocInfo,
+  GitConflictInfo,
 } from "@/types";
 
 export async function createVault(
@@ -314,8 +315,16 @@ export async function gitPush(): Promise<string> {
   return invoke("git_push");
 }
 
+export async function gitFetchRemote(): Promise<string> {
+  return invoke("git_fetch_remote");
+}
+
 export async function gitPull(): Promise<string> {
   return invoke("git_pull");
+}
+
+export async function gitUpdateSafely(): Promise<string> {
+  return invoke("git_update_safely");
 }
 
 export async function gitPullWithStash(): Promise<string> {
@@ -324,6 +333,21 @@ export async function gitPullWithStash(): Promise<string> {
 
 export async function gitPullDiscardLocal(): Promise<string> {
   return invoke("git_pull_discard_local");
+}
+
+export async function gitConflictFiles(): Promise<GitConflictInfo[]> {
+  return invoke("git_conflict_files");
+}
+
+export async function gitResolveConflictFile(
+  path: string,
+  resolution: "keep_both" | "use_shared" | "use_local"
+): Promise<string> {
+  return invoke("git_resolve_conflict_file", { path, resolution });
+}
+
+export async function gitContinueUpdate(): Promise<string> {
+  return invoke("git_continue_update");
 }
 
 export async function gitSetRemoteConfig(config: {

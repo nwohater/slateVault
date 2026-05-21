@@ -103,10 +103,7 @@ fn git_command_for_vault(vault: &Vault) -> Command {
             #[cfg(not(target_os = "macos"))]
             let ssh_command = format!("ssh -i {} -o IdentitiesOnly=yes", shell_quote(path));
 
-            command.env(
-                "GIT_SSH_COMMAND",
-                ssh_command,
-            );
+            command.env("GIT_SSH_COMMAND", ssh_command);
         }
     }
     command
@@ -166,7 +163,21 @@ fn git_output_text(output: &Output) -> String {
 }
 
 fn run_git_checked(vault: &Vault, args: &[&str], label: &str) -> CmdResult<String> {
-    let output = run_git_for_vault(vault, args)
+    let output = run_git_for_vault(vault, args).map_err(|e| format!("Failed to run git: {}", e))?;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        Ok(git_output_text(&output))
+    } else {
+        Err(git_error(label, &stderr, vault))
+    }
+}
+
+fn run_git_checked_with_editor(vault: &Vault, args: &[&str], label: &str) -> CmdResult<String> {
+    let output = git_command_for_vault(vault)
+        .env("GIT_EDITOR", "true")
+        .env("GIT_SEQUENCE_EDITOR", "true")
+        .args(args)
+        .output()
         .map_err(|e| format!("Failed to run git: {}", e))?;
     let stderr = String::from_utf8_lossy(&output.stderr);
     if output.status.success() {
@@ -178,8 +189,31 @@ fn run_git_checked(vault: &Vault, args: &[&str], label: &str) -> CmdResult<Strin
 
 fn vault_has_local_changes(vault: &Vault) -> CmdResult<bool> {
     let root = vault.root.to_string_lossy();
-    let status = run_git_checked(vault, &["-C", &root, "status", "--porcelain"], "Status failed")?;
+    let status = run_git_checked(
+        vault,
+        &["-C", &root, "status", "--porcelain"],
+        "Status failed",
+    )?;
     Ok(!status.trim().is_empty())
+}
+
+fn parse_ahead_behind_counts(output: &str) -> CmdResult<(usize, usize)> {
+    let mut parts = output.split_whitespace();
+    let ahead = parts
+        .next()
+        .ok_or("Could not parse local/remote sync counts")?
+        .parse::<usize>()
+        .map_err(|e| format!("Could not parse local ahead count: {}", e))?;
+    let behind = parts
+        .next()
+        .ok_or("Could not parse local/remote sync counts")?
+        .parse::<usize>()
+        .map_err(|e| format!("Could not parse remote behind count: {}", e))?;
+    Ok((ahead, behind))
+}
+
+fn has_rebase_in_progress(root: &Path) -> bool {
+    root.join(".git/rebase-merge").exists() || root.join(".git/rebase-apply").exists()
 }
 
 #[tauri::command]
@@ -738,6 +772,19 @@ pub fn git_push(state: State<'_, VaultState>) -> CmdResult<String> {
 }
 
 #[tauri::command]
+pub fn git_fetch_remote(state: State<'_, VaultState>) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let branch = &vault.config.sync.remote_branch;
+    let root = vault.root.to_string_lossy();
+    run_git_checked(
+        vault,
+        &["-C", &root, "fetch", "origin", branch],
+        "Fetch failed",
+    )
+}
+
+#[tauri::command]
 pub fn git_pull(state: State<'_, VaultState>) -> CmdResult<String> {
     let lock = state.0.lock().map_err(|e| e.to_string())?;
     let vault = lock.as_ref().ok_or("No vault is open")?;
@@ -749,7 +796,154 @@ pub fn git_pull(state: State<'_, VaultState>) -> CmdResult<String> {
                 .to_string(),
         );
     }
-    run_git_checked(vault, &["-C", &root, "pull", "origin", branch], "Pull failed")
+    run_git_checked(
+        vault,
+        &["-C", &root, "pull", "origin", branch],
+        "Pull failed",
+    )
+}
+
+#[tauri::command]
+pub fn git_update_safely(state: State<'_, VaultState>) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let branch = &vault.config.sync.remote_branch;
+    let root = vault.root.to_string_lossy();
+    let remote_ref = format!("origin/{}", branch);
+    let dirty = vault_has_local_changes(vault)?;
+    let mut messages = Vec::new();
+
+    if dirty {
+        let stash = run_git_checked(
+            vault,
+            &[
+                "-C",
+                &root,
+                "stash",
+                "push",
+                "--include-untracked",
+                "-m",
+                "slateVault safe update",
+            ],
+            "Stash failed",
+        )?;
+        messages.push(if stash.is_empty() {
+            "Local edits were safely set aside.".to_string()
+        } else {
+            stash
+        });
+    }
+
+    let fetch = run_git_checked(
+        vault,
+        &["-C", &root, "fetch", "origin", branch],
+        "Fetch failed",
+    );
+    if let Err(err) = fetch {
+        if dirty {
+            let _ = run_git_checked(
+                vault,
+                &["-C", &root, "stash", "pop"],
+                "Stash restore failed",
+            );
+        }
+        return Err(err);
+    }
+
+    let counts_text = run_git_checked(
+        vault,
+        &[
+            "-C",
+            &root,
+            "rev-list",
+            "--left-right",
+            "--count",
+            &format!("HEAD...{}", remote_ref),
+        ],
+        "Sync check failed",
+    )?;
+    let (ahead, behind) = parse_ahead_behind_counts(&counts_text)?;
+
+    if ahead > 0 && behind > 0 {
+        messages.push(format!(
+            "Shared vault has {} newer commit{} and your vault has {} local commit{}. Applying shared changes first, then replaying yours.",
+            behind,
+            if behind == 1 { "" } else { "s" },
+            ahead,
+            if ahead == 1 { "" } else { "s" },
+        ));
+        match run_git_checked_with_editor(
+            vault,
+            &["-C", &root, "rebase", &remote_ref],
+            "Safe update failed",
+        ) {
+            Ok(result) => {
+                if !result.is_empty() {
+                    messages.push(result);
+                }
+            }
+            Err(err) => {
+                return Err(format!(
+                    "{}\n\nUpdate paused because the same document changed in both places. Resolve the listed conflicts in Team Sync, then continue the update.",
+                    err
+                ));
+            }
+        }
+    } else if behind > 0 {
+        messages.push(format!(
+            "Shared vault has {} newer commit{}. Fast-forwarding your local vault.",
+            behind,
+            if behind == 1 { "" } else { "s" },
+        ));
+        let pull = run_git_checked(
+            vault,
+            &["-C", &root, "pull", "--ff-only", "origin", branch],
+            "Safe update failed",
+        );
+        match pull {
+            Ok(result) => {
+                if !result.is_empty() {
+                    messages.push(result);
+                }
+            }
+            Err(err) => {
+                if dirty {
+                    let _ = run_git_checked(
+                        vault,
+                        &["-C", &root, "stash", "pop"],
+                        "Stash restore failed",
+                    );
+                }
+                return Err(err);
+            }
+        }
+    } else {
+        messages.push("No newer shared commits detected.".to_string());
+    }
+
+    if dirty {
+        match run_git_checked(
+            vault,
+            &["-C", &root, "stash", "pop"],
+            "Reapply local edits failed",
+        ) {
+            Ok(pop) => {
+                messages.push(if pop.is_empty() {
+                    "Local edits were reapplied.".to_string()
+                } else {
+                    pop
+                });
+            }
+            Err(err) => {
+                return Err(format!(
+                    "{}\n\nUpdate paused while reapplying your local edits. Resolve conflicts in Team Sync, then continue.",
+                    err
+                ));
+            }
+        }
+    }
+
+    Ok(messages.join("\n\n"))
 }
 
 #[tauri::command]
@@ -782,7 +976,11 @@ pub fn git_pull_with_stash(state: State<'_, VaultState>) -> CmdResult<String> {
         });
     }
 
-    let pull_result = run_git_checked(vault, &["-C", &root, "pull", "origin", branch], "Pull failed");
+    let pull_result = run_git_checked(
+        vault,
+        &["-C", &root, "pull", "origin", branch],
+        "Pull failed",
+    );
 
     if dirty {
         match pull_result {
@@ -807,7 +1005,11 @@ pub fn git_pull_with_stash(state: State<'_, VaultState>) -> CmdResult<String> {
                 }
             }
             Err(err) => {
-                let _ = run_git_checked(vault, &["-C", &root, "stash", "pop"], "Stash restore failed");
+                let _ = run_git_checked(
+                    vault,
+                    &["-C", &root, "stash", "pop"],
+                    "Stash restore failed",
+                );
                 return Err(format!(
                     "{}\n\nSlateVault attempted to restore your stashed local changes.",
                     err
@@ -832,14 +1034,197 @@ pub fn git_pull_discard_local(state: State<'_, VaultState>) -> CmdResult<String>
     let branch = &vault.config.sync.remote_branch;
     let root = vault.root.to_string_lossy();
 
-    run_git_checked(vault, &["-C", &root, "fetch", "origin", branch], "Fetch failed")?;
-    run_git_checked(vault, &["-C", &root, "reset", "--hard", &format!("origin/{}", branch)], "Reset failed")?;
+    run_git_checked(
+        vault,
+        &["-C", &root, "fetch", "origin", branch],
+        "Fetch failed",
+    )?;
+    run_git_checked(
+        vault,
+        &[
+            "-C",
+            &root,
+            "reset",
+            "--hard",
+            &format!("origin/{}", branch),
+        ],
+        "Reset failed",
+    )?;
     run_git_checked(vault, &["-C", &root, "clean", "-fd"], "Clean failed")?;
 
     Ok(format!(
         "Local changes discarded. Vault reset to origin/{}.",
         branch
     ))
+}
+
+#[derive(Serialize)]
+pub struct GitConflictInfo {
+    pub path: String,
+    pub summary: String,
+    pub shared_sections: Vec<String>,
+    pub local_sections: Vec<String>,
+}
+
+fn parse_conflict_sections(content: &str) -> (Vec<String>, Vec<String>) {
+    let mut shared = Vec::new();
+    let mut local = Vec::new();
+    let mut remaining = content;
+
+    while let Some(start) = remaining.find("<<<<<<<") {
+        remaining = &remaining[start..];
+        let Some(head_end) = remaining.find('\n') else {
+            break;
+        };
+        let after_head = &remaining[head_end + 1..];
+        let Some(split) = after_head.find("\n=======") else {
+            break;
+        };
+        let shared_text = after_head[..split].trim().to_string();
+        let after_split_marker = &after_head[split + "\n=======".len()..];
+        let Some(split_end) = after_split_marker.find('\n') else {
+            break;
+        };
+        let after_split = &after_split_marker[split_end + 1..];
+        let Some(end) = after_split.find("\n>>>>>>>") else {
+            break;
+        };
+        let local_text = after_split[..end].trim().to_string();
+        if !shared_text.is_empty() {
+            shared.push(shared_text);
+        }
+        if !local_text.is_empty() {
+            local.push(local_text);
+        }
+        remaining = &after_split[end + "\n>>>>>>>".len()..];
+    }
+
+    (shared, local)
+}
+
+fn resolve_conflict_markers(content: &str, resolution: &str) -> CmdResult<String> {
+    let mut output = String::new();
+    let mut remaining = content;
+
+    while let Some(start) = remaining.find("<<<<<<<") {
+        output.push_str(&remaining[..start]);
+        remaining = &remaining[start..];
+
+        let head_end = remaining
+            .find('\n')
+            .ok_or("Could not parse conflict start marker")?;
+        let after_head = &remaining[head_end + 1..];
+        let split = after_head
+            .find("\n=======")
+            .ok_or("Could not parse conflict divider")?;
+        let shared_text = &after_head[..split];
+        let after_split_marker = &after_head[split + "\n=======".len()..];
+        let split_end = after_split_marker
+            .find('\n')
+            .ok_or("Could not parse conflict divider")?;
+        let after_split = &after_split_marker[split_end + 1..];
+        let end = after_split
+            .find("\n>>>>>>>")
+            .ok_or("Could not parse conflict end marker")?;
+        let local_text = &after_split[..end];
+        let after_end_marker = &after_split[end + "\n>>>>>>>".len()..];
+        let marker_line_end = after_end_marker.find('\n');
+
+        match resolution {
+            "keep_both" => {
+                output.push_str(shared_text.trim_end());
+                if !shared_text.trim().is_empty() && !local_text.trim().is_empty() {
+                    output.push('\n');
+                }
+                output.push_str(local_text.trim_start());
+            }
+            "use_shared" => output.push_str(shared_text),
+            "use_local" => output.push_str(local_text),
+            _ => return Err("Unknown conflict resolution".to_string()),
+        }
+
+        remaining = match marker_line_end {
+            Some(index) => &after_end_marker[index + 1..],
+            None => "",
+        };
+    }
+
+    output.push_str(remaining);
+    Ok(output)
+}
+
+#[tauri::command]
+pub fn git_conflict_files(state: State<'_, VaultState>) -> CmdResult<Vec<GitConflictInfo>> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let root = vault.root.to_string_lossy();
+    let paths = run_git_checked(
+        vault,
+        &["-C", &root, "diff", "--name-only", "--diff-filter=U"],
+        "Conflict scan failed",
+    )?;
+
+    let mut conflicts = Vec::new();
+    for path in paths.lines().map(str::trim).filter(|line| !line.is_empty()) {
+        let file_path = resolve_inside(&vault.root, path).map_err(|e| e.to_string())?;
+        let content = std::fs::read_to_string(&file_path)
+            .map_err(|e| format!("Could not read conflicted file {}: {}", path, e))?;
+        let (shared_sections, local_sections) = parse_conflict_sections(&content);
+        let count = shared_sections.len().max(local_sections.len());
+        conflicts.push(GitConflictInfo {
+            path: path.to_string(),
+            summary: format!(
+                "{} conflict{} found",
+                count,
+                if count == 1 { "" } else { "s" }
+            ),
+            shared_sections,
+            local_sections,
+        });
+    }
+
+    Ok(conflicts)
+}
+
+#[tauri::command]
+pub fn git_resolve_conflict_file(
+    path: String,
+    resolution: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let file_path = resolve_inside(&vault.root, &path).map_err(|e| e.to_string())?;
+    let content = std::fs::read_to_string(&file_path)
+        .map_err(|e| format!("Could not read conflicted file {}: {}", path, e))?;
+    let resolved = resolve_conflict_markers(&content, &resolution)?;
+    std::fs::write(&file_path, resolved)
+        .map_err(|e| format!("Could not write resolved file {}: {}", path, e))?;
+
+    let root = vault.root.to_string_lossy();
+    run_git_checked(
+        vault,
+        &["-C", &root, "add", &path],
+        "Stage resolved file failed",
+    )?;
+    Ok(format!("Resolved {}", path))
+}
+
+#[tauri::command]
+pub fn git_continue_update(state: State<'_, VaultState>) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let root = vault.root.to_string_lossy();
+
+    if has_rebase_in_progress(&vault.root) {
+        return run_git_checked_with_editor(
+            vault,
+            &["-C", &root, "rebase", "--continue"],
+            "Continue update failed",
+        );
+    }
+
+    Ok("No paused update found.".to_string())
 }
 
 #[derive(Serialize)]
@@ -2387,10 +2772,22 @@ pub fn generate_project_brief(
             .copied()
             .filter(|d| d.front_matter.canonical)
             .collect();
-        let protected_count = substantive_docs.iter().filter(|d| d.front_matter.protected).count();
-        let ai_count = substantive_docs.iter().filter(|d| format!("{:?}", d.front_matter.author).to_lowercase() == "ai").count();
-        let draft_count = substantive_docs.iter().filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "draft").count();
-        let final_count = substantive_docs.iter().filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "final").count();
+        let protected_count = substantive_docs
+            .iter()
+            .filter(|d| d.front_matter.protected)
+            .count();
+        let ai_count = substantive_docs
+            .iter()
+            .filter(|d| format!("{:?}", d.front_matter.author).to_lowercase() == "ai")
+            .count();
+        let draft_count = substantive_docs
+            .iter()
+            .filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "draft")
+            .count();
+        let final_count = substantive_docs
+            .iter()
+            .filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "final")
+            .count();
         let newest_modified = docs
             .iter()
             .map(|d| d.front_matter.modified)
@@ -2400,7 +2797,8 @@ pub fn generate_project_brief(
         let greenfield_mode = substantive_docs.is_empty();
 
         // Group by folder
-        let mut folder_counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+        let mut folder_counts: std::collections::BTreeMap<String, usize> =
+            std::collections::BTreeMap::new();
         for doc in &substantive_docs {
             let folder = doc.path.split('/').next().unwrap_or("root");
             let folder = if doc.path.contains('/') {
@@ -2648,7 +3046,8 @@ pub fn generate_project_brief(
         // 4. Constraints & Rules
         brief.push_str("---\n\n## Constraints & Rules\n\n");
         brief.push_str("- Do NOT overwrite protected documents Ã¢â‚¬â€ use `propose_doc_update` or `append_to_doc`\n");
-        brief.push_str("- Canonical docs are the source of truth Ã¢â‚¬â€ prioritize over drafts\n");
+        brief
+            .push_str("- Canonical docs are the source of truth Ã¢â‚¬â€ prioritize over drafts\n");
         brief.push_str("- AI-authored docs are tagged `author: ai` and auto-staged for git\n");
         brief.push_str("- Use `convert_to_spec` to structure messy notes into clean specs\n");
         brief.push_str(
@@ -2665,8 +3064,9 @@ pub fn generate_project_brief(
             brief.push_str(
                 "- Use shorthand paths: `specs/auth.md` not `the auth specification document`\n",
             );
-            brief
-                .push_str("- Skip obvious context Ã¢â‚¬â€ don't restate what's in the project summary\n");
+            brief.push_str(
+                "- Skip obvious context Ã¢â‚¬â€ don't restate what's in the project summary\n",
+            );
             brief.push_str("- For code refs: `fn:handleAuth` not `the handleAuth function`\n");
             brief.push_str("- Dates: `04-06` not `April 6th, 2026`\n\n");
             brief.push_str("Example compressed changelog:\n");
@@ -3486,12 +3886,17 @@ pub fn delete_wiki_doc(path: String, state: State<'_, VaultState>) -> CmdResult<
             return Err(invalid_input(format!("Wiki document not found: {}", path)));
         }
         if full.is_dir() {
-            return Err(invalid_input("Cannot delete a directory as a wiki document"));
+            return Err(invalid_input(
+                "Cannot delete a directory as a wiki document",
+            ));
         }
 
         std::fs::remove_file(&full)?;
         let _ = vault.stage_file(&full);
-        Ok(format!("Deleted wiki/{}", rel.to_string_lossy().replace('\\', "/")))
+        Ok(format!(
+            "Deleted wiki/{}",
+            rel.to_string_lossy().replace('\\', "/")
+        ))
     })
 }
 
@@ -3517,10 +3922,16 @@ pub fn rename_wiki_doc(
         let old_full = wiki_dir.join(&old_rel);
         let new_full = wiki_dir.join(&new_rel);
         if !old_full.exists() {
-            return Err(invalid_input(format!("Wiki document not found: {}", old_path)));
+            return Err(invalid_input(format!(
+                "Wiki document not found: {}",
+                old_path
+            )));
         }
         if new_full.exists() {
-            return Err(invalid_input(format!("Wiki document already exists: {}", new_path)));
+            return Err(invalid_input(format!(
+                "Wiki document already exists: {}",
+                new_path
+            )));
         }
         if let Some(parent) = new_full.parent() {
             std::fs::create_dir_all(parent)?;

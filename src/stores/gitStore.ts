@@ -7,6 +7,7 @@ import type {
   DocSyncRiskInfo,
   FileDiff,
   SyncStatusInfo,
+  GitConflictInfo,
 } from "@/types";
 import * as commands from "@/lib/commands";
 
@@ -26,6 +27,7 @@ interface GitState {
   syncStatus: SyncStatusInfo | null;
   syncHealth: SyncHealth | null;
   docSyncRisks: DocSyncRiskInfo[];
+  conflictFiles: GitConflictInfo[];
   commitMessage: string;
   loading: boolean;
   output: string | null;
@@ -45,8 +47,13 @@ interface GitState {
   commit: () => Promise<void>;
   push: () => Promise<string>;
   pull: () => Promise<string>;
+  updateSafely: () => Promise<string>;
   pullWithStash: () => Promise<string>;
   pullDiscardLocal: () => Promise<string>;
+  fetchRemote: () => Promise<string>;
+  loadConflictFiles: () => Promise<void>;
+  resolveConflictFile: (path: string, resolution: "keep_both" | "use_shared" | "use_local") => Promise<string>;
+  continueUpdate: () => Promise<string>;
   loadLog: () => Promise<void>;
   loadRemoteConfig: () => Promise<void>;
   loadSyncStatus: () => Promise<void>;
@@ -153,6 +160,7 @@ export const useGitStore = create<GitState>((set, get) => ({
   syncStatus: null,
   syncHealth: null,
   docSyncRisks: [],
+  conflictFiles: [],
   commitMessage: "",
   loading: false,
   output: null,
@@ -198,6 +206,16 @@ export const useGitStore = create<GitState>((set, get) => ({
     }
   },
 
+  loadConflictFiles: async () => {
+    try {
+      const conflictFiles = await commands.gitConflictFiles();
+      set({ conflictFiles });
+    } catch (e) {
+      console.error("git conflict files failed:", e);
+      set({ conflictFiles: [] });
+    }
+  },
+
   refreshSyncState: async () => {
     await Promise.all([
       get().loadStatus(),
@@ -206,7 +224,21 @@ export const useGitStore = create<GitState>((set, get) => ({
       get().loadRemoteConfig(),
       get().loadSyncStatus(),
       get().loadDocSyncRisks(),
+      get().loadConflictFiles(),
     ]);
+  },
+
+  fetchRemote: async () => {
+    try {
+      const result = await commands.gitFetchRemote();
+      set({ output: result || "Fetched latest remote state" });
+      await get().refreshSyncState();
+      return result;
+    } catch (e) {
+      const message = `Fetch failed: ${e}`;
+      set({ output: message });
+      throw e;
+    }
   },
 
   stage: async (path) => {
@@ -271,6 +303,20 @@ export const useGitStore = create<GitState>((set, get) => ({
     }
   },
 
+  updateSafely: async () => {
+    try {
+      const result = await commands.gitUpdateSafely();
+      set({ output: result || "Updated safely" });
+      await get().refreshSyncState();
+      return result;
+    } catch (e) {
+      const message = `Safe update paused: ${e}`;
+      set({ output: message });
+      await get().refreshSyncState();
+      throw e;
+    }
+  },
+
   pullWithStash: async () => {
     try {
       const result = await commands.gitPullWithStash();
@@ -293,6 +339,33 @@ export const useGitStore = create<GitState>((set, get) => ({
     } catch (e) {
       const message = `Discard local and pull failed: ${e}`;
       set({ output: message });
+      throw e;
+    }
+  },
+
+  resolveConflictFile: async (path, resolution) => {
+    try {
+      const result = await commands.gitResolveConflictFile(path, resolution);
+      set({ output: result || `Resolved ${path}` });
+      await get().refreshSyncState();
+      return result;
+    } catch (e) {
+      const message = `Resolve conflict failed: ${e}`;
+      set({ output: message });
+      throw e;
+    }
+  },
+
+  continueUpdate: async () => {
+    try {
+      const result = await commands.gitContinueUpdate();
+      set({ output: result || "Update continued" });
+      await get().refreshSyncState();
+      return result;
+    } catch (e) {
+      const message = `Continue update failed: ${e}`;
+      set({ output: message });
+      await get().refreshSyncState();
       throw e;
     }
   },

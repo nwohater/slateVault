@@ -99,6 +99,13 @@ export interface DocSyncRiskInfo {
   risk: "remote_changed" | "conflict_risk" | string;
 }
 
+export interface GitConflictInfo {
+  path: string;
+  summary: string;
+  shared_sections: string[];
+  local_sections: string[];
+}
+
 export interface VaultSettings {
   name: string;
   path: string;
