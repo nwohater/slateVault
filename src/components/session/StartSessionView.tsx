@@ -5,6 +5,7 @@ import { useVaultStore } from "@/stores/vaultStore";
 import { useSessionStore } from "@/stores/sessionStore";
 import * as commands from "@/lib/commands";
 import { copyToClipboard } from "@/lib/clipboard";
+import type { PlaybookInfo } from "@/types";
 
 // ─── Monogram helpers ────────────────────────────────────────────────────────
 
@@ -297,6 +298,13 @@ export function StartSessionView() {
   const [docCounts, setDocCounts] = useState<Record<string, DocCounts>>({});
   const [copiedBrief, setCopiedBrief] = useState(false);
   const [generatedAt, setGeneratedAt] = useState<Date | null>(null);
+  const [playbooks, setPlaybooks] = useState<PlaybookInfo[]>([]);
+  const [loadingPlaybook, setLoadingPlaybook] = useState(false);
+
+  // Load playbooks once on mount
+  useEffect(() => {
+    commands.listPlaybooks().then(setPlaybooks).catch(() => {});
+  }, []);
 
   // Auto-select first project
   useEffect(() => {
@@ -341,6 +349,19 @@ export function StartSessionView() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   });
+
+  const handleSelectPlaybook = async (playbookId: string) => {
+    if (!selectedProject) return;
+    setLoadingPlaybook(true);
+    try {
+      const prompt = await commands.getPlaybookPrompt(playbookId, selectedProject);
+      setTaskPrompt(prompt);
+    } catch {
+      // silently ignore — user can type manually
+    } finally {
+      setLoadingPlaybook(false);
+    }
+  };
 
   const handleGenerate = async () => {
     await generateSession();
@@ -433,8 +454,8 @@ export function StartSessionView() {
         {/* ── Two-column layout ── */}
         <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
 
-          {/* ── Left column ── */}
-          <div style={{ width: 360, flexShrink: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* ── Left column: project picker ── */}
+          <div style={{ width: 240, flexShrink: 0 }}>
 
             {/* PROJECT */}
             <div className="workspace-section rounded-2xl p-4">
@@ -519,6 +540,10 @@ export function StartSessionView() {
                 })}
               </div>
             </div>
+          </div>
+
+          {/* ── Right column: task focus, include, generate, brief ── */}
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
 
             {/* TASK FOCUS */}
             <div className="workspace-section rounded-2xl p-4">
@@ -531,16 +556,45 @@ export function StartSessionView() {
                   marginBottom: 10,
                 }}
               >
-                <div
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  Task Focus
+                {/* Label + playbook picker */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    Task Focus
+                  </div>
+                  {playbooks.length > 0 && (
+                    <select
+                      value=""
+                      onChange={(e) => { if (e.target.value) void handleSelectPlaybook(e.target.value); }}
+                      disabled={!selectedProject || loadingPlaybook}
+                      title={!selectedProject ? "Pick a project first" : "Fill from a playbook template"}
+                      style={{
+                        fontSize: 11,
+                        color: loadingPlaybook ? "var(--text-faint)" : "var(--text-muted)",
+                        background: "var(--bg-elevated)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 5,
+                        padding: "2px 6px",
+                        cursor: selectedProject ? "pointer" : "not-allowed",
+                        outline: "none",
+                        maxWidth: 160,
+                      }}
+                    >
+                      <option value="">{loadingPlaybook ? "Loading…" : "Use a playbook…"}</option>
+                      {playbooks.map((pb) => (
+                        <option key={pb.id} value={pb.id} title={pb.description}>
+                          {pb.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div
                   style={{
@@ -554,25 +608,53 @@ export function StartSessionView() {
                   The assembler matches your text to tags, ADRs, runbooks, and recent edits.
                 </div>
               </div>
-              <textarea
-                value={taskPrompt}
-                onChange={(e) => setTaskPrompt(e.target.value)}
-                rows={4}
-                placeholder="Authentication refactor, release workflow cleanup, PDF export investigation…"
-                style={{
-                  width: "100%",
-                  borderRadius: 8,
-                  background: "var(--bg-elevated)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text)",
-                  fontSize: 12.5,
-                  padding: "8px 10px",
-                  resize: "vertical",
-                  outline: "none",
-                  fontFamily: "inherit",
-                  boxSizing: "border-box",
-                }}
-              />
+              <div style={{ position: "relative" }}>
+                <textarea
+                  value={taskPrompt}
+                  onChange={(e) => setTaskPrompt(e.target.value)}
+                  rows={8}
+                  placeholder="Authentication refactor, release workflow cleanup, PDF export investigation…"
+                  style={{
+                    width: "100%",
+                    borderRadius: 8,
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text)",
+                    fontSize: 12.5,
+                    padding: taskPrompt ? "8px 28px 8px 10px" : "8px 10px",
+                    resize: "vertical",
+                    outline: "none",
+                    fontFamily: "inherit",
+                    boxSizing: "border-box",
+                  }}
+                />
+                {taskPrompt && (
+                  <button
+                    onClick={() => setTaskPrompt("")}
+                    title="Clear"
+                    style={{
+                      position: "absolute",
+                      top: 6,
+                      right: 6,
+                      width: 18,
+                      height: 18,
+                      borderRadius: "50%",
+                      border: "none",
+                      background: "var(--bg-subtle)",
+                      color: "var(--text-faint)",
+                      fontSize: 11,
+                      lineHeight: 1,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* INCLUDE */}
@@ -721,10 +803,10 @@ export function StartSessionView() {
                 ⌘↵
               </kbd>
             </button>
-          </div>
 
-          {/* ── Right column ── */}
-          <div style={{ flex: 1, minWidth: 0 }}>
+          {/* ── Brief output (appears after generate) ── */}
+          {(loading || hasGenerated) && (
+          <div>
             <div className="workspace-section rounded-2xl" style={{ overflow: "hidden" }}>
 
               {/* Brief header bar */}
@@ -1048,7 +1130,9 @@ export function StartSessionView() {
               </div>
             </div>
           </div>
-        </div>
+          )}
+          </div>{/* end right column */}
+        </div>{/* end two-column layout */}
       </div>
     </div>
   );

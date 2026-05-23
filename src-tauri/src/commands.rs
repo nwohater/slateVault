@@ -172,6 +172,19 @@ fn run_git_checked(vault: &Vault, args: &[&str], label: &str) -> CmdResult<Strin
     }
 }
 
+/// Like `run_git_checked` but returns only stdout — for commands whose output
+/// is parsed as machine-readable data (file lists, etc.) and must not contain
+/// git's stderr warnings (e.g. CRLF warnings on Windows).
+fn run_git_stdout(vault: &Vault, args: &[&str], label: &str) -> CmdResult<String> {
+    let output = run_git_for_vault(vault, args).map_err(|e| format!("Failed to run git: {}", e))?;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err(git_error(label, &stderr, vault))
+    }
+}
+
 fn run_git_checked_with_editor(vault: &Vault, args: &[&str], label: &str) -> CmdResult<String> {
     let output = git_command_for_vault(vault)
         .env("GIT_EDITOR", "true")
@@ -1158,7 +1171,7 @@ pub fn git_conflict_files(state: State<'_, VaultState>) -> CmdResult<Vec<GitConf
     let lock = state.0.lock().map_err(|e| e.to_string())?;
     let vault = lock.as_ref().ok_or("No vault is open")?;
     let root = vault.root.to_string_lossy();
-    let paths = run_git_checked(
+    let paths = run_git_stdout(
         vault,
         &["-C", &root, "diff", "--name-only", "--diff-filter=U"],
         "Conflict scan failed",
@@ -2820,11 +2833,6 @@ pub fn generate_project_brief(
             "- Treat canonical SlateVault docs as the source of truth when they exist.\n\n",
         );
 
-        if !focus_trimmed.is_empty() {
-            brief.push_str("## Current Task\n\n");
-            brief.push_str(&format!("{}\n\n", focus_trimmed));
-        }
-
         // 1. Project Summary
         brief.push_str("## Project Summary\n\n");
         if !desc.is_empty() {
@@ -2869,7 +2877,7 @@ pub fn generate_project_brief(
                 if !is_about_doc(&doc.path) {
                     brief.push_str(&format!(
                         "### {}\n\n{}\n\n",
-                        doc.front_matter.title, doc.content
+                        doc.front_matter.title, doc.content.trim()
                     ));
                 }
             }
@@ -2887,7 +2895,7 @@ pub fn generate_project_brief(
                     brief.push_str("_No canonical docs yet. These pinned context files are the best starting point._\n\n");
                 }
                 for (path, content) in &new_context {
-                    brief.push_str(&format!("### {}\n\n{}\n\n", path, content));
+                    brief.push_str(&format!("### {}\n\n{}\n\n", path, content.trim()));
                 }
             }
         }

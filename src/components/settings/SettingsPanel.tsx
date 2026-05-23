@@ -12,6 +12,7 @@ import {
 } from "@/lib/mcpSetup";
 import { useAppStore } from "@/stores/appStore";
 import { useEditorStore } from "@/stores/editorStore";
+import { useGitStore } from "@/stores/gitStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import type { CredentialsMasked, McpServerStatus, VaultSettings, WikiDocInfo } from "@/types";
@@ -95,6 +96,10 @@ export function SettingsPanel() {
   const checkForUpdates = useAppStore((s) => s.checkForUpdates);
   const installUpdate = useAppStore((s) => s.installUpdate);
 
+  const remoteConfig = useGitStore((s) => s.remoteConfig);
+  const loadRemoteConfig = useGitStore((s) => s.loadRemoteConfig);
+  const setRemoteConfig = useGitStore((s) => s.setRemoteConfig);
+
   const [activeSection, setActiveSection] = useState<SettingsSection>("vault");
   const [settings, setSettings] = useState<VaultSettings | null>(null);
   const [mcpStatus, setMcpStatus] = useState<McpServerStatus | null>(null);
@@ -114,6 +119,7 @@ export function SettingsPanel() {
   const [adoOrg, setAdoOrg] = useState("");
   const [adoProject, setAdoProject] = useState("");
   const [showAzureDevOps, setShowAzureDevOps] = useState(false);
+  const [remoteUrl, setRemoteUrl] = useState("");
   const [platform, setPlatform] = useState<McpPlatform>("unknown");
   const [selectedMcpSetup, setSelectedMcpSetup] = useState("Claude Code");
   const [saving, setSaving] = useState(false);
@@ -158,7 +164,12 @@ export function SettingsPanel() {
     setPlatform(detectMcpPlatform());
     void initializeApp().catch(() => {});
     void loadSettings();
-  }, [initializeApp, loadSettings]);
+    void loadRemoteConfig();
+  }, [initializeApp, loadSettings, loadRemoteConfig]);
+
+  useEffect(() => {
+    if (remoteConfig) setRemoteUrl(remoteConfig.remote_url ?? "");
+  }, [remoteConfig]);
 
   const mcpSetupCards = getMcpSetupCards(platform);
   const selectedMcpCard = mcpSetupCards.find((card) => card.name === selectedMcpSetup) ?? mcpSetupCards[0];
@@ -224,9 +235,26 @@ export function SettingsPanel() {
     }
   };
 
-  const handleSaveCredentials = async () => {
+  const handleSaveGitSettings = async () => {
     setSaving(true);
     try {
+      await commands.setVaultConfig({
+        name,
+        mcp_enabled: mcpEnabled,
+        mcp_port: mcpPort,
+        auto_stage_ai_writes: autoStage,
+        compress_context: compressContext,
+        ssh_key_path: sshKeyPath,
+        ai_enabled: aiEnabled,
+        ai_endpoint_url: aiEndpointUrl,
+        ai_model: aiModel,
+      });
+      await setRemoteConfig({
+        remote_url: remoteUrl || undefined,
+        remote_branch: remoteConfig?.remote_branch ?? "main",
+        pull_on_open: remoteConfig?.pull_on_open ?? false,
+        push_on_close: remoteConfig?.push_on_close ?? false,
+      });
       await commands.gitSaveCredentials({
         github_pat: githubPat || undefined,
         ado_pat: adoPat || undefined,
@@ -235,10 +263,11 @@ export function SettingsPanel() {
       });
       setGithubPat("");
       setAdoPat("");
+      await loadStats();
       await loadSettings();
-      showMessage("Credentials saved.");
+      showMessage("Git settings saved.");
     } catch (err) {
-      setError(`Save credentials failed: ${err}`);
+      setError(`Save failed: ${err}`);
     } finally {
       setSaving(false);
     }
@@ -378,7 +407,7 @@ export function SettingsPanel() {
                   <button className="btn danger" onClick={closeVault}>Close vault</button>
                 </SettingRow>
                 <div className="pt-4">
-                  <button className="btn primary" disabled={saving} onClick={() => void saveConfig()}>
+                  <button className="btn primary lg whitespace-nowrap" disabled={saving} onClick={() => void saveConfig()}>
                     {saving ? "Saving..." : "Save vault settings"}
                   </button>
                 </div>
@@ -455,7 +484,7 @@ export function SettingsPanel() {
                   </div>
                 </section>
                 <div className="pt-4">
-                  <button className="btn primary" disabled={saving} onClick={() => void saveConfig()}>
+                  <button className="btn primary lg whitespace-nowrap" disabled={saving} onClick={() => void saveConfig()}>
                     {saving ? "Saving..." : "Save agent settings"}
                   </button>
                 </div>
@@ -490,7 +519,7 @@ export function SettingsPanel() {
                     }}
                   />
                 </SettingRow>
-                <button className="btn primary" disabled={saving} onClick={() => void saveConfig()}>
+                <button className="btn primary lg whitespace-nowrap" disabled={saving} onClick={() => void saveConfig()}>
                   {saving ? "Saving..." : "Save AI settings"}
                 </button>
               </SettingsSectionShell>
@@ -502,6 +531,9 @@ export function SettingsPanel() {
                 title="Git & credentials"
                 description="Configure how slateVault talks to your remote and creates pull requests on your behalf."
               >
+                <SettingRow label="Remote repository URL" help="The git remote used for team sync. Changes here also update the Sync screen.">
+                  <input className="settings-input" value={remoteUrl} onChange={(event) => setRemoteUrl(event.target.value)} placeholder="https://github.com/org/vault.git" />
+                </SettingRow>
                 <SettingRow label="SSH key path">
                   <input className="settings-input" value={sshKeyPath} onChange={(event) => setSshKeyPath(event.target.value)} placeholder="~/.ssh/id_ed25519" />
                 </SettingRow>
@@ -529,11 +561,8 @@ export function SettingsPanel() {
                   <Toggle checked={false} onChange={() => {}} label="Sign commits with SSH key" disabled />
                 </SettingRow>
                 <div className="flex flex-wrap gap-2 pt-4">
-                  <button className="btn primary" disabled={saving} onClick={() => void saveConfig()}>
-                    Save Git settings
-                  </button>
-                  <button className="btn" disabled={saving} onClick={() => void handleSaveCredentials()}>
-                    Save credentials
+                  <button className="btn primary lg whitespace-nowrap" disabled={saving} onClick={() => void handleSaveGitSettings()}>
+                    {saving ? "Saving..." : "Save Git settings"}
                   </button>
                 </div>
               </SettingsSectionShell>
@@ -576,10 +605,10 @@ export function SettingsPanel() {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <button className="btn" disabled={updateBusy} onClick={() => void checkForUpdates(true)}>
+                    <button className="btn lg whitespace-nowrap" disabled={updateBusy} onClick={() => void checkForUpdates(true)}>
                       {updateState === "checking" ? "Checking..." : "Check for updates"}
                     </button>
-                    <button className="btn primary" disabled={updateState !== "available"} onClick={() => void installUpdate()}>
+                    <button className="btn primary lg whitespace-nowrap" disabled={updateState !== "available"} onClick={() => void installUpdate()}>
                       Install update
                     </button>
                   </div>

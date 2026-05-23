@@ -531,14 +531,14 @@ export function SyncView() {
                   <button
                     onClick={() => void handleSafePullThenPush()}
                     disabled={!canUpdateSafely || syncing !== null}
-                    className="btn primary lg justify-center"
+                    className="btn primary lg justify-center whitespace-nowrap"
                   >
                     {syncing === "safe-sync" ? "Working..." : recommendedLabel}
                   </button>
                   <button
                     onClick={() => void handlePush()}
                     disabled={!canPush || syncing !== null}
-                    className="btn lg justify-center"
+                    className="btn lg justify-center whitespace-nowrap"
                     title={pushHint}
                   >
                     {pushLabel}
@@ -781,13 +781,13 @@ export function SyncView() {
                   value={commitMessage}
                   onChange={(e) => setCommitMessage(e.target.value)}
                   placeholder="Commit message... e.g. Update session timeout ADR"
-                  className="h-12 min-w-0 flex-1 rounded-lg border px-4 text-sm"
-                  style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}
+                  className="min-w-0 flex-1 rounded-lg border px-4 text-sm"
+                  style={{ height: 36, borderColor: "var(--border)", background: "var(--bg-elevated)" }}
                 />
                 <button
                   onClick={() => void handleCommitAll()}
                   disabled={!commitMessage.trim() || files.length === 0 || syncing !== null}
-                  className="btn primary lg h-12 justify-center sm:w-[160px]"
+                  className="btn primary lg justify-center whitespace-nowrap sm:w-[160px]"
                 >
                   Commit all
                 </button>

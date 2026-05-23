@@ -450,18 +450,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const lines = [
       `# Start Session: ${selectedProject}`,
       "",
-      taskPrompt ? `## Task\n\n${taskPrompt}\n` : "",
-      buildMcpUseText(selectedProject),
-      "",
+      taskPrompt ? `${taskPrompt}\n` : "",
       "## Session Brief",
       "",
       projectBrief,
-      "",
-      "## Recommended Reading",
-      "",
-      ...recommendedDocs.map(
-        (doc) => `- ${doc.title} (\`${doc.path}\`): ${doc.reason}`
-      ),
       "",
     ];
 

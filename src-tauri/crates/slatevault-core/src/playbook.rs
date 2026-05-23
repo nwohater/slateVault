@@ -26,17 +26,14 @@ impl PlaybookConfig {
                     id: "document-as-you-go".to_string(),
                     label: "Document as You Go".to_string(),
                     description: "Continuous documentation during development. AI documents decisions, specs, and changes as you work.".to_string(),
-                    prompt: r#"You have access to SlateVault via MCP. Use project "{{project}}" as the primary documentation context.
-{{folders_section}}
-## Rules
-1. Before writing any doc, call search_documents to check if one already exists - update instead of creating duplicates
-2. Set ai_tool to your tool name when the MCP tool supports it
-3. Use propose_doc_update for canonical, protected, or important existing docs instead of overwriting them directly
-4. Apply appropriate tags when creating or updating docs
-5. Respect protected and canonical documents
+                    prompt: r#"## What to Document
+- Changes → `changelog/` (what you did, what changed)
+- Bugs found → `bugs/` (description, repro steps, fix)
+- Product or feature planning → `prd/` (requirements, scope, feature direction)
+- Project context → `context/` (architecture notes, implementation context, constraints)
+- Follow-up ideas → `ideas/` (quick captures, things to revisit)
 
-## What to Document
-{{documentation_section}}
+Document in whatever folder best fits the type of change. Check for existing docs before creating new ones.
 
 ## End of Session
 Write a session summary to changelog/ with:
@@ -49,18 +46,20 @@ Write a session summary to changelog/ with:
                     id: "reverse-engineer".to_string(),
                     label: "Reverse Engineer Project".to_string(),
                     description: "AI analyzes the codebase and creates comprehensive documentation in the vault.".to_string(),
-                    prompt: r#"You have access to SlateVault via MCP. Review and extend documentation for project "{{project}}" based on the codebase and existing vault docs.
-{{folders_section}}
-## Process
-1. First call get_project_context and search_documents to understand what docs already exist
+                    prompt: r#"## Process
+1. Call get_project_context and search_documents to understand what docs already exist
 2. Analyze the codebase structure, key files, architecture, data flow, and platform integrations
 3. Prefer updating or extending existing docs before creating new structure
 
 ## Documentation Priorities
-{{reverse_engineer_section}}
+- Architecture and design decisions
+- Data models and interfaces
+- Key services and utilities
+- Platform integrations and external dependencies
+- Setup and configuration
 
 ## Finish
-1. After documenting, call search_documents to verify completeness
+1. Call search_documents to verify completeness
 2. Summarize what existing docs were updated
 3. Summarize what new docs were added
 4. Note any documentation gaps that still remain
@@ -70,15 +69,15 @@ Write a session summary to changelog/ with:
                     id: "resume-session".to_string(),
                     label: "Resume Session".to_string(),
                     description: "Bring an AI agent up to speed on what happened since the last session.".to_string(),
-                    prompt: r#"You have access to SlateVault via MCP for project "{{project}}".
-{{folders_section}}
-## Startup
-1. Call generate_agent_brief for project "{{project}}" to get full project context
+                    prompt: r#"## Startup
+1. Call generate_agent_brief to get full project context
 2. Call get_recent_changes to see what happened since the last session
 3. Review any recently modified documents that seem relevant
 
 ## Focus
-{{resume_section}}
+- Pick up from where the last session left off
+- Address any open items or blockers identified previously
+- Continue documenting progress as work happens
 
 ## Then
 - Summarize what changed since the last session
@@ -90,17 +89,13 @@ Write a session summary to changelog/ with:
                     id: "code-review-docs".to_string(),
                     label: "Code Review Documentation".to_string(),
                     description: "Document a PR's changes, decisions, and impact in the vault.".to_string(),
-                    prompt: r#"You have access to SlateVault via MCP for project "{{project}}".
-{{folders_section}}
-## Task
+                    prompt: r#"## Task
 Document the current code review or PR in the vault.
 
 ## Process
 1. Call summarize_branch_diff to understand what changed
 2. Call search_documents before creating any new review summary
 3. Write or update review-related documentation in the most appropriate existing folder
-
-{{code_review_section}}
 
 ## Include
 - What changed and why
@@ -112,38 +107,31 @@ Document the current code review or PR in the vault.
                     id: "sprint-release-notes".to_string(),
                     label: "Sprint / Release Notes".to_string(),
                     description: "Generate a changelog and release notes from recent commits and doc changes.".to_string(),
-                    prompt: r#"You have access to SlateVault via MCP for project "{{project}}".
-{{folders_section}}
-## Task
+                    prompt: r#"## Task
 Generate release notes from recent work.
 
 ## Process
 1. Call get_recent_changes to see recent modifications
-2. Call search_documents for recent changelog or release-note entries
-3. Compile a release summary that covers:
+2. Call search_documents for existing changelog or release-note entries
+3. Compile a release summary covering:
    - New features added
    - Bugs fixed
    - Breaking changes
    - Known issues
-   - Contributors or AI tools involved
 
-{{release_notes_section}}"#.to_string(),
+Write the release notes to changelog/ or a dedicated release notes document."#.to_string(),
                 },
                 Playbook {
                     id: "onboard-team-member".to_string(),
                     label: "Onboard Team Member".to_string(),
                     description: "Generate a comprehensive project walkthrough from existing documentation.".to_string(),
-                    prompt: r#"You have access to SlateVault via MCP for project "{{project}}".
-{{folders_section}}
-## Task
+                    prompt: r#"## Task
 Create or improve onboarding documentation for a new team member.
 
 ## Process
 1. Call generate_agent_brief to understand the current project state
 2. Call get_canonical_context for source-of-truth docs
 3. Call build_context_bundle with query "architecture setup getting started"
-
-{{onboarding_section}}
 
 ## Cover
 - Project overview and purpose
@@ -157,9 +145,7 @@ Create or improve onboarding documentation for a new team member.
                     id: "architecture-audit".to_string(),
                     label: "Architecture Audit".to_string(),
                     description: "AI reviews documentation for gaps, inconsistencies, and staleness.".to_string(),
-                    prompt: r#"You have access to SlateVault via MCP for project "{{project}}".
-{{folders_section}}
-## Task
+                    prompt: r#"## Task
 Audit the project's documentation for quality, completeness, and staleness.
 
 ## Process
@@ -167,8 +153,6 @@ Audit the project's documentation for quality, completeness, and staleness.
 2. Call detect_stale_docs to find outdated documentation
 3. Call list_documents to see all docs and their statuses
 4. Review canonical documents for accuracy
-
-{{audit_section}}
 
 ## Report
 Write an audit report that covers:
