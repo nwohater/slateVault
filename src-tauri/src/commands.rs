@@ -78,7 +78,7 @@ fn shell_quote(value: &str) -> String {
 }
 
 fn hidden_command(program: &str) -> Command {
-    let mut command = Command::new(program);
+    let command = Command::new(program);
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;

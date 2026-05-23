@@ -12,7 +12,7 @@ use terminal::PtyState;
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 fn hidden_command(program: &str) -> std::process::Command {
-    let mut command = std::process::Command::new(program);
+    let command = std::process::Command::new(program);
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
