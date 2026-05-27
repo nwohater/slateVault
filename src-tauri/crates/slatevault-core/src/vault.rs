@@ -1121,12 +1121,25 @@ impl Vault {
         Self::parse_diff_for_file(&diff, path)
     }
 
-    pub fn diff_branches(&self, base: &str, head: &str) -> Result<Vec<FileDiff>> {
-        let base_branch = self.repo.find_branch(base, git2::BranchType::Local)?;
-        let head_branch = self.repo.find_branch(head, git2::BranchType::Local)?;
+    fn resolve_ref_to_tree<'a>(&'a self, refspec: &str) -> Result<git2::Tree<'a>> {
+        if refspec == "HEAD" {
+            let head = self.repo.head()?;
+            return Ok(head.peel_to_tree()?);
+        }
+        // Try local branch first, then remote branch, then direct reference
+        if let Ok(branch) = self.repo.find_branch(refspec, git2::BranchType::Local) {
+            return Ok(branch.get().peel_to_tree()?);
+        }
+        if let Ok(branch) = self.repo.find_branch(refspec, git2::BranchType::Remote) {
+            return Ok(branch.get().peel_to_tree()?);
+        }
+        let reference = self.repo.find_reference(refspec)?;
+        Ok(reference.peel_to_tree()?)
+    }
 
-        let base_tree = base_branch.get().peel_to_tree()?;
-        let head_tree = head_branch.get().peel_to_tree()?;
+    pub fn diff_branches(&self, base: &str, head: &str) -> Result<Vec<FileDiff>> {
+        let base_tree = self.resolve_ref_to_tree(base)?;
+        let head_tree = self.resolve_ref_to_tree(head)?;
 
         let diff = self
             .repo
