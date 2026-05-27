@@ -6,7 +6,8 @@ import { GitPanel } from "@/components/git/GitPanel";
 import { useGitStore } from "@/stores/gitStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useEditorStore } from "@/stores/editorStore";
-import type { DocumentInfo } from "@/types";
+import type { DocSyncRiskInfo, DocumentInfo } from "@/types";
+import { CompareDiffModal } from "@/components/sync/CompareDiffModal";
 
 type ChangedDocSummary = {
   key: string;
@@ -93,6 +94,7 @@ export function SyncView() {
   const [error, setError] = useState<string | null>(null);
   const [updatePaused, setUpdatePaused] = useState(false);
   const [docMetaByKey, setDocMetaByKey] = useState<Record<string, DocumentInfo>>({});
+  const [compareRisk, setCompareRisk] = useState<DocSyncRiskInfo | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -747,7 +749,7 @@ export function SyncView() {
                           </div>
                         )}
                       </div>
-                      <button onClick={() => handleOpenRiskDoc(risk)} className="btn">
+                      <button onClick={() => setCompareRisk(risk)} className="btn">
                         Compare
                       </button>
                     </div>
@@ -853,6 +855,14 @@ export function SyncView() {
           </details>
         </main>
       </div>
+
+      {compareRisk && (
+        <CompareDiffModal
+          risk={compareRisk}
+          remoteBranch={`origin/${currentBranch ?? "main"}`}
+          onClose={() => setCompareRisk(null)}
+        />
+      )}
     </div>
   );
 }
