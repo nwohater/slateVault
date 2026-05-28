@@ -4,18 +4,6 @@ import * as commands from "@/lib/commands";
 import { parseFrontMatter } from "@/lib/frontmatter";
 import { useUIStore } from "@/stores/uiStore";
 
-// Throttle remote fetches so rapid doc-switching doesn't queue up multiple
-// network calls (each holds the vault lock for the duration of the fetch).
-// One fetch per minute is fresh enough for stale-detection purposes.
-let lastRemoteFetchAt = 0;
-const REMOTE_FETCH_THROTTLE_MS = 60_000;
-
-async function fetchRemoteIfStale() {
-  const now = Date.now();
-  if (now - lastRemoteFetchAt < REMOTE_FETCH_THROTTLE_MS) return;
-  await commands.gitFetchRemote().catch(() => {});
-  lastRemoteFetchAt = Date.now();
-}
 
 interface EditorState {
   activeProject: string | null;
@@ -72,13 +60,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       rawFilePath: null,
     });
 
-    // Fetch remote then check sync risk in the background.
-    // Ignore fetch errors (offline / auth) — fall back to last-fetched state.
+    // Check sync risk against already-fetched remote state (fast, no network call).
+    // The sync screen keeps remote state fresh via its own fetch on load.
     try {
-      await fetchRemoteIfStale();
       const risks = await commands.gitDocSyncRisks();
       const syncRisk = risks.find((r) => r.project === project && r.path === path) ?? null;
-      // Guard against the user having switched to another doc while we were fetching.
+      // Guard against the user having switched to another doc while checking.
       if (get().activeProject === project && get().activePath === path) {
         set({ activeDocSyncRisk: syncRisk, isCheckingRemote: false });
       }
@@ -137,9 +124,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       rawFilePath: vaultPath,
     });
 
-    // Background remote check.
+    // Check sync risk against already-fetched remote state (fast, no network call).
     try {
-      await fetchRemoteIfStale();
       const risks = await commands.gitDocSyncRisks();
       const syncRisk = risks.find((r) => r.project === "wiki" && r.path === path) ?? null;
       if (get().activePath === path) {

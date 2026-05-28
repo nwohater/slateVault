@@ -97,7 +97,7 @@ function SyncRiskWarning() {
         }}
       >
         <RemoteCheckSpinner />
-        Checking remote for changes…
+        Checking for remote changes…
       </div>
     );
   }
