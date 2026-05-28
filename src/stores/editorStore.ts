@@ -4,6 +4,19 @@ import * as commands from "@/lib/commands";
 import { parseFrontMatter } from "@/lib/frontmatter";
 import { useUIStore } from "@/stores/uiStore";
 
+// Throttle remote fetches so rapid doc-switching doesn't queue up multiple
+// network calls (each holds the vault lock for the duration of the fetch).
+// One fetch per minute is fresh enough for stale-detection purposes.
+let lastRemoteFetchAt = 0;
+const REMOTE_FETCH_THROTTLE_MS = 60_000;
+
+async function fetchRemoteIfStale() {
+  const now = Date.now();
+  if (now - lastRemoteFetchAt < REMOTE_FETCH_THROTTLE_MS) return;
+  await commands.gitFetchRemote().catch(() => {});
+  lastRemoteFetchAt = Date.now();
+}
+
 interface EditorState {
   activeProject: string | null;
   activePath: string | null;
@@ -62,7 +75,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // Fetch remote then check sync risk in the background.
     // Ignore fetch errors (offline / auth) — fall back to last-fetched state.
     try {
-      await commands.gitFetchRemote().catch(() => {});
+      await fetchRemoteIfStale();
       const risks = await commands.gitDocSyncRisks();
       const syncRisk = risks.find((r) => r.project === project && r.path === path) ?? null;
       // Guard against the user having switched to another doc while we were fetching.
@@ -126,7 +139,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     // Background remote check.
     try {
-      await commands.gitFetchRemote().catch(() => {});
+      await fetchRemoteIfStale();
       const risks = await commands.gitDocSyncRisks();
       const syncRisk = risks.find((r) => r.project === "wiki" && r.path === path) ?? null;
       if (get().activePath === path) {
