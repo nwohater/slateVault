@@ -531,9 +531,9 @@ export function SyncView() {
                   <Metric value={changedDocs.length} label="Local docs" hint="not yet committed" tone="warning" />
                 </div>
                 {fetchingRemote && (
-                  <div className="mt-2 flex items-center gap-1.5 text-xs" style={{ color: "var(--text-faint)" }}>
-                    <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "var(--text-faint)" }} />
-                    Checking remote…
+                  <div className="mt-3 flex items-center gap-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                    <Spinner />
+                    Checking remote for changes…
                   </div>
                 )}
               </div>
@@ -744,9 +744,20 @@ export function SyncView() {
             </div>
             <div className="panel overflow-hidden">
               {fetchingRemote ? (
-                <div className="flex items-center gap-2 px-4 py-5 text-sm" style={{ color: "var(--text-muted)" }}>
-                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "var(--text-muted)" }} />
-                  Reaching out to remote…
+                <div>
+                  {[1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-4 px-4 py-3"
+                      style={{ borderTop: i === 1 ? "none" : "1px solid var(--border-subtle)" }}
+                    >
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3 w-48 animate-pulse rounded" style={{ background: "var(--border)" }} />
+                        <div className="h-2.5 w-32 animate-pulse rounded" style={{ background: "var(--border-subtle)" }} />
+                      </div>
+                      <div className="h-7 w-16 animate-pulse rounded-md" style={{ background: "var(--border)" }} />
+                    </div>
+                  ))}
                 </div>
               ) : docSyncRisks.length === 0 ? (
                 <div className="px-4 py-5 text-sm" style={{ color: "var(--text-muted)" }}>No incoming document risks detected.</div>
@@ -913,5 +924,21 @@ function Metric({
       </div>
       <div className="mt-1 truncate text-xs" style={{ color: "var(--text-faint)" }}>{hint}</div>
     </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <svg
+      className="animate-spin"
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      style={{ flexShrink: 0 }}
+    >
+      <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2" />
+      <path d="M7 1.5A5.5 5.5 0 0 1 12.5 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
   );
 }
