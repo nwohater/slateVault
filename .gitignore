@@ -28,7 +28,7 @@ next-env.d.ts
 src-tauri/target/
 
 # claude code
-.claude/settings.local.json
+.claude/
 
 # slatevault
 index.db
