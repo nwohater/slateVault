@@ -86,6 +86,7 @@ export function SyncView() {
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const openDocument = useEditorStore((s) => s.openDocument);
   const openWikiFile = useEditorStore((s) => s.openWikiFile);
+  const [fetchingRemote, setFetchingRemote] = useState(true);
   const [syncing, setSyncing] = useState<"pull" | "push" | "safe-pull" | "safe-sync" | "discard-pull" | "commit" | "fetch" | "resolve" | "continue" | null>(null);
   const [confirmDiscardPull, setConfirmDiscardPull] = useState(false);
   const [activeFilter, setActiveFilter] = useState<"all" | "conflict" | "ai" | "sensitive" | "mine">("all");
@@ -111,6 +112,7 @@ export function SyncView() {
     };
 
     const refreshRemote = async () => {
+      setFetchingRemote(true);
       try {
         await commands.gitFetchRemote();
       } catch {
@@ -121,6 +123,7 @@ export function SyncView() {
         loadSyncStatus(),
         loadDocSyncRisks(),
       ]);
+      if (active) setFetchingRemote(false);
     };
 
     void refreshLocal();
@@ -521,10 +524,18 @@ export function SyncView() {
                 </div>
               </div>
 
-              <div className="grid min-w-0 gap-3 sm:grid-cols-3">
-                <Metric value={syncStatus?.ahead ?? 0} label="Ahead" hint="commits ready to push" tone="accent" />
-                <Metric value={syncStatus?.behind ?? 0} label="Behind" hint="from shared vault" tone="info" />
-                <Metric value={changedDocs.length} label="Local docs" hint="not yet committed" tone="warning" />
+              <div className="min-w-0">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Metric value={syncStatus?.ahead ?? 0} label="Ahead" hint="commits ready to push" tone="accent" />
+                  <Metric value={syncStatus?.behind ?? 0} label="Behind" hint="from shared vault" tone="info" />
+                  <Metric value={changedDocs.length} label="Local docs" hint="not yet committed" tone="warning" />
+                </div>
+                {fetchingRemote && (
+                  <div className="mt-2 flex items-center gap-1.5 text-xs" style={{ color: "var(--text-faint)" }}>
+                    <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "var(--text-faint)" }} />
+                    Checking remote…
+                  </div>
+                )}
               </div>
 
               <div className="flex min-w-0 flex-col items-start gap-2 2xl:items-end">
@@ -721,11 +732,23 @@ export function SyncView() {
           <section className="mt-8">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-base font-semibold" style={{ color: "var(--text)" }}>
-                Incoming from origin <span className="font-normal" style={{ color: "var(--text-faint)" }}>- {docSyncRisks.length} docs</span>
+                Incoming from origin{" "}
+                {fetchingRemote ? (
+                  <span className="font-normal" style={{ color: "var(--text-faint)" }}>
+                    — <span className="animate-pulse">checking…</span>
+                  </span>
+                ) : (
+                  <span className="font-normal" style={{ color: "var(--text-faint)" }}>- {docSyncRisks.length} docs</span>
+                )}
               </h2>
             </div>
             <div className="panel overflow-hidden">
-              {docSyncRisks.length === 0 ? (
+              {fetchingRemote ? (
+                <div className="flex items-center gap-2 px-4 py-5 text-sm" style={{ color: "var(--text-muted)" }}>
+                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "var(--text-muted)" }} />
+                  Reaching out to remote…
+                </div>
+              ) : docSyncRisks.length === 0 ? (
                 <div className="px-4 py-5 text-sm" style={{ color: "var(--text-muted)" }}>No incoming document risks detected.</div>
               ) : (
                 docSyncRisks.map((risk, index) => {
