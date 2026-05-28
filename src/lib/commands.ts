@@ -295,6 +295,10 @@ export async function gitStageAll(): Promise<string> {
   return invoke("git_stage_all");
 }
 
+export async function gitStagePaths(paths: string[]): Promise<string> {
+  return invoke("git_stage_paths", { paths });
+}
+
 export async function gitUnstage(path: string): Promise<string> {
   return invoke("git_unstage", { path });
 }

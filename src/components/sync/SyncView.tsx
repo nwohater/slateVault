@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as commands from "@/lib/commands";
 import { GitPanel } from "@/components/git/GitPanel";
 import { useGitStore } from "@/stores/gitStore";
@@ -79,6 +79,7 @@ export function SyncView() {
   const resolveConflictFile = useGitStore((s) => s.resolveConflictFile);
   const continueUpdate = useGitStore((s) => s.continueUpdate);
   const stageAll = useGitStore((s) => s.stageAll);
+  const stagePaths = useGitStore((s) => s.stagePaths);
   const commit = useGitStore((s) => s.commit);
   const commitMessage = useGitStore((s) => s.commitMessage);
   const setCommitMessage = useGitStore((s) => s.setCommitMessage);
@@ -96,6 +97,8 @@ export function SyncView() {
   const [updatePaused, setUpdatePaused] = useState(false);
   const [docMetaByKey, setDocMetaByKey] = useState<Record<string, DocumentInfo>>({});
   const [compareRisk, setCompareRisk] = useState<DocSyncRiskInfo | null>(null);
+  const [selectedDocKeys, setSelectedDocKeys] = useState<Set<string>>(new Set());
+  const prevDocKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let active = true;
@@ -238,6 +241,23 @@ export function SyncView() {
     });
   }, [docMetaByKey, files]);
 
+  // Keep selectedDocKeys in sync with changedDocs:
+  // auto-select newly appeared docs, prune docs that were committed/reverted.
+  useEffect(() => {
+    const currentKeys = new Set(changedDocs.map((d) => d.key));
+    setSelectedDocKeys((prev) => {
+      const next = new Set<string>();
+      for (const key of currentKeys) {
+        // Auto-select new docs; preserve existing selection state for known docs.
+        if (!prevDocKeysRef.current.has(key) || prev.has(key)) {
+          next.add(key);
+        }
+      }
+      prevDocKeysRef.current = currentKeys;
+      return next;
+    });
+  }, [changedDocs]);
+
   const aiChangedDocs = useMemo(
     () => changedDocs.filter((doc) => doc.isAiAuthored).length,
     [changedDocs]
@@ -337,14 +357,29 @@ export function SyncView() {
   };
 
   const handleCommitAll = async () => {
-    if (!commitMessage.trim()) return;
+    if (!commitMessage.trim() || selectedDocKeys.size === 0) return;
     setSyncing("commit");
     setError(null);
-    setMessage("Staging and committing local documentation changes...");
+    const allSelected = selectedDocKeys.size === changedDocs.length;
+    setMessage(allSelected
+      ? "Staging and committing local documentation changes..."
+      : `Staging and committing ${selectedDocKeys.size} selected doc${selectedDocKeys.size === 1 ? "" : "s"}...`
+    );
     try {
-      await stageAll();
+      if (allSelected) {
+        await stageAll();
+      } else {
+        // Collect the raw git file paths that belong to selected docs.
+        const pathsToStage = files
+          .filter((f) => {
+            const parsed = parseDocPath(f.path);
+            return parsed ? selectedDocKeys.has(`${parsed.project}/${parsed.path}`) : false;
+          })
+          .map((f) => f.path);
+        await stagePaths(pathsToStage);
+      }
       await commit();
-      setMessage("Committed local changes.");
+      setMessage("Committed changes.");
       window.setTimeout(() => setMessage(null), 2600);
     } catch (err) {
       setError(String(err));
@@ -811,9 +846,27 @@ export function SyncView() {
 
           <section className="mt-8">
             <div className="mb-3 space-y-3">
-              <h2 className="text-base font-semibold" style={{ color: "var(--text)" }}>
-                Local changes <span className="font-normal" style={{ color: "var(--text-faint)" }}>- {filteredChangedDocs.length} docs - ready to commit</span>
-              </h2>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-base font-semibold" style={{ color: "var(--text)" }}>
+                  Local changes <span className="font-normal" style={{ color: "var(--text-faint)" }}>- {filteredChangedDocs.length} docs - ready to commit</span>
+                </h2>
+                {changedDocs.length > 0 && (
+                  <label className="flex cursor-pointer items-center gap-2 text-sm select-none" style={{ color: "var(--text-muted)" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedDocKeys.size === changedDocs.length}
+                      ref={(el) => {
+                        if (el) el.indeterminate = selectedDocKeys.size > 0 && selectedDocKeys.size < changedDocs.length;
+                      }}
+                      onChange={(e) =>
+                        setSelectedDocKeys(e.target.checked ? new Set(changedDocs.map((d) => d.key)) : new Set())
+                      }
+                      style={{ accentColor: "var(--accent)", width: 15, height: 15 }}
+                    />
+                    Select all
+                  </label>
+                )}
+              </div>
               <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
                 <input
                   value={commitMessage}
@@ -824,10 +877,14 @@ export function SyncView() {
                 />
                 <button
                   onClick={() => void handleCommitAll()}
-                  disabled={!commitMessage.trim() || files.length === 0 || syncing !== null}
-                  className="btn primary lg justify-center whitespace-nowrap sm:w-[160px]"
+                  disabled={!commitMessage.trim() || selectedDocKeys.size === 0 || syncing !== null}
+                  className="btn primary lg justify-center whitespace-nowrap sm:w-[180px]"
                 >
-                  Commit all
+                  {syncing === "commit"
+                    ? "Committing..."
+                    : selectedDocKeys.size === changedDocs.length
+                      ? "Commit all"
+                      : `Commit ${selectedDocKeys.size} selected`}
                 </button>
               </div>
             </div>
@@ -844,6 +901,18 @@ export function SyncView() {
                       className="flex items-center gap-3 px-4 py-3"
                       style={{ borderTop: index === 0 ? "none" : "1px solid var(--border-subtle)" }}
                     >
+                      <input
+                        type="checkbox"
+                        checked={selectedDocKeys.has(doc.key)}
+                        onChange={(e) =>
+                          setSelectedDocKeys((prev) => {
+                            const next = new Set(prev);
+                            e.target.checked ? next.add(doc.key) : next.delete(doc.key);
+                            return next;
+                          })
+                        }
+                        style={{ accentColor: "var(--accent)", width: 15, height: 15, flexShrink: 0 }}
+                      />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono text-sm" style={{ color: "var(--text)" }}>

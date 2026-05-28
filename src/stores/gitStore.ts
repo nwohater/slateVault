@@ -44,6 +44,7 @@ interface GitState {
   stage: (path: string) => Promise<void>;
   unstage: (path: string) => Promise<void>;
   stageAll: () => Promise<void>;
+  stagePaths: (paths: string[]) => Promise<void>;
   commit: () => Promise<void>;
   push: () => Promise<string>;
   pull: () => Promise<string>;
@@ -255,6 +256,12 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   stageAll: async () => {
     await commands.gitStageAll();
+    await get().loadStatus();
+    await get().loadDocSyncRisks();
+  },
+
+  stagePaths: async (paths: string[]) => {
+    await commands.gitStagePaths(paths);
     await get().loadStatus();
     await get().loadDocSyncRisks();
   },

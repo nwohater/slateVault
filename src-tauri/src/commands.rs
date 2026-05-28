@@ -588,6 +588,28 @@ pub fn git_stage_all(state: State<'_, VaultState>) -> CmdResult<String> {
 }
 
 #[tauri::command]
+pub fn git_stage_paths(paths: Vec<String>, state: State<'_, VaultState>) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let root = vault.root.to_string_lossy();
+
+    // Unstage everything first so only the selected paths end up in the commit.
+    // This may fail on an initial commit (no HEAD yet) — that's fine, nothing is staged.
+    let _ = run_git_checked(vault, &["-C", &root, "reset", "HEAD", "--", "."], "Unstage failed");
+
+    // Stage only the caller-selected paths.
+    for path in &paths {
+        run_git_checked(vault, &["-C", &root, "add", "--", path], "Stage failed")?;
+    }
+
+    Ok(format!(
+        "Staged {} file{}",
+        paths.len(),
+        if paths.len() == 1 { "" } else { "s" }
+    ))
+}
+
+#[tauri::command]
 pub fn git_unstage(path: String, state: State<'_, VaultState>) -> CmdResult<String> {
     with_vault(&state, |vault| {
         vault.unstage_file(&path)?;
