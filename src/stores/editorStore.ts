@@ -10,6 +10,7 @@ interface EditorState {
   content: string;
   frontMatter: FrontMatter | null;
   activeDocSyncRisk: DocSyncRiskInfo | null;
+  isCheckingRemote: boolean;
   isDirty: boolean;
   // Raw vault file mode (e.g. templates.json)
   rawFilePath: string | null;
@@ -30,6 +31,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   content: "",
   frontMatter: null,
   activeDocSyncRisk: null,
+  isCheckingRemote: false,
   isDirty: false,
   rawFilePath: null,
 
@@ -41,22 +43,37 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     const raw = await commands.readDocument(project, path);
-    const { data, content } = parseFrontMatter(raw);
-    const syncRisk = await commands
-      .gitDocSyncRisks()
-      .then((risks) => risks.find((risk) => risk.project === project && risk.path === path) ?? null)
-      .catch(() => null);
+    const { data } = parseFrontMatter(raw);
     useUIStore.getState().setShowOnboarding(false);
     useUIStore.getState().setWorkspaceView("documents");
+
+    // Show the document immediately — don't wait for the remote check.
     set({
       activeProject: project,
       activePath: path,
       content: raw,
       frontMatter: data,
-      activeDocSyncRisk: syncRisk,
+      activeDocSyncRisk: null,
+      isCheckingRemote: true,
       isDirty: false,
       rawFilePath: null,
     });
+
+    // Fetch remote then check sync risk in the background.
+    // Ignore fetch errors (offline / auth) — fall back to last-fetched state.
+    try {
+      await commands.gitFetchRemote().catch(() => {});
+      const risks = await commands.gitDocSyncRisks();
+      const syncRisk = risks.find((r) => r.project === project && r.path === path) ?? null;
+      // Guard against the user having switched to another doc while we were fetching.
+      if (get().activeProject === project && get().activePath === path) {
+        set({ activeDocSyncRisk: syncRisk, isCheckingRemote: false });
+      }
+    } catch {
+      if (get().activeProject === project && get().activePath === path) {
+        set({ isCheckingRemote: false });
+      }
+    }
   },
 
   openVaultFile: async (path: string) => {
@@ -92,21 +109,34 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const vaultPath = `wiki/${path}`;
     const raw = await commands.readVaultFile(vaultPath);
-    const syncRisk = await commands
-      .gitDocSyncRisks()
-      .then((risks) => risks.find((risk) => risk.project === "wiki" && risk.path === path) ?? null)
-      .catch(() => null);
     useUIStore.getState().setShowOnboarding(false);
     useUIStore.getState().setWorkspaceView("wiki");
+
+    // Show the file immediately.
     set({
       activeProject: null,
       activePath: path,
       content: raw,
       frontMatter: null,
-      activeDocSyncRisk: syncRisk,
+      activeDocSyncRisk: null,
+      isCheckingRemote: true,
       isDirty: false,
       rawFilePath: vaultPath,
     });
+
+    // Background remote check.
+    try {
+      await commands.gitFetchRemote().catch(() => {});
+      const risks = await commands.gitDocSyncRisks();
+      const syncRisk = risks.find((r) => r.project === "wiki" && r.path === path) ?? null;
+      if (get().activePath === path) {
+        set({ activeDocSyncRisk: syncRisk, isCheckingRemote: false });
+      }
+    } catch {
+      if (get().activePath === path) {
+        set({ isCheckingRemote: false });
+      }
+    }
   },
 
   updateContent: (content: string) => {
@@ -177,6 +207,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       content: "",
       frontMatter: null,
       activeDocSyncRisk: null,
+      isCheckingRemote: false,
       isDirty: false,
       rawFilePath: null,
     });

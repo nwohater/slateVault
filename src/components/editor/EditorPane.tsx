@@ -70,28 +70,57 @@ function SecretWarning({ content }: { content: string }) {
   );
 }
 
+function RemoteCheckSpinner() {
+  return (
+    <svg className="animate-spin" width="12" height="12" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+      <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2" />
+      <path d="M7 1.5A5.5 5.5 0 0 1 12.5 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function SyncRiskWarning() {
   const syncRisk = useEditorStore((s) => s.activeDocSyncRisk);
+  const isCheckingRemote = useEditorStore((s) => s.isCheckingRemote);
+
+  if (!syncRisk && !isCheckingRemote) return null;
+
+  // While fetching — show a subtle but visible checking bar.
+  if (isCheckingRemote && !syncRisk) {
+    return (
+      <div
+        className="flex items-center gap-2 px-3 py-2 text-[11px] font-medium"
+        style={{
+          background: "var(--bg-subtle)",
+          borderBottom: "1px solid var(--border)",
+          color: "var(--text-muted)",
+        }}
+      >
+        <RemoteCheckSpinner />
+        Checking remote for changes…
+      </div>
+    );
+  }
 
   if (!syncRisk) return null;
 
   const isConflictRisk = syncRisk.risk === "conflict_risk";
-
   const riskBg    = isConflictRisk ? "var(--danger-soft)"  : "var(--warning-soft)";
+  const riskBorder = isConflictRisk ? "var(--danger)"      : "var(--warning)";
   const riskColor = isConflictRisk ? "var(--danger)"       : "var(--warning)";
 
   return (
     <div
       className="px-3 py-2 text-[11px]"
-      style={{ background: riskBg, borderBottom: `1px solid ${riskColor}`, color: riskColor }}
+      style={{ background: riskBg, borderBottom: `1px solid ${riskBorder}`, color: riskColor }}
     >
-      <div className="font-medium">
-        {isConflictRisk ? "Conflict risk" : "Remote changed this document"}
+      <div className="font-semibold">
+        {isConflictRisk ? "⚠ Conflict risk" : "↓ Remote has newer version"}
       </div>
       <div className="mt-0.5" style={{ color: "var(--text-muted)" }}>
         {isConflictRisk
-          ? "This doc changed locally and also has newer remote changes. Pull and review before saving or pushing."
-          : "The shared vault has a newer version of this doc. Pull before editing further to avoid starting from stale content."}
+          ? "This doc changed locally and also has newer remote changes. Go to Team Sync and pull before editing further."
+          : "The shared vault has a newer version of this doc. Pull before editing to avoid working from stale content."}
       </div>
     </div>
   );
