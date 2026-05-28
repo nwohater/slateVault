@@ -580,6 +580,14 @@ pub fn git_stage(path: String, state: State<'_, VaultState>) -> CmdResult<String
 }
 
 #[tauri::command]
+pub fn git_stage_all(state: State<'_, VaultState>) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let root = vault.root.to_string_lossy();
+    run_git_checked(vault, &["-C", &root, "add", "-A"], "Stage all failed")
+}
+
+#[tauri::command]
 pub fn git_unstage(path: String, state: State<'_, VaultState>) -> CmdResult<String> {
     with_vault(&state, |vault| {
         vault.unstage_file(&path)?;

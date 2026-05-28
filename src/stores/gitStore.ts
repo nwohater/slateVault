@@ -254,13 +254,7 @@ export const useGitStore = create<GitState>((set, get) => ({
   },
 
   stageAll: async () => {
-    const { files } = get();
-    const unstaged = files.filter(
-      (f) => !f.status.startsWith("staged_")
-    );
-    for (const f of unstaged) {
-      await commands.gitStage(f.path);
-    }
+    await commands.gitStageAll();
     await get().loadStatus();
     await get().loadDocSyncRisks();
   },
