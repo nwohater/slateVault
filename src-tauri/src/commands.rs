@@ -230,6 +230,10 @@ fn has_rebase_in_progress(root: &Path) -> bool {
     root.join(".git/rebase-merge").exists() || root.join(".git/rebase-apply").exists()
 }
 
+fn has_stash_pause_in_progress(root: &Path) -> bool {
+    root.join(".git/SLATEVAULT_STASH_PAUSE").exists()
+}
+
 #[tauri::command]
 pub fn copy_to_clipboard(app: tauri::AppHandle, text: String) -> CmdResult<()> {
     use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -949,6 +953,9 @@ pub fn git_update_safely(state: State<'_, VaultState>) -> CmdResult<String> {
                 });
             }
             Err(err) => {
+                // Write sentinel so continueUpdate knows to drop the stash instead of
+                // running rebase --continue.
+                let _ = std::fs::write(vault.root.join(".git/SLATEVAULT_STASH_PAUSE"), "");
                 return Err(format!(
                     "{}\n\nUpdate paused while reapplying your local edits. Resolve conflicts in Team Sync, then continue.",
                     err
@@ -1229,6 +1236,18 @@ pub fn git_continue_update(state: State<'_, VaultState>) -> CmdResult<String> {
     let lock = state.0.lock().map_err(|e| e.to_string())?;
     let vault = lock.as_ref().ok_or("No vault is open")?;
     let root = vault.root.to_string_lossy();
+
+    if has_stash_pause_in_progress(&vault.root) {
+        // The stash pop conflicted and all files have been resolved + staged.
+        // Drop the stash entry and remove the sentinel.
+        run_git_checked(
+            vault,
+            &["-C", &root, "stash", "drop"],
+            "Stash cleanup failed",
+        )?;
+        let _ = std::fs::remove_file(vault.root.join(".git/SLATEVAULT_STASH_PAUSE"));
+        return Ok("Local edits reapplied successfully.".to_string());
+    }
 
     if has_rebase_in_progress(&vault.root) {
         return run_git_checked_with_editor(

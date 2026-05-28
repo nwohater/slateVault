@@ -292,6 +292,7 @@ export function SyncView() {
     } catch (err) {
       setUpdatePaused(true);
       setError(String(err));
+      await loadConflictFiles();
     } finally {
       setSyncing(null);
     }
@@ -314,6 +315,7 @@ export function SyncView() {
     } catch (err) {
       setUpdatePaused(true);
       setError(String(err));
+      await loadConflictFiles();
     } finally {
       setSyncing(null);
     }
