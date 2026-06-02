@@ -82,6 +82,14 @@ export function getAuggieMcpAddCommand(platform: McpPlatform): string {
   return `auggie mcp add slatevault -- ${command}`;
 }
 
+export function getCursorMcpConfig(platform: McpPlatform): string {
+  return getGenericMcpConfig(platform);
+}
+
+export function getCodexMcpConfig(platform: McpPlatform): string {
+  return getGenericMcpConfig(platform);
+}
+
 export function getMcpSetupCards(platform: McpPlatform): McpSetupCard[] {
   const command = getMcpCommand(platform);
 
@@ -100,6 +108,16 @@ export function getMcpSetupCards(platform: McpPlatform): McpSetupCard[] {
       name: "Augment Code",
       command: `Name: slatevault\nCommand: ${command}`,
       note: "Use the Augment MCP settings panel shown in your screenshot. No environment variables are needed.",
+    },
+    {
+      name: "Cursor",
+      command: getCursorMcpConfig(platform),
+      note: "Add this to ~/.cursor/mcp.json (global) or .cursor/mcp.json (per-project). Restart Cursor, then enable MCP in Settings → Features → MCP.",
+    },
+    {
+      name: "Codex CLI",
+      command: getCodexMcpConfig(platform),
+      note: "Add this to ~/.codex/mcp.json, then restart Codex CLI. Requires Codex CLI with MCP support enabled.",
     },
     {
       name: "Auggie CLI",

@@ -462,8 +462,8 @@ export function SettingsPanel() {
 
                 <section className="pt-6">
                   <h3 className="mb-4 text-lg font-semibold" style={{ color: "var(--text)" }}>Connect your agent</h3>
-                  <div className="grid gap-3 lg:grid-cols-3">
-                    {mcpSetupCards.slice(0, 3).map((card) => (
+                  <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                    {mcpSetupCards.slice(0, 5).map((card) => (
                       <button
                         key={card.name}
                         onClick={() => setSelectedMcpSetup(card.name)}
