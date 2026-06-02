@@ -63,7 +63,15 @@ export function DocsHealthView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [projectDocs, setProjectDocs] = useState<Record<string, DocumentInfo[]>>({});
-  const [reviewedKeys, setReviewedKeys] = useState<Set<string>>(new Set());
+  // Map of "project/path" → timestamp when reviewed. Persisted in localStorage so it
+  // survives navigation. If a doc is modified after being reviewed it reappears automatically.
+  const [reviewedKeys, setReviewedKeys] = useState<Map<string, number>>(() => {
+    try {
+      const stored = localStorage.getItem("slatevault_reviewed_docs");
+      if (stored) return new Map(JSON.parse(stored) as [string, number][]);
+    } catch { /* ignore parse errors */ }
+    return new Map();
+  });
   const [creatingGap, setCreatingGap] = useState<string | null>(null);
 
   const loadHealth = useCallback(async (activeRef?: { active: boolean }) => {
@@ -133,7 +141,15 @@ export function DocsHealthView() {
 
   const staleDocs = useMemo(() => {
     return allDocs
-      .filter((doc) => doc.ageDays >= STALE_DAYS && !reviewedKeys.has(`${doc.project}/${doc.path}`))
+      .filter((doc) => {
+        // _about.md are folder-description system files, not user docs
+        if (doc.path === "_about.md" || doc.path.endsWith("/_about.md")) return false;
+        if (doc.ageDays < STALE_DAYS) return false;
+        // Only hide if reviewed *after* the doc was last modified
+        const reviewedAt = reviewedKeys.get(`${doc.project}/${doc.path}`);
+        if (reviewedAt !== undefined && reviewedAt >= new Date(doc.modified).getTime()) return false;
+        return true;
+      })
       .sort((a, b) => b.ageDays - a.ageDays)
       .slice(0, 12);
   }, [allDocs, reviewedKeys]);
@@ -208,7 +224,15 @@ export function DocsHealthView() {
   };
 
   const handleMarkReviewed = (doc: VaultDoc) => {
-    setReviewedKeys((current) => new Set([...current, `${doc.project}/${doc.path}`]));
+    const key = `${doc.project}/${doc.path}`;
+    setReviewedKeys((current) => {
+      const next = new Map(current);
+      next.set(key, Date.now());
+      try {
+        localStorage.setItem("slatevault_reviewed_docs", JSON.stringify([...next]));
+      } catch { /* ignore storage errors */ }
+      return next;
+    });
   };
 
   const handleCreateGap = async (gap: GapDoc) => {
