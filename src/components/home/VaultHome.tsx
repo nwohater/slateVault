@@ -161,11 +161,26 @@ export function VaultHome() {
   const setActiveProject = useEditorStore((s) => s.setActiveProject);
 
   const loadDocuments = useVaultStore((s) => s.loadDocuments);
+  const loadProjects  = useVaultStore((s) => s.loadProjects);
+  const loadStats     = useVaultStore((s) => s.loadStats);
 
   const sortedProjects = useMemo(
     () => [...projects].sort((a, b) => a.name.localeCompare(b.name)),
     [projects]
   );
+
+  // Poll for project/doc changes while the home screen is visible.
+  // FileTree's poll only runs when the sidebar "files" panel is open,
+  // so the home screen needs its own refresh loop.
+  useEffect(() => {
+    loadProjects();
+    loadStats();
+    const interval = setInterval(() => {
+      loadProjects();
+      loadStats();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [loadProjects, loadStats]);
 
   // Eagerly load doc counts for all projects so cards always show them
   useEffect(() => {
