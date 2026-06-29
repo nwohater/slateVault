@@ -27,6 +27,7 @@ interface UIState {
   setSidebarWidth: (width: number | ((prev: number) => number)) => void;
   toggleEditor: () => void;
   togglePreview: () => void;
+  setEditorMode: (mode: "editor" | "split" | "preview") => void;
   setPreviewRatio: (ratio: number | ((prev: number) => number)) => void;
   setActiveView: (view: ActiveView) => void;
   setWorkspaceView: (view: WorkspaceView) => void;
@@ -65,6 +66,13 @@ export const useUIStore = create<UIState>((set) => ({
       showPreview: !s.showPreview,
       showEditor: !s.showPreview ? s.showEditor : true,
     })),
+
+  setEditorMode: (mode) =>
+    set(() => {
+      if (mode === "editor") return { showEditor: true, showPreview: false };
+      if (mode === "preview") return { showEditor: false, showPreview: true };
+      return { showEditor: true, showPreview: true };
+    }),
 
   setPreviewRatio: (ratio: number | ((prev: number) => number)) =>
     set((s) => {

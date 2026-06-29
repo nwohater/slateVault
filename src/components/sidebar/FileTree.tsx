@@ -82,6 +82,11 @@ type ContextMenu = {
   renameValue: string;
 } | null;
 
+type NewDocTarget = {
+  project: string;
+  folder: string;
+} | null;
+
 export function FileTree() {
   const projects = useVaultStore((s) => s.projects);
   const documents = useVaultStore((s) => s.documents);
@@ -99,8 +104,9 @@ export function FileTree() {
   const activePath = useEditorStore((s) => s.activePath);
   const openDocument = useEditorStore((s) => s.openDocument);
   const closeDocument = useEditorStore((s) => s.closeDocument);
+  const loadGitStatus = useGitStore((s) => s.loadStatus);
 
-  const [newDocProject, setNewDocProject] = useState<string | null>(null);
+  const [newDocTarget, setNewDocTarget] = useState<NewDocTarget>(null);
   const [newDocName, setNewDocName] = useState("");
   const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
   const [menuError, setMenuError] = useState<string | null>(null);
@@ -166,18 +172,36 @@ export function FileTree() {
     });
   }, [activeProject, activePath, expandProject]);
 
-  const handleCreateDoc = async (projectName: string) => {
+  const buildDocPath = (folder: string, name: string) => {
+    const trimmed = name.trim();
+    const filename = trimmed.endsWith(".md") ? trimmed : `${trimmed}.md`;
+    return folder ? `${folder}/${filename}` : filename;
+  };
+
+  const handleCreateDoc = async (projectName: string, folder = "") => {
     if (!newDocName.trim()) return;
-    const filename = newDocName.trim().endsWith(".md")
-      ? newDocName.trim()
-      : `${newDocName.trim()}.md`;
+    const path = buildDocPath(folder, newDocName);
+    const filename = path.split("/").pop() || path;
     const title = filename.replace(/\.md$/, "").replace(/[-_]/g, " ");
 
-    await commands.writeDocument(projectName, filename, title, `# ${title}\n`);
-    setNewDocProject(null);
+    await commands.writeDocument(projectName, path, title, `# ${title}\n`);
+    setNewDocTarget(null);
     setNewDocName("");
     await loadDocuments(projectName);
-    await openDocument(projectName, filename);
+    if (folder) {
+      setExpandedFolders((prev) => new Set(prev).add(`${projectName}/${folder}`));
+    }
+    await loadGitStatus();
+    await openDocument(projectName, path);
+  };
+
+  const startNewDocument = (project: string, folder = "") => {
+    if (folder) {
+      setExpandedFolders((prev) => new Set(prev).add(`${project}/${folder}`));
+    }
+    setNewDocTarget({ project, folder });
+    setNewDocName("");
+    setContextMenu(null);
   };
 
   const openContextMenu = (
@@ -267,8 +291,6 @@ export function FileTree() {
       return next;
     });
   };
-
-  const loadGitStatus = useGitStore((s) => s.loadStatus);
 
   const handleDrop = async (project: string, targetFolder: string) => {
     if (!dragItem || dragItem.project !== project) return;
@@ -376,6 +398,7 @@ export function FileTree() {
                 isFolder
                 isExpanded={expandedFolders.has(`${projectName}/${child.path}`)}
                 onClick={() => toggleFolder(`${projectName}/${child.path}`)}
+                onAddDocument={() => startNewDocument(projectName, child.path)}
                 onContextMenu={(e) =>
                   openContextMenu(e, "folder", projectName, child.path, child.name)
                 }
@@ -403,6 +426,39 @@ export function FileTree() {
                   }
                 }}
               />
+              {newDocTarget?.project === projectName && newDocTarget.folder === child.path && (
+                <div className="py-1 pr-2" style={{ paddingLeft: 8 + (baseDepth + 1) * 16 }}>
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      value={newDocName}
+                      onChange={(e) => setNewDocName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleCreateDoc(projectName, child.path);
+                        if (e.key === "Escape") {
+                          setNewDocTarget(null);
+                          setNewDocName("");
+                        }
+                      }}
+                      placeholder="filename.md"
+                      className="flex-1 min-w-0 px-1.5 py-0.5 text-xs rounded outline-none"
+                      style={{
+                        background: "var(--bg-subtle)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text)",
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => handleCreateDoc(projectName, child.path)}
+                      disabled={!newDocName.trim()}
+                      className="btn primary sm"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              )}
               {expandedFolders.has(`${projectName}/${child.path}`) &&
                 renderFolderTree(child, projectName, baseDepth + 1)}
             </div>
@@ -532,8 +588,10 @@ export function FileTree() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setNewDocProject(
-                        newDocProject === project.name ? null : project.name
+                      setNewDocTarget(
+                        newDocTarget?.project === project.name && newDocTarget.folder === ""
+                          ? null
+                          : { project: project.name, folder: "" }
                       );
                       setNewDocName("");
                     }}
@@ -546,7 +604,7 @@ export function FileTree() {
                 )}
               </div>
 
-              {isExpanded && newDocProject === project.name && (
+              {isExpanded && newDocTarget?.project === project.name && newDocTarget.folder === "" && (
                 <div className="pl-8 pr-2 py-1">
                   <div className="flex gap-1">
                     <input
@@ -554,9 +612,9 @@ export function FileTree() {
                       value={newDocName}
                       onChange={(e) => setNewDocName(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") handleCreateDoc(project.name);
+                        if (e.key === "Enter") handleCreateDoc(project.name, "");
                         if (e.key === "Escape") {
-                          setNewDocProject(null);
+                          setNewDocTarget(null);
                           setNewDocName("");
                         }
                       }}
@@ -570,7 +628,7 @@ export function FileTree() {
                       autoFocus
                     />
                     <button
-                      onClick={() => handleCreateDoc(project.name)}
+                      onClick={() => handleCreateDoc(project.name, "")}
                       disabled={!newDocName.trim()}
                       className="btn primary sm"
                     >
@@ -618,17 +676,33 @@ export function FileTree() {
             {contextMenu.action === "menu" && (
               <>
                 {(contextMenu.type === "project" || contextMenu.type === "folder") && (
-                  <button
-                    onClick={() =>
-                      setContextMenu({ ...contextMenu, action: "new-folder", renameValue: "" })
-                    }
-                    className="w-full px-3 py-1.5 text-left"
-                    style={{ color: "var(--text)" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tint)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                  >
-                    New Folder
-                  </button>
+                  <>
+                    <button
+                      onClick={() =>
+                        startNewDocument(
+                          contextMenu.project,
+                          contextMenu.type === "folder" && contextMenu.path ? contextMenu.path : ""
+                        )
+                      }
+                      className="w-full px-3 py-1.5 text-left"
+                      style={{ color: "var(--text)" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tint)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+                    >
+                      New Document
+                    </button>
+                    <button
+                      onClick={() =>
+                        setContextMenu({ ...contextMenu, action: "new-folder", renameValue: "" })
+                      }
+                      className="w-full px-3 py-1.5 text-left"
+                      style={{ color: "var(--text)" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tint)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+                    >
+                      New Folder
+                    </button>
+                  </>
                 )}
                 {contextMenu.type === "project" && (
                   <>

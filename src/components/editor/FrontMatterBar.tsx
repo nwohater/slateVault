@@ -33,26 +33,12 @@ type EditorMode = "editor" | "split" | "preview";
 function ModeToggle() {
   const showEditor = useUIStore((s) => s.showEditor);
   const showPreview = useUIStore((s) => s.showPreview);
-  const toggleEditor = useUIStore((s) => s.toggleEditor);
-  const togglePreview = useUIStore((s) => s.togglePreview);
+  const setEditorMode = useUIStore((s) => s.setEditorMode);
 
   const currentMode: EditorMode =
     showEditor && !showPreview ? "editor"
     : showEditor && showPreview ? "split"
     : "preview";
-
-  const setMode = (mode: EditorMode) => {
-    if (mode === "editor") {
-      if (!showEditor) toggleEditor();
-      if (showPreview) togglePreview();
-    } else if (mode === "split") {
-      if (!showEditor) toggleEditor();
-      if (!showPreview) togglePreview();
-    } else {
-      if (showEditor) toggleEditor();
-      if (!showPreview) togglePreview();
-    }
-  };
 
   const modes: { key: EditorMode; label: string }[] = [
     { key: "editor", label: "Edit" },
@@ -74,7 +60,7 @@ function ModeToggle() {
         return (
           <button
             key={key}
-            onClick={() => setMode(key)}
+            onClick={() => setEditorMode(key)}
             style={{
               display: "inline-flex",
               alignItems: "center",

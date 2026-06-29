@@ -3,6 +3,8 @@ import type { DocSyncRiskInfo, FrontMatter } from "@/types";
 import * as commands from "@/lib/commands";
 import { parseFrontMatter } from "@/lib/frontmatter";
 import { useUIStore } from "@/stores/uiStore";
+import { useGitStore } from "@/stores/gitStore";
+import { useVaultStore } from "@/stores/vaultStore";
 
 
 interface EditorState {
@@ -178,6 +180,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       frontMatter.status,
     );
     set({ isDirty: false, activeDocSyncRisk: null });
+    await useVaultStore.getState().loadDocuments(activeProject);
+    await useGitStore.getState().loadStatus();
+    await useGitStore.getState().loadDocSyncRisks();
   },
 
   updateStatus: async (status: string) => {
@@ -196,7 +201,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       status,
     );
     // Update in-memory front matter so the bar re-renders immediately
-    set({ frontMatter: { ...frontMatter, status: status as "draft" | "review" | "final" } });
+    set({
+      frontMatter: { ...frontMatter, status: status as "draft" | "review" | "final" },
+      isDirty: false,
+      activeDocSyncRisk: null,
+    });
+    await useVaultStore.getState().loadDocuments(activeProject);
+    await useGitStore.getState().loadStatus();
+    await useGitStore.getState().loadDocSyncRisks();
   },
 
   closeDocument: () => {

@@ -14,6 +14,7 @@ type ChangedDocSummary = {
   project: string;
   path: string;
   title: string;
+  isAsset: boolean;
   statuses: string[];
   stagedCount: number;
   unstagedCount: number;
@@ -28,14 +29,16 @@ function parseDocPath(path: string) {
     return {
       project: "wiki",
       path: wikiMatch[1],
+      isAsset: false,
     };
   }
 
-  const match = path.match(/^projects\/([^/]+)\/docs\/(.+\.md)$/);
+  const match = path.match(/^projects\/([^/]+)\/docs\/(.+)$/);
   if (!match) return null;
   return {
     project: match[1],
     path: match[2],
+    isAsset: !match[2].toLowerCase().endsWith(".md"),
   };
 }
 
@@ -209,6 +212,7 @@ export function SyncView() {
       const key = `${docRef.project}/${docRef.path}`;
       const meta = docMetaByKey[key];
       const existing = grouped.get(key);
+      const filename = docRef.path.split("/").at(-1) || docRef.path;
 
       if (existing) {
         existing.statuses.push(file.status);
@@ -224,7 +228,8 @@ export function SyncView() {
         key,
         project: docRef.project,
         path: docRef.path,
-        title: meta?.title || docRef.path.split("/").at(-1)?.replace(/\.md$/, "") || docRef.path,
+        title: meta?.title || (docRef.isAsset ? filename : filename.replace(/\.md$/, "")),
+        isAsset: docRef.isAsset,
         statuses: [file.status],
         stagedCount: file.status.startsWith("staged_") ? 1 : 0,
         unstagedCount: file.status.startsWith("staged_") ? 0 : 1,
@@ -242,13 +247,13 @@ export function SyncView() {
   }, [docMetaByKey, files]);
 
   // Keep selectedDocKeys in sync with changedDocs:
-  // auto-select newly appeared docs, prune docs that were committed/reverted.
+  // auto-select newly appeared items, prune items that were committed/reverted.
   useEffect(() => {
     const currentKeys = new Set(changedDocs.map((d) => d.key));
     setSelectedDocKeys((prev) => {
       const next = new Set<string>();
       for (const key of currentKeys) {
-        // Auto-select new docs; preserve existing selection state for known docs.
+        // Auto-select new items; preserve existing selection state for known items.
         if (!prevDocKeysRef.current.has(key) || prev.has(key)) {
           next.add(key);
         }
@@ -369,7 +374,7 @@ export function SyncView() {
       if (allSelected) {
         await stageAll();
       } else {
-        // Collect the raw git file paths that belong to selected docs.
+        // Collect the raw git file paths that belong to selected vault items.
         const pathsToStage = files
           .filter((f) => {
             const parsed = parseDocPath(f.path);
@@ -444,6 +449,10 @@ export function SyncView() {
 
   const handleOpenChangedDoc = (doc: ChangedDocSummary) => {
     if (doc.statuses.every((status) => status.includes("deleted"))) {
+      return;
+    }
+    if (doc.isAsset) {
+      void commands.showInFolder(doc.project, doc.path);
       return;
     }
     setShowOnboarding(false);
@@ -565,7 +574,7 @@ export function SyncView() {
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Metric value={syncStatus?.ahead ?? 0} label="Ahead" hint="commits ready to push" tone="accent" />
                   <Metric value={syncStatus?.behind ?? 0} label="Behind" hint="from shared vault" tone="info" />
-                  <Metric value={changedDocs.length} label="Local docs" hint="not yet committed" tone="warning" />
+                  <Metric value={changedDocs.length} label="Local items" hint="docs/assets not yet committed" tone="warning" />
                 </div>
                 {fetchingRemote && (
                   <div className="mt-3 flex items-center gap-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>
@@ -704,7 +713,7 @@ export function SyncView() {
                   <p className="mt-3 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
                     {syncStatus?.diverged
                       ? `The shared vault has ${syncStatus.behind} newer commit${syncStatus.behind === 1 ? "" : "s"} and your vault has ${syncStatus.ahead} local commit${syncStatus.ahead === 1 ? "" : "s"}. SlateVault will apply shared changes first, then replay your local commits.`
-                      : `SlateVault will set aside your ${changedDocs.length} local doc change${changedDocs.length === 1 ? "" : "s"}, load the latest shared vault, then reapply your work.`}
+                      : `SlateVault will set aside your ${changedDocs.length} local change${changedDocs.length === 1 ? "" : "s"}, load the latest shared vault, then reapply your work.`}
                   </p>
                   <ol className="mt-4 space-y-2 text-sm" style={{ color: "var(--text-muted)" }}>
                     {syncStatus?.diverged ? (
@@ -736,7 +745,7 @@ export function SyncView() {
                     <h3 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Discard Local & Pull</h3>
                   </div>
                   <p className="mt-3 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
-                    Throw away your {changedDocs.length} local doc changes and pull origin clean. This is not reversible.
+                    Throw away your {changedDocs.length} local changes and pull origin clean. This is not reversible.
                   </p>
                   <ol className="mt-4 space-y-2 text-sm" style={{ color: "var(--text-muted)" }}>
                     <li>1. Delete uncommitted edits permanently</li>
@@ -848,7 +857,7 @@ export function SyncView() {
             <div className="mb-3 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-base font-semibold" style={{ color: "var(--text)" }}>
-                  Local changes <span className="font-normal" style={{ color: "var(--text-faint)" }}>- {filteredChangedDocs.length} docs - ready to commit</span>
+                  Local changes <span className="font-normal" style={{ color: "var(--text-faint)" }}>- {filteredChangedDocs.length} items - ready to commit</span>
                 </h2>
                 {changedDocs.length > 0 && (
                   <label className="flex cursor-pointer items-center gap-2 text-sm select-none" style={{ color: "var(--text-muted)" }}>
@@ -890,7 +899,7 @@ export function SyncView() {
             </div>
             <div className="panel overflow-hidden">
               {filteredChangedDocs.length === 0 ? (
-                <div className="px-4 py-5 text-sm" style={{ color: "var(--text-muted)" }}>No local docs match this filter.</div>
+                <div className="px-4 py-5 text-sm" style={{ color: "var(--text-muted)" }}>No local changes match this filter.</div>
               ) : (
                 filteredChangedDocs.map((doc, index) => {
                   const isDeletedOnly = doc.statuses.every((status) => status.includes("deleted"));
@@ -919,6 +928,7 @@ export function SyncView() {
                             {doc.project}/{doc.path}
                           </span>
                           {hasConflict && <span className="chip warning">overlaps remote</span>}
+                          {doc.isAsset && <span className="chip">asset</span>}
                           {doc.isProtected && <span className="chip danger">protected</span>}
                           {doc.isCanonical && <span className="chip warning">canonical</span>}
                           {doc.isAiAuthored && <span className="chip magic">AI-authored</span>}
@@ -937,7 +947,7 @@ export function SyncView() {
                         disabled={isDeletedOnly}
                         className="btn"
                       >
-                        Open
+                        {doc.isAsset ? "Reveal" : "Open"}
                       </button>
                     </div>
                   );

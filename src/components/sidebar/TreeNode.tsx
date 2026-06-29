@@ -23,6 +23,7 @@ interface TreeNodeProps {
   onDragOver?: (e: React.DragEvent) => void;
   onDragLeave?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
+  onAddDocument?: (e: React.MouseEvent) => void;
 }
 
 const authorBadge: Record<string, { label: string; bg: string; color: string }> = {
@@ -58,6 +59,7 @@ export function TreeNode({
   onDragOver,
   onDragLeave,
   onDrop,
+  onAddDocument,
 }: TreeNodeProps) {
   const badge = author ? authorBadge[author] : null;
   const [dragOver, setDragOver] = useState(false);
@@ -77,8 +79,16 @@ export function TreeNode({
     : null;
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       onContextMenu={onContextMenu}
       draggable={draggable}
       onDragStart={onDragStart}
@@ -103,7 +113,7 @@ export function TreeNode({
           if (onDrop) onDrop(e);
         }
       }}
-      className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs text-left rounded-md transition-colors"
+      className="group w-full flex items-center gap-1.5 px-2 py-1.5 text-xs text-left rounded-md transition-colors"
       style={{
         paddingLeft: 8 + depth * 16,
         background: isExternalDropTarget
@@ -129,6 +139,21 @@ export function TreeNode({
       {isFolder && <span className="w-3 flex-shrink-0">{chevron}</span>}
       <span className="flex-shrink-0">{icon}</span>
       <span className="truncate flex-1">{label}</span>
+      {isFolder && isExpanded && onAddDocument && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onAddDocument(e);
+          }}
+          className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded opacity-0 transition-opacity hover:opacity-100 group-hover:opacity-100"
+          style={{ color: "var(--text-faint)" }}
+          title={`New document in ${label}`}
+        >
+          +
+        </button>
+      )}
       {canonical && (
         <span className="text-yellow-400 flex-shrink-0 text-[10px]" title="Canonical">★</span>
       )}
@@ -143,6 +168,6 @@ export function TreeNode({
           {badge.label}
         </span>
       )}
-    </button>
+    </div>
   );
 }
