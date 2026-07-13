@@ -2,8 +2,9 @@ use serde::{Deserialize, Serialize};
 use slatevault_core::credentials::{Credentials, CredentialsMasked};
 use slatevault_core::pr::{self, PrCreateRequest, PrCreateResponse};
 use slatevault_core::Vault;
+use std::io::Write;
 use std::path::{Component, Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::sync::Mutex;
 use tauri::State;
 
@@ -122,10 +123,25 @@ fn git_auth_hint(vault: &Vault) -> String {
 
 fn git_error(prefix: &str, stderr: &str, vault: &Vault) -> String {
     let trimmed = stderr.trim();
-    if trimmed.contains("Permission denied (publickey)") {
-        format!("{}: {}{}", prefix, trimmed, git_auth_hint(vault))
+    let remote_url = remote_url_from_git(vault);
+    let remote_kind = classify_remote_kind(remote_url.as_deref());
+    let gcm_installed = git_output_success(&["credential-manager", "--version"])
+        .or_else(|| git_output_success(&["credential-manager-core", "--version"]))
+        .is_some();
+    let (auth_state, message) = classify_auth_failure(trimmed, remote_kind, gcm_installed);
+
+    let raw = if trimmed.is_empty() {
+        "No git error output was returned."
     } else {
-        format!("{}: {}", prefix, trimmed)
+        trimmed
+    };
+
+    match auth_state {
+        "ssh-configured" => format!("{}: {}\n\n{}{}", prefix, message, raw, git_auth_hint(vault)),
+        "needs-login" | "missing-gcm" | "repo-not-found" | "network-error" => {
+            format!("{}: {}\n\nGit said: {}", prefix, message, raw)
+        }
+        _ => format!("{}: {}", prefix, raw),
     }
 }
 
@@ -161,6 +177,165 @@ fn git_output_text(output: &Output) -> String {
     )
     .trim()
     .to_string()
+}
+
+fn git_output_success(args: &[&str]) -> Option<String> {
+    let output = git_command().args(args).output().ok()?;
+    if output.status.success() {
+        Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        None
+    }
+}
+
+fn remote_url_from_git(vault: &Vault) -> Option<String> {
+    let root = vault.root.to_string_lossy();
+    git_output_success(&["-C", &root, "remote", "get-url", "origin"])
+        .filter(|url| !url.trim().is_empty())
+        .or_else(|| vault.config.sync.remote_url.clone())
+}
+
+fn classify_remote_kind(remote_url: Option<&str>) -> &'static str {
+    match remote_url.map(str::trim).filter(|url| !url.is_empty()) {
+        Some(url) if url.starts_with("http://") || url.starts_with("https://") => "https",
+        Some(url) if url.starts_with("git@") || url.starts_with("ssh://") => "ssh",
+        Some(_) => "unknown",
+        None => "none",
+    }
+}
+
+fn classify_git_provider(remote_url: Option<&str>) -> &'static str {
+    let normalized = remote_url.unwrap_or_default().to_ascii_lowercase();
+    if normalized.contains("github.com") {
+        "github"
+    } else if normalized.contains("dev.azure.com")
+        || normalized.contains("visualstudio.com")
+        || normalized.contains("ssh.dev.azure.com")
+    {
+        "azure-devops"
+    } else if normalized.contains("gitlab.com") {
+        "gitlab"
+    } else if normalized.contains("bitbucket.org") {
+        "bitbucket"
+    } else {
+        "unknown"
+    }
+}
+
+fn ssh_remote_to_https(remote_url: &str) -> Option<String> {
+    let url = remote_url.trim();
+    if let Some(rest) = url.strip_prefix("git@") {
+        let (host, path) = rest.split_once(':')?;
+        if !host.is_empty() && !path.is_empty() {
+            return Some(format!("https://{}/{}", host, path));
+        }
+    }
+
+    if let Some(rest) = url.strip_prefix("ssh://") {
+        let without_user = rest.strip_prefix("git@").unwrap_or(rest);
+        let (host, path) = without_user.split_once('/')?;
+        if !host.is_empty() && !path.is_empty() {
+            return Some(format!("https://{}/{}", host, path));
+        }
+    }
+
+    None
+}
+
+fn https_credential_input(remote_url: &str) -> Option<String> {
+    let url = remote_url.trim();
+    let rest = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))?;
+    let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+    if host.is_empty() {
+        return None;
+    }
+
+    let protocol = if url.starts_with("http://") { "http" } else { "https" };
+    let mut input = format!("protocol={}\nhost={}\n", protocol, host);
+    if !path.is_empty() {
+        input.push_str(&format!("path={}\n", path));
+    }
+    input.push('\n');
+    Some(input)
+}
+
+fn reject_git_credential(remote_url: &str) -> CmdResult<()> {
+    let input = https_credential_input(remote_url)
+        .ok_or("Credential reset is only available for HTTPS remotes.")?;
+    let mut child = git_command()
+        .args(["credential", "reject"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to start git credential reject: {}", e))?;
+
+    if let Some(stdin) = child.stdin.as_mut() {
+        stdin
+            .write_all(input.as_bytes())
+            .map_err(|e| format!("Failed to send credential reject request: {}", e))?;
+    }
+
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("Failed to finish credential reject: {}", e))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "Git credential helper could not forget the saved credential: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ))
+    }
+}
+
+fn classify_auth_failure(
+    stderr: &str,
+    remote_kind: &str,
+    gcm_installed: bool,
+) -> (&'static str, &'static str) {
+    let lower = stderr.to_ascii_lowercase();
+    if lower.contains("permission denied (publickey)") {
+        (
+            "ssh-configured",
+            "SSH authentication failed. Check the configured SSH key or switch this remote to HTTPS auth.",
+        )
+    } else if lower.contains("repository not found") {
+        (
+            "repo-not-found",
+            "The remote repository was not found, or this account does not have access.",
+        )
+    } else if lower.contains("authentication failed")
+        || lower.contains("could not read username")
+        || lower.contains("terminal prompts disabled")
+    {
+        if remote_kind == "https" && !gcm_installed {
+            (
+                "missing-gcm",
+                "HTTPS authentication needs a credential helper. Install or configure Git Credential Manager.",
+            )
+        } else {
+            (
+                "needs-login",
+                "The remote needs authentication. Reconnect the git provider to continue.",
+            )
+        }
+    } else if lower.contains("unable to access")
+        || lower.contains("could not resolve host")
+        || lower.contains("failed to connect")
+    {
+        (
+            "network-error",
+            "SlateVault could not reach the remote. Check your network, proxy, or remote URL.",
+        )
+    } else {
+        (
+            "unknown",
+            "SlateVault could not verify git authentication for this remote.",
+        )
+    }
 }
 
 fn run_git_checked(vault: &Vault, args: &[&str], label: &str) -> CmdResult<String> {
@@ -211,6 +386,16 @@ fn vault_has_local_changes(vault: &Vault) -> CmdResult<bool> {
     Ok(!status.trim().is_empty())
 }
 
+fn vault_has_untracked_changes(vault: &Vault) -> CmdResult<bool> {
+    let root = vault.root.to_string_lossy();
+    let status = run_git_stdout(
+        vault,
+        &["-C", &root, "status", "--porcelain", "--untracked-files=all"],
+        "Status failed",
+    )?;
+    Ok(status.lines().any(|line| line.starts_with("?? ")))
+}
+
 fn parse_ahead_behind_counts(output: &str) -> CmdResult<(usize, usize)> {
     let mut parts = output.split_whitespace();
     let ahead = parts
@@ -250,8 +435,16 @@ pub fn create_vault(path: String, name: String) -> CmdResult<String> {
 #[tauri::command]
 pub fn open_vault(path: String, state: State<'_, VaultState>) -> CmdResult<String> {
     let root = PathBuf::from(&path);
-    let vault = Vault::open(&root).map_err(|e| e.to_string())?;
+    let mut vault = Vault::open(&root).map_err(|e| e.to_string())?;
     let name = vault.config.vault.name.clone();
+
+    if let Some(actual_remote) = remote_url_from_git(&vault) {
+        if vault.config.sync.remote_url.as_deref() != Some(actual_remote.as_str()) {
+            vault.config.sync.remote_url = Some(actual_remote.clone());
+            vault.local_config.sync.remote_url = Some(actual_remote);
+            let _ = vault.save_local_config();
+        }
+    }
 
     // Pull on open if configured. Skip dirty worktrees so opening the app never
     // surprises the user with a merge or overwrite while local edits exist.
@@ -723,12 +916,266 @@ pub struct RemoteConfig {
 pub fn git_remote_config(state: State<'_, VaultState>) -> CmdResult<RemoteConfig> {
     with_vault(&state, |vault| {
         Ok(RemoteConfig {
-            remote_url: vault.config.sync.remote_url.clone(),
+            remote_url: remote_url_from_git(vault),
             remote_branch: vault.config.sync.remote_branch.clone(),
             pull_on_open: vault.config.sync.pull_on_open,
             push_on_close: vault.config.sync.push_on_close,
         })
     })
+}
+
+#[derive(Serialize)]
+pub struct GitAuthStatus {
+    pub git_installed: bool,
+    pub git_version: Option<String>,
+    pub gcm_installed: bool,
+    pub gcm_version: Option<String>,
+    pub credential_helper: Option<String>,
+    pub remote_url: Option<String>,
+    pub remote_kind: String,
+    pub provider: String,
+    pub auth_state: String,
+    pub message: String,
+    pub raw_error: Option<String>,
+}
+
+#[tauri::command]
+pub fn git_auth_status(state: State<'_, VaultState>) -> CmdResult<GitAuthStatus> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let root = vault.root.to_string_lossy();
+
+    let git_version = git_output_success(&["--version"]);
+    let git_installed = git_version.is_some();
+    let gcm_version = git_output_success(&["credential-manager", "--version"])
+        .or_else(|| git_output_success(&["credential-manager-core", "--version"]));
+    let gcm_installed = gcm_version.is_some();
+    let credential_helper = git_output_success(&[
+        "-C",
+        &root,
+        "config",
+        "--get",
+        "credential.helper",
+    ])
+    .or_else(|| git_output_success(&["config", "--global", "--get", "credential.helper"]))
+    .filter(|value| !value.trim().is_empty());
+    let remote_url = remote_url_from_git(vault);
+    let remote_kind = classify_remote_kind(remote_url.as_deref()).to_string();
+    let provider = classify_git_provider(remote_url.as_deref()).to_string();
+
+    if !git_installed {
+        return Ok(GitAuthStatus {
+            git_installed,
+            git_version,
+            gcm_installed,
+            gcm_version,
+            credential_helper,
+            remote_url,
+            remote_kind,
+            provider,
+            auth_state: "unknown".to_string(),
+            message: "Git is not available on this machine.".to_string(),
+            raw_error: None,
+        });
+    }
+
+    if remote_kind == "none" {
+        return Ok(GitAuthStatus {
+            git_installed,
+            git_version,
+            gcm_installed,
+            gcm_version,
+            credential_helper,
+            remote_url,
+            remote_kind,
+            provider,
+            auth_state: "missing-remote".to_string(),
+            message: "No git remote is configured for this vault.".to_string(),
+            raw_error: None,
+        });
+    }
+
+    if remote_kind == "ssh" && has_configured_ssh_key(vault) {
+        return Ok(GitAuthStatus {
+            git_installed,
+            git_version,
+            gcm_installed,
+            gcm_version,
+            credential_helper,
+            remote_url,
+            remote_kind,
+            provider,
+            auth_state: "ssh-configured".to_string(),
+            message: "SSH key auth is configured for this vault.".to_string(),
+            raw_error: None,
+        });
+    }
+
+    let probe = git_command_for_vault(vault)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GCM_INTERACTIVE", "never")
+        .args(["-C", &root, "ls-remote", "origin", "HEAD"])
+        .output()
+        .map_err(|e| format!("Failed to run git auth probe: {}", e))?;
+
+    if probe.status.success() {
+        return Ok(GitAuthStatus {
+            git_installed,
+            git_version,
+            gcm_installed,
+            gcm_version,
+            credential_helper,
+            remote_url,
+            remote_kind,
+            provider,
+            auth_state: "ready".to_string(),
+            message: "Git authentication is ready for this remote.".to_string(),
+            raw_error: None,
+        });
+    }
+
+    let stderr = String::from_utf8_lossy(&probe.stderr).trim().to_string();
+    let (auth_state, message) = classify_auth_failure(&stderr, &remote_kind, gcm_installed);
+
+    Ok(GitAuthStatus {
+        git_installed,
+        git_version,
+        gcm_installed,
+        gcm_version,
+        credential_helper,
+        remote_url,
+        remote_kind,
+        provider,
+        auth_state: auth_state.to_string(),
+        message: message.to_string(),
+        raw_error: if stderr.is_empty() { None } else { Some(stderr) },
+    })
+}
+
+#[tauri::command]
+pub fn git_connect_provider(state: State<'_, VaultState>) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let root = vault.root.to_string_lossy();
+    let remote_url = remote_url_from_git(vault);
+    let remote_kind = classify_remote_kind(remote_url.as_deref());
+
+    if remote_kind == "none" {
+        return Err("No git remote is configured for this vault.".to_string());
+    }
+    if remote_kind == "ssh" {
+        return Err(
+            "This vault uses an SSH remote. HTTPS browser login will be available after switching the remote to HTTPS auth."
+                .to_string(),
+        );
+    }
+
+    let output = git_command_for_vault(vault)
+        .args(["-C", &root, "ls-remote", "origin", "HEAD"])
+        .output()
+        .map_err(|e| format!("Failed to start git provider login: {}", e))?;
+
+    if output.status.success() {
+        Ok("Git provider authentication is ready.".to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(git_error("Provider login failed", &stderr, vault))
+    }
+}
+
+#[tauri::command]
+pub fn git_reconnect_provider(state: State<'_, VaultState>) -> CmdResult<String> {
+    let lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_ref().ok_or("No vault is open")?;
+    let remote_url = remote_url_from_git(vault).ok_or("No git remote is configured for this vault")?;
+
+    if classify_remote_kind(Some(&remote_url)) != "https" {
+        return Err("Reconnect is only available for HTTPS remotes.".to_string());
+    }
+
+    reject_git_credential(&remote_url)?;
+    drop(lock);
+    git_connect_provider(state)
+}
+
+#[tauri::command]
+pub fn git_connect_provider_for_url(url: String) -> CmdResult<String> {
+    let url = url.trim();
+    if url.is_empty() {
+        return Err("Repository URL is required.".to_string());
+    }
+
+    let remote_kind = classify_remote_kind(Some(url));
+    if remote_kind == "ssh" {
+        return Err(
+            "This is an SSH URL. Browser login works with HTTPS remotes; use an HTTPS clone URL or configure SSH manually."
+                .to_string(),
+        );
+    }
+    if remote_kind != "https" {
+        return Err("Browser login is only available for HTTPS git remotes.".to_string());
+    }
+
+    let output = git_command()
+        .args(["ls-remote", url, "HEAD"])
+        .output()
+        .map_err(|e| format!("Failed to start git provider login: {}", e))?;
+
+    if output.status.success() {
+        Ok("Git provider authentication is ready.".to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let gcm_installed = git_output_success(&["credential-manager", "--version"])
+            .or_else(|| git_output_success(&["credential-manager-core", "--version"]))
+            .is_some();
+        let (state, message) = classify_auth_failure(&stderr, remote_kind, gcm_installed);
+        if matches!(state, "needs-login" | "missing-gcm" | "repo-not-found" | "network-error") {
+            Err(format!("Provider login failed: {}\n\nGit said: {}", message, stderr.trim()))
+        } else {
+            Err(format!("Provider login failed: {}", stderr.trim()))
+        }
+    }
+}
+
+#[tauri::command]
+pub fn git_https_url_for_remote(url: String) -> CmdResult<String> {
+    let url = url.trim();
+    if url.is_empty() {
+        return Err("Repository URL is required.".to_string());
+    }
+
+    if classify_remote_kind(Some(url)) == "https" {
+        return Ok(url.to_string());
+    }
+
+    ssh_remote_to_https(url).ok_or_else(|| {
+        "SlateVault could not convert this remote to HTTPS. Paste an HTTPS clone URL instead."
+            .to_string()
+    })
+}
+
+#[tauri::command]
+pub fn git_convert_remote_to_https(state: State<'_, VaultState>) -> CmdResult<String> {
+    let mut lock = state.0.lock().map_err(|e| e.to_string())?;
+    let vault = lock.as_mut().ok_or("No vault is open")?;
+    let current = remote_url_from_git(vault).ok_or("No git remote is configured for this vault")?;
+
+    if classify_remote_kind(Some(&current)) == "https" {
+        return Ok(current);
+    }
+
+    let https_url = ssh_remote_to_https(&current).ok_or_else(|| {
+        "SlateVault could not convert this SSH remote to HTTPS. Configure an HTTPS remote manually."
+            .to_string()
+    })?;
+
+    vault.set_git_remote(&https_url).map_err(|e| e.to_string())?;
+    vault.config.sync.remote_url = Some(https_url.clone());
+    vault.local_config.sync.remote_url = Some(https_url.clone());
+    vault.save_config().map_err(|e| e.to_string())?;
+    vault.save_local_config().map_err(|e| e.to_string())?;
+
+    Ok(https_url)
 }
 
 #[derive(Deserialize)]
@@ -859,20 +1306,13 @@ pub fn git_update_safely(state: State<'_, VaultState>) -> CmdResult<String> {
     let root = vault.root.to_string_lossy();
     let remote_ref = format!("origin/{}", branch);
     let dirty = vault_has_local_changes(vault)?;
+    let has_untracked = dirty && vault_has_untracked_changes(vault)?;
     let mut messages = Vec::new();
 
     if dirty {
         let stash = run_git_checked(
             vault,
-            &[
-                "-C",
-                &root,
-                "stash",
-                "push",
-                "--include-untracked",
-                "-m",
-                "slateVault safe update",
-            ],
+            &["-C", &root, "stash", "push", "-m", "slateVault safe update"],
             "Stash failed",
         )?;
         messages.push(if stash.is_empty() {
@@ -880,6 +1320,12 @@ pub fn git_update_safely(state: State<'_, VaultState>) -> CmdResult<String> {
         } else {
             stash
         });
+        if has_untracked {
+            messages.push(
+                "Untracked files were left in place during Safe Update so Windows would not need to remove locked folders. Commit or ignore them when ready."
+                    .to_string(),
+            );
+        }
     }
 
     let fetch = run_git_checked(

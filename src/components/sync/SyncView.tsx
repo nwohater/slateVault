@@ -65,6 +65,7 @@ export function SyncView() {
   const files = useGitStore((s) => s.files);
   const currentBranch = useGitStore((s) => s.currentBranch);
   const remoteConfig = useGitStore((s) => s.remoteConfig);
+  const authStatus = useGitStore((s) => s.authStatus);
   const syncStatus = useGitStore((s) => s.syncStatus);
   const docSyncRisks = useGitStore((s) => s.docSyncRisks);
   const conflictFiles = useGitStore((s) => s.conflictFiles);
@@ -73,12 +74,16 @@ export function SyncView() {
   const loadStatus = useGitStore((s) => s.loadStatus);
   const loadBranches = useGitStore((s) => s.loadBranches);
   const loadRemoteConfig = useGitStore((s) => s.loadRemoteConfig);
+  const loadAuthStatus = useGitStore((s) => s.loadAuthStatus);
   const loadSyncStatus = useGitStore((s) => s.loadSyncStatus);
   const loadDocSyncRisks = useGitStore((s) => s.loadDocSyncRisks);
   const loadConflictFiles = useGitStore((s) => s.loadConflictFiles);
   const pushRemote = useGitStore((s) => s.push);
   const updateSafely = useGitStore((s) => s.updateSafely);
   const pullDiscardLocal = useGitStore((s) => s.pullDiscardLocal);
+  const connectProvider = useGitStore((s) => s.connectProvider);
+  const reconnectProvider = useGitStore((s) => s.reconnectProvider);
+  const convertRemoteToHttps = useGitStore((s) => s.convertRemoteToHttps);
   const resolveConflictFile = useGitStore((s) => s.resolveConflictFile);
   const continueUpdate = useGitStore((s) => s.continueUpdate);
   const stageAll = useGitStore((s) => s.stageAll);
@@ -91,8 +96,9 @@ export function SyncView() {
   const openDocument = useEditorStore((s) => s.openDocument);
   const openWikiFile = useEditorStore((s) => s.openWikiFile);
   const [fetchingRemote, setFetchingRemote] = useState(true);
-  const [syncing, setSyncing] = useState<"pull" | "push" | "safe-pull" | "safe-sync" | "discard-pull" | "commit" | "fetch" | "resolve" | "continue" | null>(null);
+  const [syncing, setSyncing] = useState<"pull" | "push" | "safe-pull" | "safe-sync" | "discard-pull" | "commit" | "fetch" | "resolve" | "continue" | "auth" | null>(null);
   const [confirmDiscardPull, setConfirmDiscardPull] = useState(false);
+  const [confirmHttpsSwitch, setConfirmHttpsSwitch] = useState(false);
   const [activeFilter, setActiveFilter] = useState<"all" | "conflict" | "ai" | "sensitive" | "mine">("all");
   const [showGitTools, setShowGitTools] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -111,6 +117,7 @@ export function SyncView() {
         loadStatus(),
         loadBranches(),
         loadRemoteConfig(),
+        loadAuthStatus(),
         loadConflictFiles(),
         loadSyncStatus(),
         loadDocSyncRisks(),
@@ -127,6 +134,7 @@ export function SyncView() {
       if (!active) return;
       await Promise.all([
         loadSyncStatus(),
+        loadAuthStatus(),
         loadDocSyncRisks(),
       ]);
       if (active) setFetchingRemote(false);
@@ -143,6 +151,7 @@ export function SyncView() {
     };
   }, [
     loadBranches,
+    loadAuthStatus,
     loadConflictFiles,
     loadDocSyncRisks,
     loadRemoteConfig,
@@ -476,6 +485,59 @@ export function SyncView() {
     void openDocument(risk.project, risk.path);
   };
 
+  const handleConnectProvider = async () => {
+    setSyncing("auth");
+    setError(null);
+    setMessage("Opening git provider login...");
+    try {
+      const result = await connectProvider();
+      setMessage(result || "Git provider authentication is ready.");
+      window.setTimeout(() => setMessage(null), 2600);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  const handleReconnectProvider = async () => {
+    setSyncing("auth");
+    setError(null);
+    setMessage("Forgetting saved git credential and opening provider login...");
+    try {
+      const result = await reconnectProvider();
+      setMessage(result || "Git provider authentication refreshed.");
+      window.setTimeout(() => setMessage(null), 2600);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  const handleSwitchToHttpsAuth = async () => {
+    if (!confirmHttpsSwitch) {
+      setConfirmHttpsSwitch(true);
+      return;
+    }
+
+    setSyncing("auth");
+    setError(null);
+    setMessage("Switching remote to HTTPS auth...");
+    try {
+      const httpsUrl = await convertRemoteToHttps();
+      setMessage(`Remote switched to ${httpsUrl}. Opening provider login...`);
+      const result = await connectProvider();
+      setMessage(result || "Git provider authentication is ready.");
+      setConfirmHttpsSwitch(false);
+      window.setTimeout(() => setMessage(null), 2600);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setSyncing(null);
+    }
+  };
+
   return (
     <div className="workspace-page h-full min-w-0 flex-1 overflow-y-auto">
       <div className="grid min-h-full grid-cols-[252px_minmax(0,1fr)]">
@@ -487,6 +549,65 @@ export function SyncView() {
               <div className="mt-2 break-all font-mono text-[12px]" style={{ color: "var(--text)" }}>
                 {remoteConfig?.remote_url || "No remote configured"}
               </div>
+            </div>
+            <div className="mt-3 rounded-lg border p-3" style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>Auth</div>
+                <span className={`chip ${authTone(authStatus?.auth_state)}`}>{authLabel(authStatus?.auth_state)}</span>
+              </div>
+              <div className="mt-2 text-sm font-medium" style={{ color: "var(--text)" }}>
+                {providerLabel(authStatus?.provider)}
+              </div>
+              <div className="mt-1 text-xs leading-5" style={{ color: "var(--text-muted)" }}>
+                {authStatus?.message || "Checking git authentication..."}
+              </div>
+              {authStatus?.remote_kind && authStatus.remote_kind !== "none" && (
+                <div className="mt-2 text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--text-faint)" }}>
+                  {authStatus.remote_kind === "https" ? "HTTPS credential helper" : authStatus.remote_kind === "ssh" ? "SSH remote" : authStatus.remote_kind}
+                </div>
+              )}
+              {authStatus?.remote_kind === "https" && (
+                <button
+                  onClick={() =>
+                    authStatus.auth_state === "ready"
+                      ? void handleReconnectProvider()
+                      : void handleConnectProvider()
+                  }
+                  disabled={syncing !== null}
+                  className={`btn ${authStatus.auth_state === "ready" ? "" : "primary"} sm mt-3 w-full justify-center`}
+                >
+                  {syncing === "auth"
+                    ? authStatus.auth_state === "ready" ? "Reconnecting..." : "Connecting..."
+                    : authStatus.auth_state === "ready" ? "Reconnect provider" : "Connect provider"}
+                </button>
+              )}
+              {authStatus?.remote_kind === "ssh" && (
+                <>
+                  <div className="mt-3 text-xs leading-5" style={{ color: "var(--text-faint)" }}>
+                    Browser login needs HTTPS. SSH remains supported as the advanced path.
+                  </div>
+                  <button
+                    onClick={() => void handleSwitchToHttpsAuth()}
+                    disabled={syncing !== null}
+                    className="btn sm mt-3 w-full justify-center"
+                  >
+                    {syncing === "auth"
+                      ? "Switching..."
+                      : confirmHttpsSwitch
+                        ? "Confirm HTTPS switch"
+                        : "Switch to HTTPS auth"}
+                  </button>
+                  {confirmHttpsSwitch && (
+                    <button
+                      onClick={() => setConfirmHttpsSwitch(false)}
+                      disabled={syncing !== null}
+                      className="btn sm mt-2 w-full justify-center"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </div>
 
@@ -1006,6 +1127,51 @@ function Metric({
       <div className="mt-1 truncate text-xs" style={{ color: "var(--text-faint)" }}>{hint}</div>
     </div>
   );
+}
+
+function providerLabel(provider?: string) {
+  switch (provider) {
+    case "github":
+      return "GitHub";
+    case "azure-devops":
+      return "Azure DevOps";
+    case "gitlab":
+      return "GitLab";
+    case "bitbucket":
+      return "Bitbucket";
+    case "unknown":
+      return "Git provider";
+    default:
+      return provider ? provider : "Git provider";
+  }
+}
+
+function authLabel(state?: string) {
+  switch (state) {
+    case "ready":
+      return "ready";
+    case "needs-login":
+      return "login needed";
+    case "ssh-configured":
+      return "ssh";
+    case "missing-gcm":
+      return "gcm missing";
+    case "missing-remote":
+      return "no remote";
+    case "repo-not-found":
+      return "no access";
+    case "network-error":
+      return "offline";
+    default:
+      return "checking";
+  }
+}
+
+function authTone(state?: string) {
+  if (state === "ready" || state === "ssh-configured") return "success";
+  if (state === "missing-remote") return "";
+  if (!state) return "";
+  return "warning";
 }
 
 function Spinner() {

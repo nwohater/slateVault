@@ -36,6 +36,14 @@ function removeRecentVault(path: string) {
   localStorage.setItem(RECENT_VAULTS_KEY, JSON.stringify(recent));
 }
 
+function isHttpsGitUrl(url: string) {
+  return /^https?:\/\//i.test(url.trim());
+}
+
+function isSshGitUrl(url: string) {
+  return /^git@/i.test(url.trim()) || /^ssh:\/\//i.test(url.trim());
+}
+
 function VaultMark() {
   return (
     <div className="vault-picker-mark" aria-hidden="true">
@@ -51,6 +59,8 @@ export function VaultPicker() {
   const [repoUrl, setRepoUrl] = useState("");
   const [mode, setMode] = useState<"open" | "create" | "clone">("open");
   const [error, setError] = useState<string | null>(null);
+  const [cloneAuthAvailable, setCloneAuthAvailable] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [recentVaults, setRecentVaults] = useState<RecentVault[]>([]);
   const openVault = useVaultStore((s) => s.openVault);
@@ -88,6 +98,7 @@ export function VaultPicker() {
     }
 
     setError(null);
+    setCloneAuthAvailable(false);
     setLoading(true);
     try {
       if (mode === "clone") {
@@ -109,8 +120,42 @@ export function VaultPicker() {
       }
     } catch (e) {
       setError(String(e));
+      if (mode === "clone" && isHttpsGitUrl(repoUrl)) {
+        setCloneAuthAvailable(true);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleConnectAndRetryClone = async () => {
+    if (!repoUrl.trim() || !path.trim()) return;
+    setError(null);
+    setAuthLoading(true);
+    try {
+      await commands.gitConnectProviderForUrl(repoUrl.trim());
+      setCloneAuthAvailable(false);
+      await handleSubmit();
+    } catch (e) {
+      setError(String(e));
+      setCloneAuthAvailable(isHttpsGitUrl(repoUrl));
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleUseHttpsCloneUrl = async () => {
+    if (!repoUrl.trim()) return;
+    setError(null);
+    setAuthLoading(true);
+    try {
+      const httpsUrl = await commands.gitHttpsUrlForRemote(repoUrl.trim());
+      setRepoUrl(httpsUrl);
+      setCloneAuthAvailable(true);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -171,7 +216,10 @@ export function VaultPicker() {
                 <input
                   type="text"
                   value={repoUrl}
-                  onChange={(e) => setRepoUrl(e.target.value)}
+                  onChange={(e) => {
+                    setRepoUrl(e.target.value);
+                    setCloneAuthAvailable(false);
+                  }}
                   onKeyDown={(e) => e.key === "Enter" && void handleSubmit()}
                   placeholder="https://github.com/user/repo.git"
                 />
@@ -209,9 +257,45 @@ export function VaultPicker() {
 
             {error && <div className="vault-picker-error">{error}</div>}
 
+            {mode === "clone" && cloneAuthAvailable && (
+              <div className="rounded-lg border p-3 text-sm" style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}>
+                <div className="font-medium" style={{ color: "var(--text)" }}>
+                  Repository may need provider login.
+                </div>
+                <p className="mt-1 leading-5" style={{ color: "var(--text-muted)" }}>
+                  SlateVault can open the git provider sign-in flow, then retry the clone.
+                </p>
+                <button
+                  onClick={() => void handleConnectAndRetryClone()}
+                  disabled={authLoading || loading}
+                  className="btn primary sm mt-3"
+                >
+                  {authLoading ? "Connecting..." : "Connect provider and retry"}
+                </button>
+              </div>
+            )}
+
+            {mode === "clone" && !cloneAuthAvailable && isSshGitUrl(repoUrl) && (
+              <div className="rounded-lg border p-3 text-sm" style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}>
+                <div className="font-medium" style={{ color: "var(--text)" }}>
+                  SSH clone URL detected.
+                </div>
+                <p className="mt-1 leading-5" style={{ color: "var(--text-muted)" }}>
+                  Browser login works with HTTPS remotes. SlateVault can convert this URL before cloning.
+                </p>
+                <button
+                  onClick={() => void handleUseHttpsCloneUrl()}
+                  disabled={authLoading || loading}
+                  className="btn sm mt-3"
+                >
+                  {authLoading ? "Converting..." : "Use HTTPS auth instead"}
+                </button>
+              </div>
+            )}
+
             <button
               onClick={handleSubmit}
-              disabled={loading || !path.trim() || (mode === "clone" && !repoUrl.trim())}
+              disabled={loading || authLoading || !path.trim() || (mode === "clone" && !repoUrl.trim())}
               className="btn primary lg vault-picker-submit"
             >
               {submitLabel}

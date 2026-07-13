@@ -3,6 +3,7 @@ import type {
   FileStatus,
   CommitInfo,
   RemoteConfig,
+  GitAuthStatus,
   BranchInfo,
   DocSyncRiskInfo,
   FileDiff,
@@ -24,6 +25,7 @@ interface GitState {
   files: FileStatus[];
   commits: CommitInfo[];
   remoteConfig: RemoteConfig | null;
+  authStatus: GitAuthStatus | null;
   syncStatus: SyncStatusInfo | null;
   syncHealth: SyncHealth | null;
   docSyncRisks: DocSyncRiskInfo[];
@@ -52,11 +54,15 @@ interface GitState {
   pullWithStash: () => Promise<string>;
   pullDiscardLocal: () => Promise<string>;
   fetchRemote: () => Promise<string>;
+  connectProvider: () => Promise<string>;
+  reconnectProvider: () => Promise<string>;
+  convertRemoteToHttps: () => Promise<string>;
   loadConflictFiles: () => Promise<void>;
   resolveConflictFile: (path: string, resolution: "keep_both" | "use_shared" | "use_local") => Promise<string>;
   continueUpdate: () => Promise<string>;
   loadLog: () => Promise<void>;
   loadRemoteConfig: () => Promise<void>;
+  loadAuthStatus: () => Promise<void>;
   loadSyncStatus: () => Promise<void>;
   loadDocSyncRisks: () => Promise<void>;
   refreshSyncState: () => Promise<void>;
@@ -158,6 +164,7 @@ export const useGitStore = create<GitState>((set, get) => ({
   files: [],
   commits: [],
   remoteConfig: null,
+  authStatus: null,
   syncStatus: null,
   syncHealth: null,
   docSyncRisks: [],
@@ -223,6 +230,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       get().loadLog(),
       get().loadBranches(),
       get().loadRemoteConfig(),
+      get().loadAuthStatus(),
       get().loadSyncStatus(),
       get().loadDocSyncRisks(),
       get().loadConflictFiles(),
@@ -236,7 +244,50 @@ export const useGitStore = create<GitState>((set, get) => ({
       await get().refreshSyncState();
       return result;
     } catch (e) {
+      await get().loadAuthStatus();
       const message = `Fetch failed: ${e}`;
+      set({ output: message });
+      throw e;
+    }
+  },
+
+  connectProvider: async () => {
+    try {
+      const result = await commands.gitConnectProvider();
+      set({ output: result || "Git provider authentication is ready" });
+      await get().refreshSyncState();
+      return result;
+    } catch (e) {
+      await get().loadAuthStatus();
+      const message = `Connect provider failed: ${e}`;
+      set({ output: message });
+      throw e;
+    }
+  },
+
+  reconnectProvider: async () => {
+    try {
+      const result = await commands.gitReconnectProvider();
+      set({ output: result || "Git provider authentication refreshed" });
+      await get().refreshSyncState();
+      return result;
+    } catch (e) {
+      await get().loadAuthStatus();
+      const message = `Reconnect provider failed: ${e}`;
+      set({ output: message });
+      throw e;
+    }
+  },
+
+  convertRemoteToHttps: async () => {
+    try {
+      const httpsUrl = await commands.gitConvertRemoteToHttps();
+      set({ output: `Remote switched to ${httpsUrl}` });
+      await get().refreshSyncState();
+      return httpsUrl;
+    } catch (e) {
+      await get().loadAuthStatus();
+      const message = `Switch to HTTPS failed: ${e}`;
       set({ output: message });
       throw e;
     }
@@ -285,6 +336,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       await get().refreshSyncState();
       return result;
     } catch (e) {
+      await get().loadAuthStatus();
       const message = `Push failed: ${e}`;
       set({ output: message });
       throw e;
@@ -298,6 +350,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       await get().refreshSyncState();
       return result;
     } catch (e) {
+      await get().loadAuthStatus();
       const message = `Pull failed: ${e}`;
       set({ output: message });
       throw e;
@@ -311,6 +364,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       await get().refreshSyncState();
       return result;
     } catch (e) {
+      await get().loadAuthStatus();
       const message = `Safe update paused: ${e}`;
       set({ output: message });
       await get().refreshSyncState();
@@ -325,6 +379,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       await get().refreshSyncState();
       return result;
     } catch (e) {
+      await get().loadAuthStatus();
       const message = `Safe pull failed: ${e}`;
       set({ output: message });
       throw e;
@@ -392,6 +447,30 @@ export const useGitStore = create<GitState>((set, get) => ({
     }
   },
 
+  loadAuthStatus: async () => {
+    try {
+      const authStatus = await commands.gitAuthStatus();
+      set({ authStatus });
+    } catch (e) {
+      console.error("git auth status failed:", e);
+      set({
+        authStatus: {
+          git_installed: false,
+          git_version: null,
+          gcm_installed: false,
+          gcm_version: null,
+          credential_helper: null,
+          remote_url: null,
+          remote_kind: "unknown",
+          provider: "unknown",
+          auth_state: "unknown",
+          message: `Could not check git authentication: ${e}`,
+          raw_error: String(e),
+        },
+      });
+    }
+  },
+
   setRemoteConfig: async (config) => {
     await commands.gitSetRemoteConfig({
       remote_url: config.remote_url ?? undefined,
@@ -400,6 +479,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       push_on_close: config.push_on_close,
     });
     await get().loadRemoteConfig();
+    await get().loadAuthStatus();
     await get().loadSyncStatus();
     await get().loadDocSyncRisks();
   },

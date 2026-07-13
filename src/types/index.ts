@@ -81,6 +81,29 @@ export interface RemoteConfig {
   push_on_close: boolean;
 }
 
+export interface GitAuthStatus {
+  git_installed: boolean;
+  git_version: string | null;
+  gcm_installed: boolean;
+  gcm_version: string | null;
+  credential_helper: string | null;
+  remote_url: string | null;
+  remote_kind: "https" | "ssh" | "none" | "unknown" | string;
+  provider: "github" | "azure-devops" | "gitlab" | "bitbucket" | "unknown" | string;
+  auth_state:
+    | "ready"
+    | "needs-login"
+    | "ssh-configured"
+    | "missing-gcm"
+    | "missing-remote"
+    | "repo-not-found"
+    | "network-error"
+    | "unknown"
+    | string;
+  message: string;
+  raw_error: string | null;
+}
+
 export interface SyncStatusInfo {
   current_branch: string;
   remote_branch: string;

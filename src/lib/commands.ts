@@ -9,6 +9,7 @@ import type {
   FileHistoryEntry,
   DocSyncRiskInfo,
   RemoteConfig,
+  GitAuthStatus,
   SyncStatusInfo,
   VaultSettings,
   VaultStatsInfo,
@@ -317,6 +318,30 @@ export async function gitFileHistory(
 
 export async function gitRemoteConfig(): Promise<RemoteConfig> {
   return invoke("git_remote_config");
+}
+
+export async function gitAuthStatus(): Promise<GitAuthStatus> {
+  return invoke("git_auth_status");
+}
+
+export async function gitConnectProvider(): Promise<string> {
+  return invoke("git_connect_provider");
+}
+
+export async function gitReconnectProvider(): Promise<string> {
+  return invoke("git_reconnect_provider");
+}
+
+export async function gitConnectProviderForUrl(url: string): Promise<string> {
+  return invoke("git_connect_provider_for_url", { url });
+}
+
+export async function gitHttpsUrlForRemote(url: string): Promise<string> {
+  return invoke("git_https_url_for_remote", { url });
+}
+
+export async function gitConvertRemoteToHttps(): Promise<string> {
+  return invoke("git_convert_remote_to_https");
 }
 
 export async function gitPush(): Promise<string> {
