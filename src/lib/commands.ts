@@ -247,6 +247,13 @@ export async function readDocument(
   return invoke("read_document", { project, path });
 }
 
+export async function markDocumentReviewed(
+  project: string,
+  path: string
+): Promise<string> {
+  return invoke("mark_document_reviewed", { project, path });
+}
+
 export async function listDocuments(
   project: string,
   tags?: string[]
@@ -534,6 +541,10 @@ export async function gitListBranches(): Promise<BranchInfo[]> {
 
 export async function gitCreateBranch(name: string): Promise<string> {
   return invoke("git_create_branch", { name });
+}
+
+export async function gitCreateBranchAndSwitch(name: string): Promise<string> {
+  return invoke("git_create_branch_and_switch", { name });
 }
 
 export async function gitSwitchBranch(name: string): Promise<string> {

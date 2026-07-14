@@ -29,6 +29,7 @@ export interface DocumentInfo {
   tags: string[];
   created: string;
   modified: string;
+  reviewed?: string | null;
   canonical: boolean;
   protected: boolean;
 }
@@ -257,6 +258,7 @@ export interface FrontMatter {
   tags: string[];
   created: string;
   modified: string;
+  reviewed?: string | null;
   project: string;
   status: "draft" | "review" | "final";
   ai_tool?: string;

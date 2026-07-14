@@ -6,6 +6,7 @@ import * as commands from "@/lib/commands";
 import { copyToClipboard } from "@/lib/clipboard";
 import {
   detectMcpPlatform,
+  getMcpCommand,
   getMcpInstallNote,
   getMcpSetupCards,
   type McpPlatform,
@@ -418,7 +419,7 @@ export function SettingsPanel() {
               <SettingsSectionShell
                 icon="MCP"
                 title="Agent access (MCP)"
-                description="slateVault runs a Model Context Protocol server on localhost. Connected coding agents can read trusted project docs without scraping or guessing."
+                description="slateVault exposes a local stdio Model Context Protocol server through the installed slatevault-mcp command. Connected coding agents can read trusted project docs without scraping or guessing."
               >
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div className="panel p-5">
@@ -429,8 +430,11 @@ export function SettingsPanel() {
                       </h3>
                     </div>
                     <div className="mt-3 font-mono text-lg" style={{ color: "var(--text-muted)" }}>
-                      localhost:{mcpStatus?.port ?? mcpPort}
+                      {getMcpCommand(platform)}
                     </div>
+                    <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
+                      stdio transport. No localhost HTTP endpoint is exposed.
+                    </p>
                     <div className="mt-4 flex flex-wrap gap-2">
                       <button className="btn" disabled={saving || mcpLive || !vaultPath} onClick={() => void handleToggleMcp(true)}>Start</button>
                       <button className="btn" disabled={saving || !mcpLive} onClick={() => void handleToggleMcp(false)}>Stop</button>
@@ -449,9 +453,6 @@ export function SettingsPanel() {
 
                 <SettingRow label="Enabled">
                   <Toggle checked={mcpEnabled} onChange={(checked) => void handleToggleMcp(checked)} label="Run MCP server when vault is open" />
-                </SettingRow>
-                <SettingRow label="Port">
-                  <input className="settings-input max-w-[260px]" type="number" min={1024} max={65535} value={mcpPort} onChange={(event) => setMcpPort(Number(event.target.value))} />
                 </SettingRow>
                 <SettingRow label="Auto-stage AI writes" help="When an agent writes a doc, stage it for review automatically.">
                   <Toggle checked={autoStage} onChange={setAutoStage} label="Stage and flag as AI-authored" />

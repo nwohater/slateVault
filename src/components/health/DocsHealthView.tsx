@@ -45,6 +45,13 @@ function getAgeDays(dateString: string) {
   return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
 }
 
+function isStaleDoc(doc: DocumentInfo) {
+  if (doc.path === "_about.md" || doc.path.endsWith("/_about.md")) return false;
+  if (getAgeDays(doc.modified) < STALE_DAYS) return false;
+  if (!doc.reviewed) return true;
+  return new Date(doc.reviewed).getTime() < new Date(doc.modified).getTime();
+}
+
 function includesAnchorPath(docs: DocumentInfo[], path: string) {
   return docs.some((doc) => doc.path === path || doc.path.endsWith(`/${path}`));
 }
@@ -63,15 +70,7 @@ export function DocsHealthView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [projectDocs, setProjectDocs] = useState<Record<string, DocumentInfo[]>>({});
-  // Map of "project/path" → timestamp when reviewed. Persisted in localStorage so it
-  // survives navigation. If a doc is modified after being reviewed it reappears automatically.
-  const [reviewedKeys, setReviewedKeys] = useState<Map<string, number>>(() => {
-    try {
-      const stored = localStorage.getItem("slatevault_reviewed_docs");
-      if (stored) return new Map(JSON.parse(stored) as [string, number][]);
-    } catch { /* ignore parse errors */ }
-    return new Map();
-  });
+  const [reviewingDoc, setReviewingDoc] = useState<string | null>(null);
   const [creatingGap, setCreatingGap] = useState<string | null>(null);
 
   const loadHealth = useCallback(async (activeRef?: { active: boolean }) => {
@@ -128,7 +127,7 @@ export function DocsHealthView() {
           draftCount: docs.filter((doc) => doc.status === "draft").length,
           reviewCount: docs.filter((doc) => doc.status === "review").length,
           finalCount: docs.filter((doc) => doc.status === "final").length,
-          staleCount: docs.filter((doc) => getAgeDays(doc.modified) >= STALE_DAYS).length,
+          staleCount: docs.filter(isStaleDoc).length,
         };
       })
       .sort((a, b) => {
@@ -141,18 +140,10 @@ export function DocsHealthView() {
 
   const staleDocs = useMemo(() => {
     return allDocs
-      .filter((doc) => {
-        // _about.md are folder-description system files, not user docs
-        if (doc.path === "_about.md" || doc.path.endsWith("/_about.md")) return false;
-        if (doc.ageDays < STALE_DAYS) return false;
-        // Only hide if reviewed *after* the doc was last modified
-        const reviewedAt = reviewedKeys.get(`${doc.project}/${doc.path}`);
-        if (reviewedAt !== undefined && reviewedAt >= new Date(doc.modified).getTime()) return false;
-        return true;
-      })
+      .filter(isStaleDoc)
       .sort((a, b) => b.ageDays - a.ageDays)
       .slice(0, 12);
-  }, [allDocs, reviewedKeys]);
+  }, [allDocs]);
 
   const summary = useMemo(() => {
     const totalDocs = allDocs.length;
@@ -223,16 +214,17 @@ export function DocsHealthView() {
     void openDocument(project, path);
   };
 
-  const handleMarkReviewed = (doc: VaultDoc) => {
+  const handleMarkReviewed = async (doc: VaultDoc) => {
     const key = `${doc.project}/${doc.path}`;
-    setReviewedKeys((current) => {
-      const next = new Map(current);
-      next.set(key, Date.now());
-      try {
-        localStorage.setItem("slatevault_reviewed_docs", JSON.stringify([...next]));
-      } catch { /* ignore storage errors */ }
-      return next;
-    });
+    setReviewingDoc(key);
+    try {
+      await commands.markDocumentReviewed(doc.project, doc.path);
+      await loadHealth();
+    } catch (err) {
+      setError(`Could not mark ${doc.path} reviewed: ${err}`);
+    } finally {
+      setReviewingDoc(null);
+    }
   };
 
   const handleCreateGap = async (gap: GapDoc) => {
@@ -312,16 +304,19 @@ export function DocsHealthView() {
 
         <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="min-w-0">
-            <h2 className="workspace-label mb-3 text-base font-semibold" style={{ color: "var(--text-muted)" }}>
-              Per-project health
-            </h2>
+            <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <h2 className="workspace-label text-base font-semibold" style={{ color: "var(--text-muted)" }}>
+                Per-project health
+              </h2>
+              <StatusLegend />
+            </div>
             <div className="panel overflow-hidden">
               <div className="grid grid-cols-[minmax(190px,1.4fr)_90px_120px_90px_minmax(150px,1fr)_76px] gap-4 border-b px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
                 <div>Project</div>
                 <div>Docs</div>
                 <div>Canonical</div>
                 <div>Stale</div>
-                <div>Status mix</div>
+                <div>Doc status</div>
                 <div />
               </div>
               {loading ? (
@@ -394,8 +389,13 @@ export function DocsHealthView() {
                         <button onClick={() => handleOpen(doc.project, doc.path)} className="btn">
                           Open
                         </button>
-                        <button onClick={() => handleMarkReviewed(doc)} className="btn">
-                          Mark reviewed
+                        <button
+                          onClick={() => void handleMarkReviewed(doc)}
+                          disabled={reviewingDoc === `${doc.project}/${doc.path}`}
+                          className="btn"
+                          title="Writes a reviewed timestamp to this document so the team can commit and share it."
+                        >
+                          {reviewingDoc === `${doc.project}/${doc.path}` ? "Marking..." : "Mark reviewed"}
                         </button>
                       </div>
                     </div>
@@ -480,7 +480,7 @@ export function DocsHealthView() {
               <div className="mt-4 space-y-3 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
                 <p>Open stale docs before starting agent work in affected projects.</p>
                 <p>Canonical docs should be refreshed first because session briefs treat them as source-of-truth material.</p>
-                <p>Mark reviewed hides a stale item for this session so you can work down the list without losing flow.</p>
+                <p>Mark reviewed writes shared frontmatter, then Team Sync can commit and push the review marker for everyone.</p>
               </div>
             </div>
           </aside>
@@ -524,8 +524,28 @@ function StatusMix({ project }: { project: ProjectHealth }) {
         <span style={{ width: `${(project.draftCount / total) * 100}%`, background: "var(--text-muted)" }} />
       </div>
       <div className="mt-1 text-xs" style={{ color: "var(--text-faint)" }}>
-        {project.finalCount}f - {project.reviewCount}r - {project.draftCount}d
+        {project.finalCount} final - {project.reviewCount} review - {project.draftCount} draft
       </div>
     </div>
+  );
+}
+
+function StatusLegend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: "var(--text-faint)" }}>
+      <span>Status bar:</span>
+      <LegendItem color="var(--success)" label="final" />
+      <LegendItem color="var(--info)" label="review" />
+      <LegendItem color="var(--text-muted)" label="draft" />
+    </div>
+  );
+}
+
+function LegendItem({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="h-2 w-2 rounded-full" style={{ background: color }} />
+      {label}
+    </span>
   );
 }

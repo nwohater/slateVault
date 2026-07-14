@@ -229,7 +229,7 @@ export function VaultHome() {
             </span>
           </div>
           <p style={{ marginTop: 8, fontSize: 13.5, color: "var(--text-muted)", maxWidth: 600, lineHeight: 1.55, margin: "8px 0 0" }}>
-            {sortedProjects.length} project{sortedProjects.length !== 1 ? "s" : ""} · Git {stats?.remote_url ? `connected to ${stats.remote_branch ?? "remote"}` : "not connected"} · MCP {stats?.mcp_enabled ? `serving on port ${stats.mcp_port}` : "disabled"}.
+            {sortedProjects.length} project{sortedProjects.length !== 1 ? "s" : ""} · Git {stats?.remote_url ? `connected to ${stats.remote_branch ?? "remote"}` : "not connected"} · MCP {stats?.mcp_enabled ? "stdio enabled" : "disabled"}.
           </p>
         </div>
 
@@ -238,7 +238,7 @@ export function VaultHome() {
           <StatCard label="Projects"    value={String(stats?.project_count ?? sortedProjects.length)} hint={`${sortedProjects.length} loaded`} />
           <StatCard label="Documents"   value={String(stats?.doc_count ?? 0)} hint="across all projects" />
           <StatCard label="Team Sync"   value={stats?.remote_url ? "Connected" : "No remote"} hint={syncHint} tone={syncTone as "ok" | "warn"} onClick={() => navigate("sync")} />
-          <StatCard label="MCP Server"  value={stats?.mcp_enabled ? `Live · :${stats.mcp_port}` : "Off"} hint={stats?.mcp_enabled ? "agents connected" : "configure in Settings"} tone={stats?.mcp_enabled ? "ok" : "warn"} onClick={() => navigate("settings")} />
+          <StatCard label="MCP Server"  value={stats?.mcp_enabled ? "Local stdio" : "Off"} hint={stats?.mcp_enabled ? "agent command ready" : "configure in Settings"} tone={stats?.mcp_enabled ? "ok" : "warn"} onClick={() => navigate("settings")} />
         </div>
 
         {/* ── Two-column body ── */}

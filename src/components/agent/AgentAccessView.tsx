@@ -81,7 +81,7 @@ export function AgentAccessView() {
     if (mcpStatus?.running) {
       return {
         tone: "green" as const,
-        label: `Running on port ${mcpStatus.port ?? vaultConfig?.mcp_port ?? "?"}`,
+        label: "Local stdio process running",
       };
     }
     if (vaultConfig?.mcp_enabled) {
@@ -410,9 +410,7 @@ export function AgentAccessView() {
                     {mcpStatus?.binary_found ? "Binary available" : "Binary missing"}
                   </div>
                   <div className="mt-1 text-[11px] text-neutral-500">
-                    {vaultConfig?.mcp_port
-                      ? `Configured for port ${vaultConfig.mcp_port}`
-                      : "No port configured"}
+                    stdio transport, no HTTP endpoint
                   </div>
                 </div>
                 <div className="workspace-stat rounded-2xl p-4">

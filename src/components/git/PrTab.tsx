@@ -8,11 +8,14 @@ import type { FileDiff, PrCreateResponse } from "@/types";
 export function PrTab() {
   const currentBranch = useGitStore((s) => s.currentBranch);
   const branches = useGitStore((s) => s.branches);
+  const remoteConfig = useGitStore((s) => s.remoteConfig);
   const loadBranches = useGitStore((s) => s.loadBranches);
+  const createBranchAndSwitch = useGitStore((s) => s.createBranchAndSwitch);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [targetBranch, setTargetBranch] = useState("main");
+  const [newBranchName, setNewBranchName] = useState("docs/update-vault");
   const [platform, setPlatform] = useState<string | null>(null);
   const [diffSummary, setDiffSummary] = useState<{
     files: number;
@@ -27,6 +30,12 @@ export function PrTab() {
     loadBranches();
     commands.gitDetectPlatform().then(setPlatform).catch(() => {});
   }, [loadBranches]);
+
+  useEffect(() => {
+    if (remoteConfig?.remote_branch) {
+      setTargetBranch(remoteConfig.remote_branch);
+    }
+  }, [remoteConfig?.remote_branch]);
 
   // Auto-populate title from branch name
   useEffect(() => {
@@ -64,7 +73,20 @@ export function PrTab() {
     }
   }, [currentBranch, targetBranch]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isOnDefault = currentBranch === targetBranch || currentBranch === "main";
+  const defaultBranch = remoteConfig?.remote_branch || "main";
+  const isOnDefault = currentBranch === targetBranch || currentBranch === defaultBranch;
+
+  const handleCreateFeatureBranch = async () => {
+    const name = newBranchName.trim();
+    if (!name) return;
+    await createBranchAndSwitch(name);
+    setTitle(
+      name
+        .replace(/^(feature|fix|chore|docs)\//, "")
+        .replace(/[-_]/g, " ")
+        .replace(/^./, (char) => char.toUpperCase())
+    );
+  };
 
   const handleCreatePr = async () => {
     setLoading(true);
@@ -114,10 +136,30 @@ export function PrTab() {
       )}
 
       {isOnDefault && (
-        <div className="p-3 text-center text-neutral-500 border border-neutral-800 rounded">
-          Switch to a feature branch to create a PR.
-          <br />
-          Currently on <span className="text-neutral-400">{currentBranch}</span>.
+        <div className="rounded border border-neutral-800 p-3">
+          <div className="text-sm font-medium text-neutral-300">Create a feature branch first</div>
+          <p className="mt-1 text-neutral-500">
+            PRs should compare a feature branch into {defaultBranch}. Your current local changes will stay with you after the branch is created.
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_150px]">
+            <input
+              value={newBranchName}
+              onChange={(e) => setNewBranchName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleCreateFeatureBranch();
+              }}
+              className="min-w-0 rounded border border-neutral-700 bg-neutral-800 px-2 py-1.5 text-neutral-200 placeholder-neutral-500 outline-none focus:[border-color:var(--accent)]"
+              placeholder="docs/update-vault"
+            />
+            <button
+              onClick={() => void handleCreateFeatureBranch()}
+              disabled={!newBranchName.trim()}
+              className="rounded px-2 py-1.5 font-medium text-white disabled:bg-neutral-800 disabled:text-neutral-500"
+              style={{ background: "var(--accent)" }}
+            >
+              Create Branch
+            </button>
+          </div>
         </div>
       )}
 

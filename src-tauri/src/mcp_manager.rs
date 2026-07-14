@@ -13,7 +13,6 @@ pub struct McpProcessState(Arc<Mutex<Option<McpProcess>>>);
 struct McpProcess {
     child: Child,
     vault_path: String,
-    port: u16,
 }
 
 impl McpProcessState {
@@ -90,7 +89,7 @@ fn find_mcp_binary() -> Option<String> {
 #[tauri::command]
 pub fn start_mcp_server(
     vault_path: String,
-    port: u16,
+    _port: u16,
     state: State<'_, McpProcessState>,
 ) -> Result<String, String> {
     let mut lock = state.0.lock().map_err(|e| e.to_string())?;
@@ -121,7 +120,6 @@ pub fn start_mcp_server(
     *lock = Some(McpProcess {
         child,
         vault_path: vault_path.clone(),
-        port,
     });
 
     Ok(format!(
@@ -146,6 +144,7 @@ pub fn stop_mcp_server(state: State<'_, McpProcessState>) -> Result<String, Stri
 pub struct McpServerStatus {
     pub running: bool,
     pub vault_path: Option<String>,
+    // Kept for API compatibility. The current MCP transport is stdio, not HTTP.
     pub port: Option<u16>,
     pub binary_found: bool,
 }
@@ -159,7 +158,7 @@ pub fn mcp_server_status(state: State<'_, McpProcessState>) -> Result<McpServerS
         Some(proc) => Ok(McpServerStatus {
             running: true,
             vault_path: Some(proc.vault_path.clone()),
-            port: Some(proc.port),
+            port: None,
             binary_found,
         }),
         None => Ok(McpServerStatus {

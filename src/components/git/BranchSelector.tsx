@@ -8,7 +8,7 @@ export function BranchSelector() {
   const branches = useGitStore((s) => s.branches);
   const currentBranch = useGitStore((s) => s.currentBranch);
   const loadBranches = useGitStore((s) => s.loadBranches);
-  const createBranch = useGitStore((s) => s.createBranch);
+  const createBranchAndSwitch = useGitStore((s) => s.createBranchAndSwitch);
   const switchBranch = useGitStore((s) => s.switchBranch);
   const deleteBranch = useGitStore((s) => s.deleteBranch);
 
@@ -35,8 +35,9 @@ export function BranchSelector() {
   const handleCreate = async () => {
     const name = newName.trim();
     if (!name) return;
-    await createBranch(name);
+    await createBranchAndSwitch(name);
     setNewName("");
+    setOpen(false);
   };
 
   return (
@@ -107,7 +108,7 @@ export function BranchSelector() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleCreate();
               }}
-              placeholder="New branch..."
+              placeholder="Create & switch..."
               className="flex-1 px-1.5 py-0.5 text-xs bg-neutral-900 border border-neutral-700 rounded text-neutral-200 placeholder-neutral-500 outline-none focus:[border-color:var(--accent)]"
             />
             <button

@@ -79,7 +79,7 @@ export function StatusBar() {
 
   const mcpColor = mcpRunning ? "var(--success)" : mcpEnabled ? "var(--warning)" : "var(--text-faint)";
   const mcpTitle = mcpRunning
-    ? `MCP running on port ${stats?.mcp_port}`
+    ? "MCP stdio server process running"
     : mcpEnabled
       ? "MCP enabled but not running"
       : "MCP disabled";
@@ -106,7 +106,7 @@ export function StatusBar() {
       {stats && (
         <div className="sb-cell" title={mcpTitle}>
           <span className="sb-dot" style={{ background: mcpColor }} />
-          <span>MCP {mcpRunning ? `· :${stats.mcp_port}` : "off"}</span>
+          <span>MCP {mcpRunning ? "stdio" : "off"}</span>
         </div>
       )}
 

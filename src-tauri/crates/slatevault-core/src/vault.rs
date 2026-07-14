@@ -1070,6 +1070,13 @@ impl Vault {
         Ok(())
     }
 
+    pub fn create_branch_and_switch(&self, name: &str) -> Result<()> {
+        self.create_branch(name)?;
+        let refname = format!("refs/heads/{}", name);
+        self.repo.set_head(&refname)?;
+        Ok(())
+    }
+
     pub fn switch_branch(&self, name: &str) -> Result<()> {
         // Refuse on dirty worktree
         let status = self.status()?;

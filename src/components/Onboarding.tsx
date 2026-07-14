@@ -384,8 +384,8 @@ export function Onboarding() {
                     </div>
                     <p style={{ marginTop: 6, fontSize: 11, lineHeight: 1.55, color: "var(--text-faint)" }}>
                       {vaultConfig?.mcp_enabled
-                        ? `Server process started by slateVault${vaultConfig.mcp_port ? ` on port ${vaultConfig.mcp_port}` : ""}.`
-                        : "Enable MCP later in Settings when you want slateVault to host the local server."}
+                        ? "Local stdio MCP process started by slateVault."
+                        : "Enable MCP later in Settings when you want slateVault to start the local MCP process."}
                     </p>
                   </div>
 

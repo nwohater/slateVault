@@ -302,7 +302,7 @@ export function SyncView() {
     ? "Update safely"
     : canUpdateSafely && (syncStatus?.ahead ?? 0) > 0
       ? "Update, then Push"
-      : "Get latest safely";
+      : "Run safe update";
   const pushLabel = syncing === "push" ? "Pushing..." : (syncStatus?.ahead ?? 0) > 0 ? `Push ${syncStatus?.ahead} commit${syncStatus?.ahead === 1 ? "" : "s"}` : "Push";
   const pushHint = !hasRemote
     ? "Configure a remote before pushing."
@@ -311,6 +311,21 @@ export function SyncView() {
       : syncStatus?.behind || syncStatus?.diverged
         ? "Pull latest before pushing."
         : "Share committed changes with the remote.";
+  const localChangeLabel = `${changedDocs.length} local item${changedDocs.length === 1 ? "" : "s"}`;
+  const updateSummary = syncStatus?.diverged
+    ? `${syncStatus.behind} shared commit${syncStatus.behind === 1 ? "" : "s"} and ${syncStatus.ahead} local commit${syncStatus.ahead === 1 ? "" : "s"} need to be reconciled.`
+    : `${localChangeLabel} will be preserved while the shared vault is brought up to date.`;
+  const updateSteps = syncStatus?.diverged
+    ? [
+        `Fetch origin/${remoteConfig?.remote_branch || currentBranch}`,
+        "Apply shared commits first",
+        "Replay your local commits and pause if conflicts appear",
+      ]
+    : [
+        "Set aside local edits if needed",
+        `Load origin/${remoteConfig?.remote_branch || currentBranch}`,
+        "Reapply local edits and pause if conflicts appear",
+      ];
 
   const handleSafePull = async () => {
     setSyncing("safe-pull");
@@ -681,59 +696,61 @@ export function SyncView() {
             </div>
           )}
 
-          <section className="panel p-5">
-            <div className="flex flex-col gap-5 2xl:grid 2xl:grid-cols-[220px_minmax(360px,1fr)_minmax(240px,auto)] 2xl:items-center">
+          <section className="panel overflow-hidden">
+            <div className="flex flex-col gap-4 border-b px-5 py-4 lg:flex-row lg:items-center lg:justify-between" style={{ borderColor: "var(--border-subtle)" }}>
               <div className="min-w-0">
                 <div className="workspace-stat-label">Branch</div>
-                <div className="mt-2 flex min-w-0 items-center gap-2">
-                  <span className="truncate font-mono text-lg font-semibold" style={{ color: "var(--text)" }}>{currentBranch}</span>
+                <div className="mt-1 flex min-w-0 items-baseline gap-2">
+                  <span className="truncate font-mono text-xl font-semibold" style={{ color: "var(--text)" }}>{currentBranch}</span>
                   <span className="shrink-0 text-xs" style={{ color: "var(--text-muted)" }}>{remoteConfig?.remote_branch || "origin"}</span>
                 </div>
               </div>
 
-              <div className="min-w-0">
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <Metric value={syncStatus?.ahead ?? 0} label="Ahead" hint="commits ready to push" tone="accent" />
-                  <Metric value={syncStatus?.behind ?? 0} label="Behind" hint="from shared vault" tone="info" />
-                  <Metric value={changedDocs.length} label="Local items" hint="docs/assets not yet committed" tone="warning" />
-                </div>
-                {fetchingRemote && (
-                  <div className="mt-3 flex items-center gap-2 text-xs font-medium" style={{ color: "var(--text-muted)" }}>
-                    <Spinner />
-                    Checking remote for changes…
-                  </div>
-                )}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <button
+                  onClick={() =>
+                    (syncStatus?.ahead ?? 0) > 0
+                      ? void handleSafePullThenPush()
+                      : void handleSafePull()
+                  }
+                  disabled={!canUpdateSafely || syncing !== null}
+                  className="btn primary lg min-w-[164px] justify-center whitespace-nowrap"
+                >
+                  {syncing === "safe-sync" || syncing === "safe-pull" ? "Working..." : recommendedLabel}
+                </button>
+                <button
+                  onClick={() => void handlePush()}
+                  disabled={!canPush || syncing !== null}
+                  className="btn lg min-w-[112px] justify-center whitespace-nowrap"
+                  title={pushHint}
+                >
+                  {pushLabel}
+                </button>
               </div>
+            </div>
 
-              <div className="flex min-w-0 flex-col items-start gap-2 2xl:items-end">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>Recommended</div>
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row 2xl:justify-end">
-                  <button
-                    onClick={() => void handleSafePullThenPush()}
-                    disabled={!canUpdateSafely || syncing !== null}
-                    className="btn primary lg justify-center whitespace-nowrap"
-                  >
-                    {syncing === "safe-sync" ? "Working..." : recommendedLabel}
-                  </button>
-                  <button
-                    onClick={() => void handlePush()}
-                    disabled={!canPush || syncing !== null}
-                    className="btn lg justify-center whitespace-nowrap"
-                    title={pushHint}
-                  >
-                    {pushLabel}
-                  </button>
-                </div>
-                <div className="max-w-[360px] text-xs leading-5 2xl:text-right" style={{ color: "var(--text-faint)" }}>
-                  {hasPausedConflicts
-                    ? "Resolve conflicts below, then continue the update."
-                    : canUpdateSafely
-                      ? syncStatus?.diverged
-                        ? "Applies shared changes first, then replays your local commits."
-                        : "Stashes local edits if needed, gets latest, then reapplies them."
-                      : pushHint}
-                </div>
+            <div className="grid gap-px sm:grid-cols-3" style={{ background: "var(--border-subtle)" }}>
+              <Metric value={syncStatus?.ahead ?? 0} label="Ahead" hint="commits ready to push" tone="accent" />
+              <Metric value={syncStatus?.behind ?? 0} label="Behind" hint="from shared vault" tone="info" />
+              <Metric value={changedDocs.length} label="Local items" hint="docs/assets not yet committed" tone="warning" />
+            </div>
+
+            <div className="flex flex-col gap-2 px-5 py-3 text-xs sm:flex-row sm:items-center sm:justify-between" style={{ color: "var(--text-muted)" }}>
+              <div className="flex min-w-0 items-center gap-2">
+                {fetchingRemote && <Spinner />}
+                <span className="truncate">
+                  {fetchingRemote
+                    ? "Checking remote for changes..."
+                    : hasPausedConflicts
+                      ? "Resolve conflicts below, then continue the update."
+                      : canUpdateSafely
+                        ? updateSummary
+                        : pushHint}
+                </span>
               </div>
+              {needsPullStrategy && !hasPausedConflicts && (
+                <span className="shrink-0 font-medium" style={{ color: "var(--accent)" }}>Safe update recommended</span>
+              )}
             </div>
           </section>
 
@@ -819,78 +836,62 @@ export function SyncView() {
           )}
 
           {needsPullStrategy && !hasPausedConflicts && (
-            <section className="mt-6">
-              <h2 className="mb-3 text-base font-semibold" style={{ color: "var(--text)" }}>
-                {syncStatus?.diverged ? "Your vault has changes in two places" : "How would you like to update?"}
-              </h2>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-lg border-2 p-4" style={{ borderColor: "var(--accent)", background: "var(--bg-panel)" }}>
-                  <div className="flex items-center gap-3">
+            <section className="panel mt-6 overflow-hidden">
+              <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="chip accent">recommended</span>
-                    <h3 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
+                    <h2 className="text-base font-semibold" style={{ color: "var(--text)" }}>
                       {syncStatus?.diverged ? "Update safely" : "Safe update"}
-                    </h3>
+                    </h2>
                   </div>
-                  <p className="mt-3 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
-                    {syncStatus?.diverged
-                      ? `The shared vault has ${syncStatus.behind} newer commit${syncStatus.behind === 1 ? "" : "s"} and your vault has ${syncStatus.ahead} local commit${syncStatus.ahead === 1 ? "" : "s"}. SlateVault will apply shared changes first, then replay your local commits.`
-                      : `SlateVault will set aside your ${changedDocs.length} local change${changedDocs.length === 1 ? "" : "s"}, load the latest shared vault, then reapply your work.`}
+                  <p className="mt-2 max-w-3xl text-sm leading-6" style={{ color: "var(--text-muted)" }}>
+                    {updateSummary}
                   </p>
-                  <ol className="mt-4 space-y-2 text-sm" style={{ color: "var(--text-muted)" }}>
-                    {syncStatus?.diverged ? (
-                      <>
-                        <li>1. Fetch origin/{remoteConfig?.remote_branch || currentBranch}</li>
-                        <li>2. Apply shared commits first</li>
-                        <li>3. Replay your local commits and pause if conflicts appear</li>
-                      </>
-                    ) : (
-                      <>
-                        <li>1. Set aside local edits if needed</li>
-                        <li>2. Load origin/{remoteConfig?.remote_branch || currentBranch}</li>
-                        <li>3. Reapply local edits and pause if conflicts appear</li>
-                      </>
-                    )}
-                  </ol>
+                  <div className="mt-4 grid gap-2 md:grid-cols-3">
+                    {updateSteps.map((step, index) => (
+                      <div
+                        key={step}
+                        className="flex min-w-0 items-start gap-2 rounded-md border px-3 py-2"
+                        style={{ borderColor: "var(--border-subtle)", background: "var(--bg-elevated)" }}
+                      >
+                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums" style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>
+                          {index + 1}
+                        </span>
+                        <span className="min-w-0 text-xs leading-5" style={{ color: "var(--text-muted)" }}>{step}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 flex-col gap-2 lg:w-[184px]">
                   <button
                     onClick={() => void handleSafePull()}
                     disabled={syncing !== null}
-                    className="btn primary mt-5 lg"
+                    className="btn primary lg w-full justify-center"
                   >
-                    {syncing === "safe-pull" ? "Running..." : syncStatus?.diverged ? "Run safe update" : "Run safe update"}
+                    {syncing === "safe-pull" ? "Running..." : "Run safe update"}
                   </button>
-                </div>
-
-                <div className="rounded-lg border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}>
-                  <div className="flex items-center gap-3">
-                    <span className="chip danger">destructive</span>
-                    <h3 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Discard Local & Pull</h3>
-                  </div>
-                  <p className="mt-3 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
-                    Throw away your {changedDocs.length} local changes and pull origin clean. This is not reversible.
-                  </p>
-                  <ol className="mt-4 space-y-2 text-sm" style={{ color: "var(--text-muted)" }}>
-                    <li>1. Delete uncommitted edits permanently</li>
-                    <li>2. Reset working tree to origin/{remoteConfig?.remote_branch || currentBranch}</li>
-                    <li>3. Cannot be undone</li>
-                  </ol>
-                  <div className="mt-5 flex gap-2">
+                  <button
+                    onClick={() => void handleDiscardLocalPull()}
+                    disabled={syncing !== null}
+                    className="btn danger lg w-full justify-center"
+                    title={`Discard ${localChangeLabel} and reset to origin/${remoteConfig?.remote_branch || currentBranch}.`}
+                  >
+                    {confirmDiscardPull ? "Confirm discard" : "Discard local..."}
+                  </button>
+                  {confirmDiscardPull && (
                     <button
-                      onClick={() => void handleDiscardLocalPull()}
+                      onClick={() => setConfirmDiscardPull(false)}
                       disabled={syncing !== null}
-                      className="btn danger lg"
+                      className="btn w-full justify-center"
                     >
-                      {confirmDiscardPull ? "Confirm discard & pull" : "Discard & Pull..."}
+                      Cancel
                     </button>
-                    {confirmDiscardPull && (
-                      <button
-                        onClick={() => setConfirmDiscardPull(false)}
-                        disabled={syncing !== null}
-                        className="btn lg"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </div>
+                  )}
+                  <p className="text-xs leading-5" style={{ color: "var(--text-faint)" }}>
+                    Discard permanently removes local edits.
+                  </p>
                 </div>
               </div>
             </section>
@@ -934,7 +935,7 @@ export function SyncView() {
                   return (
                     <div
                       key={`${risk.project}/${risk.path}`}
-                      className="flex items-center gap-4 px-4 py-3"
+                      className="flex items-center gap-4 px-4 py-2.5"
                       style={{ borderTop: index === 0 ? "none" : "1px solid var(--border-subtle)" }}
                     >
                       <div className="min-w-0 flex-1">
@@ -950,7 +951,7 @@ export function SyncView() {
                           </div>
                         )}
                       </div>
-                      <button onClick={() => setCompareRisk(risk)} className="btn">
+                      <button onClick={() => setCompareRisk(risk)} className="btn min-w-[86px] justify-center whitespace-nowrap">
                         Compare
                       </button>
                     </div>
@@ -961,14 +962,31 @@ export function SyncView() {
           </section>
 
           {conflictRiskDocs[0] && (
-            <section className="mt-5 rounded-lg border px-4 py-4" style={{ borderColor: "color-mix(in srgb, var(--danger) 40%, var(--border))", background: "var(--danger-soft)" }}>
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <p className="text-sm" style={{ color: "var(--text)" }}>
-                  <strong>Recommended next step:</strong> review the overlapping doc, then run Safe Pull. After conflicts resolve, commit and push the full set.
-                </p>
-                <div className="flex gap-2">
-                  <button onClick={() => handleOpenRiskDoc(conflictRiskDocs[0])} className="btn lg">Open overlapping doc</button>
-                  <button onClick={() => void handleSafePull()} disabled={syncing !== null} className="btn primary lg">Run Safe Pull</button>
+            <section className="mt-5 rounded-md border px-4 py-3" style={{ borderColor: "color-mix(in srgb, var(--warning) 38%, var(--border))", background: "color-mix(in srgb, var(--warning-soft) 58%, var(--bg-panel))" }}>
+              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="chip warning">conflict risk</span>
+                    <span className="text-sm font-medium" style={{ color: "var(--text)" }}>Review overlap before updating</span>
+                  </div>
+                  <p className="mt-1 max-w-4xl text-xs leading-5" style={{ color: "var(--text-muted)" }}>
+                    Open the overlapping doc, then run Safe Pull. After conflicts resolve, commit and push the full set.
+                  </p>
+                </div>
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row xl:justify-end">
+                  <button
+                    onClick={() => handleOpenRiskDoc(conflictRiskDocs[0])}
+                    className="btn lg min-w-[148px] justify-center whitespace-nowrap"
+                  >
+                    Open Doc
+                  </button>
+                  <button
+                    onClick={() => void handleSafePull()}
+                    disabled={syncing !== null}
+                    className="btn primary lg min-w-[132px] justify-center whitespace-nowrap"
+                  >
+                    Run Safe Pull
+                  </button>
                 </div>
               </div>
             </section>
@@ -997,24 +1015,31 @@ export function SyncView() {
                   </label>
                 )}
               </div>
-              <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+              <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_168px]">
                 <input
                   value={commitMessage}
                   onChange={(e) => setCommitMessage(e.target.value)}
                   placeholder="Commit message... e.g. Update session timeout ADR"
-                  className="min-w-0 flex-1 rounded-lg border px-4 text-sm"
+                  className="min-w-0 rounded-lg border px-4 text-sm"
                   style={{ height: 36, borderColor: "var(--border)", background: "var(--bg-elevated)" }}
                 />
                 <button
                   onClick={() => void handleCommitAll()}
                   disabled={!commitMessage.trim() || selectedDocKeys.size === 0 || syncing !== null}
-                  className="btn primary lg justify-center whitespace-nowrap sm:w-[180px]"
+                  className="btn primary lg w-full justify-center whitespace-nowrap"
+                  title={
+                    syncing === "commit"
+                      ? "Committing selected changes"
+                      : selectedDocKeys.size === changedDocs.length
+                        ? "Commit all selected local changes"
+                        : `Commit ${selectedDocKeys.size} selected item${selectedDocKeys.size === 1 ? "" : "s"}`
+                  }
                 >
                   {syncing === "commit"
                     ? "Committing..."
                     : selectedDocKeys.size === changedDocs.length
                       ? "Commit all"
-                      : `Commit ${selectedDocKeys.size} selected`}
+                      : `Commit ${selectedDocKeys.size}`}
                 </button>
               </div>
             </div>
@@ -1117,11 +1142,11 @@ function Metric({
   const color = tone === "accent" ? "var(--accent)" : tone === "info" ? "var(--info)" : "var(--warning)";
   return (
     <div
-      className="min-w-0 rounded-lg border px-3 py-2 text-left"
-      style={{ borderColor: "var(--border-subtle)", background: "var(--bg-elevated)" }}
+      className="min-w-0 px-5 py-4 text-left"
+      style={{ background: "var(--bg-elevated)" }}
     >
       <div className="flex items-baseline gap-2">
-        <div className="text-2xl font-semibold tabular-nums" style={{ color }}>{value}</div>
+        <div className="text-xl font-semibold tabular-nums" style={{ color }}>{value}</div>
         <div className="truncate text-sm font-medium" style={{ color: "var(--text)" }}>{label}</div>
       </div>
       <div className="mt-1 truncate text-xs" style={{ color: "var(--text-faint)" }}>{hint}</div>

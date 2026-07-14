@@ -72,6 +72,7 @@ interface GitState {
   // Branch actions
   loadBranches: () => Promise<void>;
   createBranch: (name: string) => Promise<void>;
+  createBranchAndSwitch: (name: string) => Promise<void>;
   switchBranch: (name: string) => Promise<void>;
   deleteBranch: (name: string) => Promise<void>;
 
@@ -503,6 +504,16 @@ export const useGitStore = create<GitState>((set, get) => ({
       await commands.gitCreateBranch(name);
       set({ output: `Branch '${name}' created` });
       await get().loadBranches();
+    } catch (e) {
+      set({ output: `Create branch failed: ${e}` });
+    }
+  },
+
+  createBranchAndSwitch: async (name) => {
+    try {
+      await commands.gitCreateBranchAndSwitch(name);
+      set({ output: `Created and switched to '${name}'` });
+      await get().refreshSyncState();
     } catch (e) {
       set({ output: `Create branch failed: ${e}` });
     }

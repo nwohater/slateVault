@@ -12,6 +12,8 @@ pub struct FrontMatter {
     pub tags: Vec<String>,
     pub created: DateTime<Utc>,
     pub modified: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reviewed: Option<DateTime<Utc>>,
     pub project: String,
     #[serde(default = "default_status")]
     pub status: DocStatus,
@@ -84,6 +86,7 @@ impl Document {
                 tags,
                 created: now,
                 modified: now,
+                reviewed: None,
                 project,
                 status: DocStatus::Draft,
                 ai_tool,
@@ -122,6 +125,7 @@ impl Document {
                 tags,
                 created: existing.front_matter.created,
                 modified: now,
+                reviewed: None,
                 project: existing.front_matter.project.clone(),
                 status: existing.front_matter.status.clone(),
                 ai_tool: ai_tool.or_else(|| existing.front_matter.ai_tool.clone()),

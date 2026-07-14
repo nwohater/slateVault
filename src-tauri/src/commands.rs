@@ -601,6 +601,7 @@ pub struct DocumentInfo {
     tags: Vec<String>,
     created: String,
     modified: String,
+    reviewed: Option<String>,
     canonical: bool,
     protected: bool,
 }
@@ -635,10 +636,37 @@ pub fn list_documents(
                 tags: d.front_matter.tags,
                 created: d.front_matter.created.to_rfc3339(),
                 modified: d.front_matter.modified.to_rfc3339(),
+                reviewed: d.front_matter.reviewed.map(|r| r.to_rfc3339()),
                 canonical: d.front_matter.canonical,
                 protected: d.front_matter.protected,
             })
             .collect())
+    })
+}
+
+#[tauri::command]
+pub fn mark_document_reviewed(
+    project: String,
+    path: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        let mut doc = vault.read_document(&project, &path)?;
+        doc.front_matter.reviewed = Some(chrono::Utc::now());
+        let project_obj = vault.open_project(&project)?;
+        let file_path = resolve_inside(&project_obj.docs_dir(), &path)?;
+        std::fs::write(&file_path, doc.to_string()?)?;
+        vault.search.index_document(
+            &project,
+            &doc.path,
+            &doc.front_matter.title,
+            &doc.content,
+            &doc.front_matter.tags,
+            &format!("{:?}", doc.front_matter.author).to_lowercase(),
+            &format!("{:?}", doc.front_matter.status).to_lowercase(),
+            doc.front_matter.canonical,
+        )?;
+        Ok(format!("Marked reviewed: {}/{}", project, path))
     })
 }
 
@@ -2075,6 +2103,17 @@ pub fn git_create_branch(name: String, state: State<'_, VaultState>) -> CmdResul
     with_vault(&state, |vault| {
         vault.create_branch(&name)?;
         Ok(format!("Branch '{}' created", name))
+    })
+}
+
+#[tauri::command]
+pub fn git_create_branch_and_switch(
+    name: String,
+    state: State<'_, VaultState>,
+) -> CmdResult<String> {
+    with_vault(&state, |vault| {
+        vault.create_branch_and_switch(&name)?;
+        Ok(format!("Created and switched to branch '{}'", name))
     })
 }
 
