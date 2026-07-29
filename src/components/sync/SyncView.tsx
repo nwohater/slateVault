@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as commands from "@/lib/commands";
-import { GitPanel } from "@/components/git/GitPanel";
 import { useGitStore } from "@/stores/gitStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useEditorStore } from "@/stores/editorStore";
@@ -72,6 +71,7 @@ function statusChipClass(status: string): string {
 
 export function SyncView() {
   const files = useGitStore((s) => s.files);
+  const commits = useGitStore((s) => s.commits);
   const currentBranch = useGitStore((s) => s.currentBranch);
   const remoteConfig = useGitStore((s) => s.remoteConfig);
   const authStatus = useGitStore((s) => s.authStatus);
@@ -81,6 +81,7 @@ export function SyncView() {
   const output = useGitStore((s) => s.output);
   const clearOutput = useGitStore((s) => s.clearOutput);
   const loadStatus = useGitStore((s) => s.loadStatus);
+  const loadLog = useGitStore((s) => s.loadLog);
   const loadBranches = useGitStore((s) => s.loadBranches);
   const loadRemoteConfig = useGitStore((s) => s.loadRemoteConfig);
   const loadAuthStatus = useGitStore((s) => s.loadAuthStatus);
@@ -123,6 +124,7 @@ export function SyncView() {
     const refreshLocal = async () => {
       await Promise.all([
         loadStatus(),
+        loadLog(),
         loadBranches(),
         loadRemoteConfig(),
         loadAuthStatus(),
@@ -162,6 +164,7 @@ export function SyncView() {
     loadAuthStatus,
     loadConflictFiles,
     loadDocSyncRisks,
+    loadLog,
     loadRemoteConfig,
     loadStatus,
     loadSyncStatus,
@@ -564,7 +567,37 @@ export function SyncView() {
       <div className="flex h-full min-h-0">
 
         {/* ── Left: changed documents ──────────────────────────────── */}
-        <main className="flex-1 min-w-0 overflow-y-auto px-6 py-5">
+        <main className="flex-1 min-w-0 overflow-y-auto px-8 py-6">
+          <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
+                Team Sync
+              </div>
+              <h1 className="mt-2 text-2xl font-semibold" style={{ color: "var(--text)" }}>
+                {hasPausedConflicts
+                  ? "Update paused"
+                  : needsPullStrategy
+                    ? "Review shared updates"
+                    : changedDocs.length > 0
+                      ? "Prepare local changes"
+                      : "Vault is in sync"}
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: "var(--text-muted)" }}>
+                {hasPausedConflicts
+                  ? "Resolve the paused update before pulling, committing, or pushing more work."
+                  : needsPullStrategy
+                    ? "Bring in shared work first, then commit or push your local documentation changes."
+                    : changedDocs.length > 0
+                      ? "Select the local docs you want to commit, then share them when the branch is ready."
+                      : "No local document edits or incoming document risks were found."}
+              </p>
+            </div>
+            <div className="grid min-w-[360px] grid-cols-3 overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}>
+              <MetricTile label="Ahead" value={syncStatus?.ahead ?? 0} />
+              <MetricTile label="Behind" value={syncStatus?.behind ?? 0} />
+              <MetricTile label="Local" value={changedDocs.length} />
+            </div>
+          </div>
 
           {/* Status / error banner */}
           {(message || error || output) && (
@@ -728,29 +761,50 @@ export function SyncView() {
           )}
 
           {/* Changed documents header */}
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold" style={{ color: "var(--text)" }}>
-              Changed documents{" "}
-              <span className="font-normal" style={{ color: "var(--text-faint)" }}>
-                — {filteredChangedDocs.length}
-              </span>
-            </h2>
-            {changedDocs.length > 0 && (
-              <label className="flex cursor-pointer items-center gap-2 text-sm select-none" style={{ color: "var(--text-muted)" }}>
-                <input
-                  type="checkbox"
-                  checked={selectedDocKeys.size === changedDocs.length}
-                  ref={(el) => {
-                    if (el) el.indeterminate = selectedDocKeys.size > 0 && selectedDocKeys.size < changedDocs.length;
+          <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <h2 className="text-base font-semibold" style={{ color: "var(--text)" }}>
+                Changed documents{" "}
+                <span className="font-normal" style={{ color: "var(--text-faint)" }}>
+                  ({filteredChangedDocs.length})
+                </span>
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+                Local documentation and vault assets ready for review.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {filterOptions.map(({ id, label, count }) => (
+                <button
+                  key={id}
+                  onClick={() => setActiveFilter(id)}
+                  className="h-8 rounded-md border px-3 text-xs font-medium transition-colors"
+                  style={{
+                    background: activeFilter === id ? "var(--accent)" : "var(--bg-panel)",
+                    color: activeFilter === id ? "#fff" : "var(--text-muted)",
+                    borderColor: activeFilter === id ? "var(--accent)" : "var(--border)",
                   }}
-                  onChange={(e) =>
-                    setSelectedDocKeys(e.target.checked ? new Set(changedDocs.map((d) => d.key)) : new Set())
-                  }
-                  style={{ accentColor: "var(--accent)", width: 15, height: 15 }}
-                />
-                Select all
-              </label>
-            )}
+                >
+                  {label}{count > 0 ? ` ${count}` : ""}
+                </button>
+              ))}
+              {changedDocs.length > 0 && (
+                <label className="flex h-8 cursor-pointer items-center gap-2 rounded-md border px-3 text-xs font-medium select-none" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedDocKeys.size === changedDocs.length}
+                    ref={(el) => {
+                      if (el) el.indeterminate = selectedDocKeys.size > 0 && selectedDocKeys.size < changedDocs.length;
+                    }}
+                    onChange={(e) =>
+                      setSelectedDocKeys(e.target.checked ? new Set(changedDocs.map((d) => d.key)) : new Set())
+                    }
+                    style={{ accentColor: "var(--accent)", width: 14, height: 14 }}
+                  />
+                  Select all
+                </label>
+              )}
+            </div>
           </div>
 
           {/* Document cards */}
@@ -924,40 +978,40 @@ export function SyncView() {
 
         {/* ── Right: git sidebar ───────────────────────────────────── */}
         <aside
-          className="flex w-[300px] shrink-0 flex-col overflow-hidden border-l"
+          className="flex w-[372px] shrink-0 flex-col overflow-y-auto border-l"
           style={{ borderColor: "var(--border)", background: "var(--bg-subtle)" }}
         >
-          {/* Branch + sync actions */}
           <div className="border-b p-4" style={{ borderColor: "var(--border)" }}>
-            <div className="flex items-center justify-between gap-2">
-              <span className="truncate font-mono font-semibold text-sm" style={{ color: "var(--text)" }}>
-                {currentBranch}
-              </span>
-              <span className="shrink-0 text-xs" style={{ color: "var(--text-muted)" }}>
-                {remoteConfig?.remote_branch || "origin"}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>Branch</div>
+                <div className="mt-1 truncate font-mono text-base font-semibold" style={{ color: "var(--text)" }}>{currentBranch}</div>
+              </div>
+              <span className="shrink-0 rounded-md border px-2 py-1 text-xs" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+                {remoteConfig?.remote_branch || "main"}
               </span>
             </div>
-
-            <div className="mt-2 flex items-center gap-3 text-xs" style={{ color: "var(--text-muted)" }}>
-              <span>↑ {syncStatus?.ahead ?? 0} ahead</span>
-              <span>↓ {syncStatus?.behind ?? 0} behind</span>
-              <span>{changedDocs.length} local</span>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <SidebarStat label="Ahead" value={syncStatus?.ahead ?? 0} />
+              <SidebarStat label="Behind" value={syncStatus?.behind ?? 0} />
+              <SidebarStat label="Local" value={changedDocs.length} />
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
               {fetchingRemote && <Spinner />}
+              <span>{fetchingRemote ? "Checking origin..." : "Remote check complete"}</span>
             </div>
+          </div>
 
-            <div className="mt-3 rounded-lg border p-3" style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>
-                  Auth
-                </span>
-                <span className={`chip ${authTone(authStatus?.auth_state)}`}>
-                  {authLabel(authStatus?.auth_state)}
-                </span>
+          <div className="border-b p-4" style={{ borderColor: "var(--border)" }}>
+            <div className="rounded-lg border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>Authentication</div>
+                  <div className="mt-2 text-sm font-semibold" style={{ color: "var(--text)" }}>{providerLabel(authStatus?.provider)}</div>
+                </div>
+                <span className={`chip ${authTone(authStatus?.auth_state)}`}>{authLabel(authStatus?.auth_state)}</span>
               </div>
-              <div className="mt-1 text-sm font-medium" style={{ color: "var(--text)" }}>
-                {providerLabel(authStatus?.provider)}
-              </div>
-              <div className="mt-1 text-xs leading-5" style={{ color: "var(--text-muted)" }}>
+              <div className="mt-3 text-xs leading-5" style={{ color: "var(--text-muted)" }}>
                 {authStatus?.message || "Checking git authentication..."}
               </div>
               {authStatus?.remote_kind === "https" && (
@@ -968,7 +1022,7 @@ export function SyncView() {
                       : void handleConnectProvider()
                   }
                   disabled={syncing !== null}
-                  className={`btn ${authStatus.auth_state === "ready" ? "" : "primary"} sm mt-3 w-full justify-center`}
+                  className={`btn ${authStatus.auth_state === "ready" ? "" : "primary"} mt-4 h-9 w-full justify-center`}
                 >
                   {syncing === "auth"
                     ? authStatus.auth_state === "ready" ? "Reconnecting..." : "Connecting..."
@@ -980,7 +1034,7 @@ export function SyncView() {
                   <button
                     onClick={() => void handleSwitchToHttpsAuth()}
                     disabled={syncing !== null}
-                    className="btn sm mt-3 w-full justify-center"
+                    className="btn mt-4 h-9 w-full justify-center"
                   >
                     {syncing === "auth"
                       ? "Switching..."
@@ -992,7 +1046,7 @@ export function SyncView() {
                     <button
                       onClick={() => setConfirmHttpsSwitch(false)}
                       disabled={syncing !== null}
-                      className="btn sm mt-2 w-full justify-center"
+                      className="btn mt-2 h-9 w-full justify-center"
                     >
                       Cancel
                     </button>
@@ -1000,60 +1054,45 @@ export function SyncView() {
                 </>
               )}
             </div>
+          </div>
 
-            <div className="mt-3 flex flex-col gap-1.5">
+          <div className="border-b p-4" style={{ borderColor: "var(--border)" }}>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>Sync actions</div>
+            <div className="mt-3 grid gap-2">
               <button
                 onClick={() => void handleSafePullThenPush()}
                 disabled={!canUpdateSafely || syncing !== null}
-                className="btn primary justify-center whitespace-nowrap w-full"
+                className="btn primary h-9 w-full justify-center whitespace-nowrap"
               >
                 {syncing === "safe-sync" ? "Working..." : recommendedLabel}
               </button>
               <button
                 onClick={() => void handlePush()}
                 disabled={!canPush || syncing !== null}
-                className="btn justify-center whitespace-nowrap w-full"
+                className="btn h-9 w-full justify-center whitespace-nowrap"
                 title={pushHint}
               >
                 {pushLabel}
               </button>
             </div>
+            <p className="mt-2 text-xs leading-5" style={{ color: "var(--text-faint)" }}>{pushHint}</p>
           </div>
 
-          {/* Filters */}
-          <div className="border-b px-3 py-2.5" style={{ borderColor: "var(--border)" }}>
-            <div className="flex flex-wrap gap-1.5">
-              {filterOptions.map(({ id, label, count }) => (
-                <button
-                  key={id}
-                  onClick={() => setActiveFilter(id)}
-                  className="rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors"
-                  style={{
-                    background: activeFilter === id ? "var(--accent)" : "var(--bg-panel)",
-                    color: activeFilter === id ? "#fff" : "var(--text-muted)",
-                    border: "1px solid",
-                    borderColor: activeFilter === id ? "var(--accent)" : "var(--border)",
-                  }}
-                >
-                  {label}{count > 0 ? ` ${count}` : ""}
-                </button>
-              ))}
+          <div className="border-b p-4" style={{ borderColor: "var(--border)" }}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>Commit</div>
+              <span className="text-xs" style={{ color: "var(--text-faint)" }}>{selectedDocKeys.size} selected</span>
             </div>
-          </div>
-
-          {/* Commit area */}
-          <div className="border-b px-3 py-3" style={{ borderColor: "var(--border)" }}>
-            <div className="flex gap-2">
+            <div className="mt-3 grid gap-2">
               <input
                 value={commitMessage}
                 onChange={(e) => setCommitMessage(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void handleCommitAll();
                 }}
-                placeholder="Commit message…"
-                className="min-w-0 flex-1 rounded-lg border px-3 text-sm"
+                placeholder="Commit message..."
+                className="h-9 min-w-0 rounded-lg border px-3 text-sm"
                 style={{
-                  height: 32,
                   borderColor: "var(--border)",
                   background: "var(--bg-elevated)",
                   color: "var(--text)",
@@ -1062,12 +1101,12 @@ export function SyncView() {
               <button
                 onClick={() => void handleCommitAll()}
                 disabled={!commitMessage.trim() || selectedDocKeys.size === 0 || syncing !== null}
-                className="btn primary whitespace-nowrap"
+                className="btn primary h-9 w-full justify-center whitespace-nowrap"
               >
-                {syncing === "commit" ? "…" : "Commit"}
+                {syncing === "commit" ? "Committing..." : selectedDocKeys.size > 0 ? `Commit selected (${selectedDocKeys.size})` : "Commit selected"}
               </button>
             </div>
-            <div className="mt-1.5 text-xs" style={{ color: "var(--text-faint)" }}>
+            <div className="mt-2 text-xs" style={{ color: "var(--text-faint)" }}>
               {selectedDocKeys.size === changedDocs.length && changedDocs.length > 0
                 ? "All selected"
                 : `${selectedDocKeys.size} selected`}
@@ -1076,9 +1115,32 @@ export function SyncView() {
             </div>
           </div>
 
-          {/* Git panel (Changes / History / Remote / PR tabs) */}
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <GitPanel />
+          <div className="p-4">
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
+              Recent commits
+            </div>
+            <div className="space-y-2">
+              {commits.slice(0, 5).map((commitItem) => (
+                <div
+                  key={commitItem.oid}
+                  className="rounded-md border px-3 py-2"
+                  style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}
+                >
+                  <div className="truncate text-sm" style={{ color: "var(--text)" }}>
+                    {commitItem.message}
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-2 text-xs" style={{ color: "var(--text-faint)" }}>
+                    <span className="font-mono">{commitItem.oid}</span>
+                    <span>{formatRelativeDate(commitItem.date)}</span>
+                  </div>
+                </div>
+              ))}
+              {commits.length === 0 && (
+                <div className="rounded-md border px-3 py-4 text-center text-sm" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+                  No commits yet.
+                </div>
+              )}
+            </div>
           </div>
         </aside>
       </div>
@@ -1137,6 +1199,39 @@ function authTone(state?: string) {
   if (state === "missing-remote") return "";
   if (!state) return "";
   return "warning";
+}
+
+function SidebarStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border px-2 py-2 text-center" style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}>
+      <div className="text-base font-semibold tabular-nums" style={{ color: "var(--text)" }}>{value}</div>
+      <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: "var(--text-faint)" }}>{label}</div>
+    </div>
+  );
+}
+
+function MetricTile({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="px-5 py-4 text-left" style={{ borderLeft: "1px solid var(--border-subtle)" }}>
+      <div className="text-xl font-semibold tabular-nums" style={{ color: "var(--text)" }}>{value}</div>
+      <div className="mt-1 text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--text-faint)" }}>{label}</div>
+    </div>
+  );
+}
+
+function formatRelativeDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+
+  const diffMs = Date.now() - date.getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return date.toLocaleDateString();
 }
 
 function Spinner() {
