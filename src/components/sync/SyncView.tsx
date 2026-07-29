@@ -551,6 +551,11 @@ export function SyncView() {
     }
   };
 
+  const handleOpenGcmInstall = async () => {
+    const { open } = await import("@tauri-apps/plugin-shell");
+    await open("https://github.com/git-ecosystem/git-credential-manager/blob/main/docs/install.md");
+  };
+
   const stagedCount = files.filter((f) => f.status.startsWith("staged_")).length;
   const unstagedCount = files.filter((f) => !f.status.startsWith("staged_")).length;
 
@@ -1014,7 +1019,15 @@ export function SyncView() {
               <div className="mt-3 text-xs leading-5" style={{ color: "var(--text-muted)" }}>
                 {authStatus?.message || "Checking git authentication..."}
               </div>
-              {authStatus?.remote_kind === "https" && (
+              {authStatus?.auth_state === "missing-gcm" && (
+                <button
+                  onClick={() => void handleOpenGcmInstall()}
+                  className="btn primary mt-4 h-9 w-full justify-center"
+                >
+                  Install Git Credential Manager
+                </button>
+              )}
+              {authStatus?.remote_kind === "https" && authStatus.auth_state !== "missing-gcm" && (
                 <button
                   onClick={() =>
                     authStatus.auth_state === "ready"

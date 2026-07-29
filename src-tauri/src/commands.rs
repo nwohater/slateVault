@@ -361,7 +361,7 @@ fn classify_auth_failure(
         if remote_kind == "https" && !gcm_installed {
             (
                 "missing-gcm",
-                "HTTPS authentication needs a credential helper. Install or configure Git Credential Manager.",
+                "Browser login for HTTPS remotes requires Git Credential Manager. Install it, or switch this vault back to SSH.",
             )
         } else {
             (
