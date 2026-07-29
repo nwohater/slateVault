@@ -6,11 +6,15 @@ use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::sync::Mutex;
+use std::thread;
+use std::time::{Duration, Instant};
 use tauri::State;
 
 pub struct VaultState(pub Mutex<Option<Vault>>);
 
 type CmdResult<T> = Result<T, String>;
+
+const GIT_AUTH_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -186,6 +190,49 @@ fn git_output_success(args: &[&str]) -> Option<String> {
     } else {
         None
     }
+}
+
+fn command_output_with_timeout(mut command: Command, timeout: Duration) -> CmdResult<Output> {
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("Failed to start command: {}", e))?;
+    let start = Instant::now();
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                return child
+                    .wait_with_output()
+                    .map_err(|e| format!("Failed to collect command output: {}", e));
+            }
+            Ok(None) if start.elapsed() >= timeout => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(
+                    "Git auth check timed out. The credential helper or remote did not respond."
+                        .to_string(),
+                );
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(100)),
+            Err(e) => return Err(format!("Failed while waiting for git command: {}", e)),
+        }
+    }
+}
+
+fn configure_git_auth_probe(command: &mut Command) {
+    command
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GCM_INTERACTIVE", "false");
+}
+
+fn configure_git_provider_login(command: &mut Command) {
+    command
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GCM_INTERACTIVE", "true");
 }
 
 fn remote_url_from_git(vault: &Vault) -> Option<String> {
@@ -1039,11 +1086,10 @@ pub fn git_auth_status(state: State<'_, VaultState>) -> CmdResult<GitAuthStatus>
         });
     }
 
-    let probe = git_command_for_vault(vault)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env("GCM_INTERACTIVE", "never")
-        .args(["-C", &root, "ls-remote", "origin", "HEAD"])
-        .output()
+    let mut probe_command = git_command_for_vault(vault);
+    configure_git_auth_probe(&mut probe_command);
+    probe_command.args(["-C", &root, "ls-remote", "origin", "HEAD"]);
+    let probe = command_output_with_timeout(probe_command, GIT_AUTH_TIMEOUT)
         .map_err(|e| format!("Failed to run git auth probe: {}", e))?;
 
     if probe.status.success() {
@@ -1098,9 +1144,10 @@ pub fn git_connect_provider(state: State<'_, VaultState>) -> CmdResult<String> {
         );
     }
 
-    let output = git_command_for_vault(vault)
-        .args(["-C", &root, "ls-remote", "origin", "HEAD"])
-        .output()
+    let mut login_command = git_command_for_vault(vault);
+    configure_git_provider_login(&mut login_command);
+    login_command.args(["-C", &root, "ls-remote", "origin", "HEAD"]);
+    let output = command_output_with_timeout(login_command, GIT_AUTH_TIMEOUT)
         .map_err(|e| format!("Failed to start git provider login: {}", e))?;
 
     if output.status.success() {
@@ -1144,9 +1191,10 @@ pub fn git_connect_provider_for_url(url: String) -> CmdResult<String> {
         return Err("Browser login is only available for HTTPS git remotes.".to_string());
     }
 
-    let output = git_command()
-        .args(["ls-remote", url, "HEAD"])
-        .output()
+    let mut login_command = git_command();
+    configure_git_provider_login(&mut login_command);
+    login_command.args(["ls-remote", url, "HEAD"]);
+    let output = command_output_with_timeout(login_command, GIT_AUTH_TIMEOUT)
         .map_err(|e| format!("Failed to start git provider login: {}", e))?;
 
     if output.status.success() {

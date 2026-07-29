@@ -538,9 +538,7 @@ export function SyncView() {
     setMessage("Switching remote to HTTPS auth...");
     try {
       const httpsUrl = await convertRemoteToHttps();
-      setMessage(`Remote switched to ${httpsUrl}. Opening provider login...`);
-      const result = await connectProvider();
-      setMessage(result || "Git provider authentication is ready.");
+      setMessage(`Remote switched to ${httpsUrl}. Connect the provider to finish HTTPS auth.`);
       setConfirmHttpsSwitch(false);
       window.setTimeout(() => setMessage(null), 2600);
     } catch (err) {
