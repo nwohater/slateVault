@@ -395,6 +395,26 @@ fn run_git_checked(vault: &Vault, args: &[&str], label: &str) -> CmdResult<Strin
     }
 }
 
+fn run_git_checked_noninteractive(
+    vault: &Vault,
+    args: &[&str],
+    label: &str,
+    timeout: Duration,
+) -> CmdResult<String> {
+    let mut command = git_command_for_vault(vault);
+    configure_git_auth_probe(&mut command);
+    command.args(args);
+
+    let output = command_output_with_timeout(command, timeout)
+        .map_err(|e| format!("{}: {}", label, e))?;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        Ok(git_output_text(&output))
+    } else {
+        Err(git_error(label, &stderr, vault))
+    }
+}
+
 /// Like `run_git_checked` but returns only stdout — for commands whose output
 /// is parsed as machine-readable data (file lists, etc.) and must not contain
 /// git's stderr warnings (e.g. CRLF warnings on Windows).
@@ -1348,10 +1368,11 @@ pub fn git_fetch_remote(state: State<'_, VaultState>) -> CmdResult<String> {
     let vault = lock.as_ref().ok_or("No vault is open")?;
     let branch = &vault.config.sync.remote_branch;
     let root = vault.root.to_string_lossy();
-    run_git_checked(
+    run_git_checked_noninteractive(
         vault,
         &["-C", &root, "fetch", "origin", branch],
         "Fetch failed",
+        GIT_AUTH_TIMEOUT,
     )
 }
 

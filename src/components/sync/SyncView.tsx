@@ -153,7 +153,7 @@ export function SyncView() {
     void refreshLocal();
     const timer = window.setTimeout(() => {
       void refreshRemote();
-    }, 250);
+    }, 800);
 
     return () => {
       active = false;
