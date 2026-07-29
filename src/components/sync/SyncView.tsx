@@ -105,7 +105,7 @@ export function SyncView() {
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const openDocument = useEditorStore((s) => s.openDocument);
   const openWikiFile = useEditorStore((s) => s.openWikiFile);
-  const [fetchingRemote, setFetchingRemote] = useState(true);
+  const [fetchingRemote, setFetchingRemote] = useState(false);
   const [syncing, setSyncing] = useState<"pull" | "push" | "safe-pull" | "safe-sync" | "discard-pull" | "commit" | "fetch" | "resolve" | "continue" | "auth" | null>(null);
   const [confirmDiscardPull, setConfirmDiscardPull] = useState(false);
   const [confirmHttpsSwitch, setConfirmHttpsSwitch] = useState(false);
@@ -127,10 +127,8 @@ export function SyncView() {
         loadLog(),
         loadBranches(),
         loadRemoteConfig(),
-        loadAuthStatus(),
         loadConflictFiles(),
         loadSyncStatus(),
-        loadDocSyncRisks(),
       ]);
     };
 
@@ -150,14 +148,17 @@ export function SyncView() {
       if (active) setFetchingRemote(false);
     };
 
-    void refreshLocal();
-    const timer = window.setTimeout(() => {
+    const localTimer = window.setTimeout(() => {
+      void refreshLocal();
+    }, 80);
+    const remoteTimer = window.setTimeout(() => {
       void refreshRemote();
-    }, 800);
+    }, 900);
 
     return () => {
       active = false;
-      window.clearTimeout(timer);
+      window.clearTimeout(localTimer);
+      window.clearTimeout(remoteTimer);
     };
   }, [
     loadBranches,
