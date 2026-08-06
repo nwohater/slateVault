@@ -145,6 +145,7 @@ pub fn run() {
             terminal::write_terminal,
             terminal::resize_terminal,
             terminal::close_terminal,
+            mcp_manager::get_mcp_binary_path,
             mcp_manager::start_mcp_server,
             mcp_manager::stop_mcp_server,
             mcp_manager::mcp_server_status,

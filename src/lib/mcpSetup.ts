@@ -21,7 +21,8 @@ export function detectMcpPlatform(): McpPlatform {
   return "unknown";
 }
 
-export function getMcpCommand(platform: McpPlatform): string {
+export function getMcpCommand(platform: McpPlatform, binaryPath?: string | null): string {
+  if (binaryPath) return binaryPath;
   return platform === "windows" ? "slatevault-mcp.exe" : "slatevault-mcp";
 }
 
@@ -45,8 +46,8 @@ export function getMcpInstallNote(platform: McpPlatform): string {
   return "Install slateVault first, then make sure the slatevault-mcp command is available on PATH.";
 }
 
-export function getGenericMcpConfig(platform: McpPlatform): string {
-  const command = getMcpCommand(platform);
+export function getGenericMcpConfig(platform: McpPlatform, binaryPath?: string | null): string {
+  const command = getMcpCommand(platform, binaryPath);
   return JSON.stringify(
     {
       mcpServers: {
@@ -61,8 +62,8 @@ export function getGenericMcpConfig(platform: McpPlatform): string {
   );
 }
 
-export function getVsCodeMcpConfig(platform: McpPlatform): string {
-  const command = getMcpCommand(platform);
+export function getVsCodeMcpConfig(platform: McpPlatform, binaryPath?: string | null): string {
+  const command = getMcpCommand(platform, binaryPath);
   return JSON.stringify(
     {
       servers: {
@@ -77,21 +78,21 @@ export function getVsCodeMcpConfig(platform: McpPlatform): string {
   );
 }
 
-export function getAuggieMcpAddCommand(platform: McpPlatform): string {
-  const command = getMcpCommand(platform);
+export function getAuggieMcpAddCommand(platform: McpPlatform, binaryPath?: string | null): string {
+  const command = getMcpCommand(platform, binaryPath);
   return `auggie mcp add slatevault -- ${command}`;
 }
 
-export function getCursorMcpConfig(platform: McpPlatform): string {
-  return getGenericMcpConfig(platform);
+export function getCursorMcpConfig(platform: McpPlatform, binaryPath?: string | null): string {
+  return getGenericMcpConfig(platform, binaryPath);
 }
 
-export function getCodexMcpConfig(platform: McpPlatform): string {
-  return getGenericMcpConfig(platform);
+export function getCodexMcpConfig(platform: McpPlatform, binaryPath?: string | null): string {
+  return getGenericMcpConfig(platform, binaryPath);
 }
 
-export function getMcpSetupCards(platform: McpPlatform): McpSetupCard[] {
-  const command = getMcpCommand(platform);
+export function getMcpSetupCards(platform: McpPlatform, binaryPath?: string | null): McpSetupCard[] {
+  const command = getMcpCommand(platform, binaryPath);
 
   return [
     {
@@ -101,7 +102,7 @@ export function getMcpSetupCards(platform: McpPlatform): McpSetupCard[] {
     },
     {
       name: "GitHub Copilot in VS Code",
-      command: getVsCodeMcpConfig(platform),
+      command: getVsCodeMcpConfig(platform, binaryPath),
       note: "Add this to .vscode/mcp.json, start the server from the CodeLens, then use Copilot Chat in Agent mode.",
     },
     {
@@ -111,22 +112,22 @@ export function getMcpSetupCards(platform: McpPlatform): McpSetupCard[] {
     },
     {
       name: "Cursor",
-      command: getCursorMcpConfig(platform),
+      command: getCursorMcpConfig(platform, binaryPath),
       note: "Add this to ~/.cursor/mcp.json (global) or .cursor/mcp.json (per-project). Restart Cursor, then enable MCP in Settings → Features → MCP.",
     },
     {
       name: "Codex CLI",
-      command: getCodexMcpConfig(platform),
+      command: getCodexMcpConfig(platform, binaryPath),
       note: "Add this to ~/.codex/mcp.json, then restart Codex CLI. Requires Codex CLI with MCP support enabled.",
     },
     {
       name: "Auggie CLI",
-      command: getAuggieMcpAddCommand(platform),
+      command: getAuggieMcpAddCommand(platform, binaryPath),
       note: "Run this once after installing Auggie. It persists the server in ~/.augment/settings.json.",
     },
     {
       name: "Generic MCP client",
-      command: getGenericMcpConfig(platform),
+      command: getGenericMcpConfig(platform, binaryPath),
       note: "Use this shape for tools that ask for an MCP server JSON config.",
     },
     {

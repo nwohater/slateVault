@@ -529,6 +529,10 @@ export async function mcpServerStatus(): Promise<McpServerStatus> {
   return invoke("mcp_server_status");
 }
 
+export async function getMcpBinaryPath(): Promise<string | null> {
+  return invoke("get_mcp_binary_path");
+}
+
 // -- Branch commands --
 
 export async function gitCurrentBranch(): Promise<string> {

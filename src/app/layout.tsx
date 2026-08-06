@@ -19,7 +19,9 @@ export default function RootLayout({
             __html: `
               try {
                 var theme = localStorage.getItem('sv-theme');
-                if (theme) document.documentElement.setAttribute('data-theme', theme);
+                if (theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
+                var density = localStorage.getItem('sv-density');
+                if (density) document.documentElement.setAttribute('data-density', density);
               } catch (_) {}
             `,
           }}

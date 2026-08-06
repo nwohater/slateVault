@@ -159,6 +159,12 @@ html[data-theme="deepblue"] {
   --color-neutral-100: #d4e8f4;
 }
 
+html[data-density="compact"] {
+  --topbar-h: 34px;
+  --statusbar-h: 20px;
+  --sidebar-w: 236px;
+}
+
 /* ─── Base ───────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -1195,6 +1201,33 @@ code *,
 
 .settings-input:disabled {
   opacity: 0.55;
+}
+
+html[data-density="compact"] .nav-tab {
+  height: 28px;
+  padding: 0 10px;
+}
+
+html[data-density="compact"] .rail {
+  width: 46px;
+}
+
+html[data-density="compact"] .rail-btn {
+  width: 32px;
+  height: 32px;
+}
+
+html[data-density="compact"] .sidebar-h {
+  min-height: 32px;
+  padding-block: 6px 4px;
+}
+
+html[data-density="compact"] .settings-input {
+  height: 34px;
+}
+
+html[data-density="compact"] .btn.lg {
+  height: 32px;
 }
 
 /* ─── Print ──────────────────────────────────────────────────────────────── */

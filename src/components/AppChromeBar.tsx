@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { WorkspaceView } from "@/stores/uiStore";
+import { useUIStore, type WorkspaceView } from "@/stores/uiStore";
 
 type AppChromeBarProps = {
   workspaceView: WorkspaceView;
@@ -162,22 +161,12 @@ export function AppChromeBar({
     typeof navigator !== "undefined" &&
     /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 
-  const [isDark, setIsDark] = useState(false);
-
-  useEffect(() => {
-    setIsDark(document.documentElement.getAttribute("data-theme") === "dark");
-  }, []);
+  const theme = useUIStore((s) => s.theme);
+  const setTheme = useUIStore((s) => s.setTheme);
+  const isDark = theme === "dark";
 
   const toggleTheme = () => {
-    const next = isDark ? null : "dark";
-    if (next) {
-      document.documentElement.setAttribute("data-theme", "dark");
-      localStorage.setItem("sv-theme", "dark");
-    } else {
-      document.documentElement.removeAttribute("data-theme");
-      localStorage.removeItem("sv-theme");
-    }
-    setIsDark(!isDark);
+    setTheme(isDark ? "light" : "dark");
   };
 
   return (

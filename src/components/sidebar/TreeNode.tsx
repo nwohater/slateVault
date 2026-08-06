@@ -113,9 +113,10 @@ export function TreeNode({
           if (onDrop) onDrop(e);
         }
       }}
-      className="group w-full flex items-center gap-1.5 px-2 py-1.5 text-xs text-left rounded-md transition-colors"
+      className="group w-full flex items-center gap-1.5 px-2 py-1.5 text-xs text-left rounded-md transition-colors select-none cursor-pointer"
       style={{
         paddingLeft: 8 + depth * 16,
+        cursor: "pointer",
         background: isExternalDropTarget
           ? "var(--accent-soft)"
           : dragOver

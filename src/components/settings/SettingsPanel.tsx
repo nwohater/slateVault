@@ -17,8 +17,9 @@ import { useGitStore } from "@/stores/gitStore";
 import { useUIStore } from "@/stores/uiStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import type { CredentialsMasked, McpServerStatus, VaultSettings, WikiDocInfo } from "@/types";
+import type { Density, EditorMode, Theme } from "@/stores/uiStore";
 
-type SettingsSection = "vault" | "mcp" | "ai" | "git" | "appearance" | "keyboard" | "updates" | "advanced";
+type SettingsSection = "vault" | "mcp" | "git" | "appearance" | "keyboard" | "updates" | "advanced";
 type VaultConfigPatch = {
   name?: string;
   mcp_enabled?: boolean;
@@ -40,6 +41,8 @@ const SECTIONS: Array<{
   { id: "vault", group: "Workspace", label: "Vault", icon: "DB" },
   { id: "mcp", group: "Workspace", label: "Agent access (MCP)", icon: "MCP" },
   { id: "git", group: "Sync", label: "Git & credentials", icon: "Git" },
+  { id: "appearance", group: "Application", label: "Appearance", icon: "*" },
+  { id: "keyboard", group: "Application", label: "Keyboard", icon: "<>" },
   { id: "updates", group: "Application", label: "Updates", icon: "Up" },
   { id: "advanced", group: "Application", label: "Advanced", icon: "Gear" },
 ];
@@ -80,6 +83,13 @@ export function SettingsPanel() {
   const loadStats = useVaultStore((s) => s.loadStats);
   const closeVault = useVaultStore((s) => s.closeVault);
   const openVaultFile = useEditorStore((s) => s.openVaultFile);
+  const defaultEditorMode = useUIStore((s) => s.defaultEditorMode);
+  const setDefaultEditorMode = useUIStore((s) => s.setDefaultEditorMode);
+  const setEditorMode = useUIStore((s) => s.setEditorMode);
+  const theme = useUIStore((s) => s.theme);
+  const setTheme = useUIStore((s) => s.setTheme);
+  const density = useUIStore((s) => s.density);
+  const setDensity = useUIStore((s) => s.setDensity);
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const setWorkspaceView = useUIStore((s) => s.setWorkspaceView);
   const version = useAppStore((s) => s.version);
@@ -122,6 +132,7 @@ export function SettingsPanel() {
   const [showAzureDevOps, setShowAzureDevOps] = useState(false);
   const [remoteUrl, setRemoteUrl] = useState("");
   const [platform, setPlatform] = useState<McpPlatform>("unknown");
+  const [mcpBinaryPath, setMcpBinaryPath] = useState<string | null>(null);
   const [selectedMcpSetup, setSelectedMcpSetup] = useState("Claude Code");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -166,15 +177,17 @@ export function SettingsPanel() {
     void initializeApp().catch(() => {});
     void loadSettings();
     void loadRemoteConfig();
+    commands.getMcpBinaryPath().then(setMcpBinaryPath).catch(() => {});
   }, [initializeApp, loadSettings, loadRemoteConfig]);
 
   useEffect(() => {
     if (remoteConfig) setRemoteUrl(remoteConfig.remote_url ?? "");
   }, [remoteConfig]);
 
-  const mcpSetupCards = getMcpSetupCards(platform);
+  const mcpSetupCards = getMcpSetupCards(platform, mcpBinaryPath);
   const selectedMcpCard = mcpSetupCards.find((card) => card.name === selectedMcpSetup) ?? mcpSetupCards[0];
   const mcpLive = Boolean(mcpStatus?.running);
+  const mcpBinaryFound = mcpStatus?.binary_found ?? true;
   const azureDevOpsConfigured = Boolean(creds?.ado_pat || creds?.ado_organization || creds?.ado_project);
   const updateBusy = updateState === "checking" || updateState === "downloading" || updateState === "installing";
 
@@ -222,15 +235,53 @@ export function SettingsPanel() {
     try {
       await commands.setVaultConfig({ mcp_enabled: enabled, mcp_port: mcpPort });
       if (enabled && vaultPath) {
-        await commands.startMcpServer(vaultPath, mcpPort).catch(() => {});
+        try {
+          await commands.startMcpServer(vaultPath, mcpPort);
+          showMessage("MCP server enabled and started.");
+        } catch (startErr) {
+          await loadStats();
+          await loadSettings();
+          setError(`MCP was enabled, but the server could not start: ${startErr}`);
+          return;
+        }
       } else {
-        await commands.stopMcpServer().catch(() => {});
+        await commands.stopMcpServer();
+        showMessage("MCP server disabled.");
       }
       await loadStats();
       await loadSettings();
-      showMessage(enabled ? "MCP server enabled." : "MCP server disabled.");
     } catch (err) {
       setError(`Could not update MCP server: ${err}`);
+      await loadSettings();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleStartMcpServer = async () => {
+    if (!vaultPath) return;
+    setSaving(true);
+    try {
+      await commands.startMcpServer(vaultPath, mcpPort);
+      await loadSettings();
+      showMessage("MCP server started.");
+    } catch (err) {
+      setError(`Could not start MCP server: ${err}`);
+      await loadSettings();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleStopMcpServer = async () => {
+    setSaving(true);
+    try {
+      await commands.stopMcpServer();
+      await loadSettings();
+      showMessage("MCP server stopped.");
+    } catch (err) {
+      setError(`Could not stop MCP server: ${err}`);
+      await loadSettings();
     } finally {
       setSaving(false);
     }
@@ -392,7 +443,16 @@ export function SettingsPanel() {
                   </div>
                 </SettingRow>
                 <SettingRow label="Default editor mode" help="Documents can still be switched from the document toolbar.">
-                  <select className="settings-input max-w-[260px]" defaultValue="split">
+                  <select
+                    className="settings-input max-w-[260px]"
+                    value={defaultEditorMode}
+                    onChange={(event) => {
+                      const mode = event.target.value as EditorMode;
+                      setDefaultEditorMode(mode);
+                      setEditorMode(mode);
+                      showMessage("Default editor mode saved.");
+                    }}
+                  >
                     <option value="split">Split (editor + preview)</option>
                     <option value="editor">Editor</option>
                     <option value="preview">Preview</option>
@@ -424,20 +484,36 @@ export function SettingsPanel() {
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div className="panel p-5">
                     <div className="flex items-center gap-3">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: mcpLive ? "var(--success)" : "var(--warning)" }} />
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{
+                          background: !mcpBinaryFound
+                            ? "var(--danger)"
+                            : mcpLive
+                            ? "var(--success)"
+                            : "var(--warning)",
+                        }}
+                      />
                       <h3 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
-                        {mcpLive ? "Server running" : mcpEnabled ? "Server enabled" : "Server disabled"}
+                        {!mcpBinaryFound ? "MCP command missing" : mcpLive ? "Server running" : mcpEnabled ? "Server enabled" : "Server disabled"}
                       </h3>
                     </div>
-                    <div className="mt-3 font-mono text-lg" style={{ color: "var(--text-muted)" }}>
-                      {getMcpCommand(platform)}
-                    </div>
-                    <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
-                      stdio transport. No localhost HTTP endpoint is exposed.
+                    <p className="mt-3 text-sm" style={{ color: "var(--text-muted)" }}>
+                      {mcpBinaryFound
+                        ? "stdio transport. No localhost HTTP endpoint is exposed."
+                        : getMcpInstallNote(platform)}
                     </p>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <button className="btn" disabled={saving || mcpLive || !vaultPath} onClick={() => void handleToggleMcp(true)}>Start</button>
-                      <button className="btn" disabled={saving || !mcpLive} onClick={() => void handleToggleMcp(false)}>Stop</button>
+                      <button
+                        className="btn"
+                        disabled={saving || mcpLive || !mcpEnabled || !mcpBinaryFound || !vaultPath}
+                        onClick={() => void handleStartMcpServer()}
+                      >
+                        Start
+                      </button>
+                      <button className="btn" disabled={saving || !mcpLive} onClick={() => void handleStopMcpServer()}>
+                        Stop
+                      </button>
                     </div>
                   </div>
                   <div className="panel p-5">
@@ -446,10 +522,21 @@ export function SettingsPanel() {
                       <div>- {stats?.doc_count ?? 0} project docs</div>
                       <div>- {wikiDocs.length} wiki docs</div>
                       <div>- Brief generator and session context</div>
-                      <div>- Search and read-only discovery tools</div>
+                      <div>- Search, read, and document write tools</div>
                     </div>
                   </div>
                 </div>
+
+                <SettingRow label="MCP binary path" help="Full path to the slatevault-mcp binary. Use this when configuring Claude Code, Cursor, or other agents manually.">
+                  {mcpBinaryPath ? (
+                    <div className="flex min-w-0 gap-2">
+                      <input className="settings-input min-w-0 flex-1 font-mono text-xs" value={mcpBinaryPath} readOnly />
+                      <button className="btn shrink-0" onClick={() => void handleCopy(mcpBinaryPath, "Binary path")}>Copy</button>
+                    </div>
+                  ) : (
+                    <span className="text-sm" style={{ color: "var(--text-muted)" }}>Binary not found</span>
+                  )}
+                </SettingRow>
 
                 <SettingRow label="Enabled">
                   <Toggle checked={mcpEnabled} onChange={(checked) => void handleToggleMcp(checked)} label="Run MCP server when vault is open" />
@@ -463,8 +550,8 @@ export function SettingsPanel() {
 
                 <section className="pt-6">
                   <h3 className="mb-4 text-lg font-semibold" style={{ color: "var(--text)" }}>Connect your agent</h3>
-                  <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                    {mcpSetupCards.slice(0, 5).map((card) => (
+                  <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {mcpSetupCards.map((card) => (
                       <button
                         key={card.name}
                         onClick={() => setSelectedMcpSetup(card.name)}
@@ -489,40 +576,6 @@ export function SettingsPanel() {
                     {saving ? "Saving..." : "Save agent settings"}
                   </button>
                 </div>
-              </SettingsSectionShell>
-            )}
-
-            {activeSection === "ai" && (
-              <SettingsSectionShell
-                icon="AI"
-                title="AI settings"
-                description="Optional local or OpenAI-compatible assistant settings for features that call a model directly."
-              >
-                <SettingRow label="Enabled">
-                  <Toggle checked={aiEnabled} onChange={setAiEnabled} label="Enable built-in AI assistant features" />
-                </SettingRow>
-                <SettingRow label="Endpoint URL" help="Works with Ollama, LM Studio, OpenAI-compatible gateways, or local servers.">
-                  <input className="settings-input" value={aiEndpointUrl} onChange={(event) => setAiEndpointUrl(event.target.value)} placeholder="http://localhost:11434/v1" />
-                </SettingRow>
-                <SettingRow label="Model">
-                  <input className="settings-input" value={aiModel} onChange={(event) => setAiModel(event.target.value)} placeholder="llama3.1, gpt-4.1, claude..." />
-                </SettingRow>
-                <SettingRow label="API key" help="Stored outside the vault repo with other credentials.">
-                  <input
-                    className="settings-input"
-                    type="password"
-                    placeholder={creds?.ai_api_key ? `Saved (${creds.ai_api_key})` : "Optional for local models"}
-                    onChange={async (event) => {
-                      if (!event.target.value) return;
-                      await commands.gitSaveCredentials({ ai_api_key: event.target.value });
-                      await loadSettings();
-                      showMessage("AI API key saved.");
-                    }}
-                  />
-                </SettingRow>
-                <button className="btn primary lg whitespace-nowrap" disabled={saving} onClick={() => void saveConfig()}>
-                  {saving ? "Saving..." : "Save AI settings"}
-                </button>
               </SettingsSectionShell>
             )}
 
@@ -558,9 +611,6 @@ export function SettingsPanel() {
                     )}
                   </div>
                 </SettingRow>
-                <SettingRow label="Commit signing">
-                  <Toggle checked={false} onChange={() => {}} label="Sign commits with SSH key" disabled />
-                </SettingRow>
                 <div className="flex flex-wrap gap-2 pt-4">
                   <button className="btn primary lg whitespace-nowrap" disabled={saving} onClick={() => void handleSaveGitSettings()}>
                     {saving ? "Saving..." : "Save Git settings"}
@@ -572,13 +622,27 @@ export function SettingsPanel() {
             {activeSection === "appearance" && (
               <SettingsSectionShell icon="*" title="Appearance" description="Small display preferences for the local app shell.">
                 <SettingRow label="Theme">
-                  <select className="settings-input max-w-[220px]" defaultValue="system">
-                    <option value="system">System</option>
+                  <select
+                    className="settings-input max-w-[220px]"
+                    value={theme}
+                    onChange={(event) => {
+                      setTheme(event.target.value as Theme);
+                      showMessage("Theme saved.");
+                    }}
+                  >
+                    <option value="light">Light</option>
                     <option value="dark">Dark</option>
                   </select>
                 </SettingRow>
                 <SettingRow label="Density">
-                  <select className="settings-input max-w-[220px]" defaultValue="comfortable">
+                  <select
+                    className="settings-input max-w-[220px]"
+                    value={density}
+                    onChange={(event) => {
+                      setDensity(event.target.value as Density);
+                      showMessage("Density saved.");
+                    }}
+                  >
                     <option value="comfortable">Comfortable</option>
                     <option value="compact">Compact</option>
                   </select>
@@ -588,9 +652,9 @@ export function SettingsPanel() {
 
             {activeSection === "keyboard" && (
               <SettingsSectionShell icon="<>" title="Keyboard" description="Shortcuts used across the app.">
-                <ShortcutRow label="Search docs" value="Command K" />
+                <ShortcutRow label="Search docs" value="Ctrl Shift F" />
                 <ShortcutRow label="Toggle terminal" value="Control T" />
-                <ShortcutRow label="Save current document" value="Command S" />
+                <ShortcutRow label="Save current document" value="Command/Ctrl S" />
               </SettingsSectionShell>
             )}
 
@@ -648,9 +712,6 @@ export function SettingsPanel() {
                     <option value={channel}>{channel}</option>
                   </select>
                 </SettingRow>
-                <SettingRow label="Install automatically">
-                  <Toggle checked={false} onChange={() => {}} label="Download and install in the background" disabled />
-                </SettingRow>
                 {updateError && <div className="rounded-lg p-4 text-sm" style={{ background: "var(--warning-soft)", border: "1px solid var(--warning)", color: "var(--warning)" }}>{updateError}</div>}
                 {updateBody && updateState === "available" && (
                   <pre className="rounded-lg border p-4 text-xs whitespace-pre-wrap" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)", color: "var(--text-muted)" }}>{updateBody}</pre>
@@ -671,12 +732,6 @@ export function SettingsPanel() {
                 </SettingRow>
                 <SettingRow label="Reset onboarding">
                   <button className="btn" onClick={() => { setShowOnboarding(true); setWorkspaceView("home"); }}>Show onboarding again</button>
-                </SettingRow>
-                <SettingRow label="Diagnostic logs">
-                  <button className="btn" disabled>Reveal in Finder</button>
-                </SettingRow>
-                <SettingRow label="Telemetry">
-                  <Toggle checked={false} onChange={() => {}} label="Share anonymous usage data" disabled />
                 </SettingRow>
               </SettingsSectionShell>
             )}

@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkFrontmatter from "remark-frontmatter";
+import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
+import { jsPDF } from "jspdf";
 import { useEditorStore } from "@/stores/editorStore";
 import { EmptyState } from "../shared/EmptyState";
 import * as commands from "@/lib/commands";
@@ -44,6 +47,38 @@ function stripMatchingLeadingHeading(body: string, title: string): string {
     .concat(lines.slice(firstContentIndex + 1))
     .join("\n")
     .trim();
+}
+
+function getMarkdownBody(markdown: string): string {
+  const lines = markdown.split("\n");
+  if (lines[0]?.trim() !== "---") return markdown.trim();
+
+  const endIdx = lines.findIndex((line, index) => index > 0 && line.trim() === "---");
+  return endIdx > 0 ? lines.slice(endIdx + 1).join("\n").trim() : markdown.trim();
+}
+
+function sanitizePdfText(text: string): string {
+  return text
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/\u2013/g, "-")
+    .replace(/\u2014/g, "--")
+    .replace(/\u2026/g, "...")
+    .replace(/\u2611/g, "[x]")
+    .replace(/\u2610/g, "[ ]")
+    .replace(/[\u2022\u2023\u25E6]/g, "-")
+    .replace(/\u2192/g, "->")
+    .replace(/\u2190/g, "<-")
+    .replace(/[^\x00-\x7F]/g, "");
+}
+
+function stripInlineMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .replace(/!\[(.*?)\]\(.+?\)/g, "$1")
+    .replace(/\[(.+?)\]\(.+?\)/g, "$1");
 }
 
 export function MarkdownPreview() {
@@ -141,137 +176,141 @@ export function MarkdownPreview() {
     setExporting(true);
 
     try {
-      const html2canvas = (await import("html2canvas")).default;
-      const { jsPDF } = await import("jspdf");
-
-      const element = previewRef.current;
-
-      // Create a clone with print-friendly styling, all hex colors (no oklch)
-      const clone = element.cloneNode(true) as HTMLElement;
-      clone.style.cssText = `
-        position: absolute; left: -9999px; top: 0;
-        width: 700px; height: auto; overflow: visible;
-        background: #ffffff; padding: 40px; color: #1a1a1a;
-        font-family: system-ui, -apple-system, sans-serif;
-      `;
-
-      // Strip all oklch colors by forcing hex on every element
-      const allElements = clone.querySelectorAll("*");
-      allElements.forEach((el) => {
-        const htmlEl = el as HTMLElement;
-        const tag = htmlEl.tagName.toLowerCase();
-
-        // Reset background and border colors to avoid oklch
-        htmlEl.style.backgroundColor = "transparent";
-        htmlEl.style.borderColor = "#e5e7eb";
-        htmlEl.style.color = "#333";
-
-        if (["h1", "h2", "h3", "h4", "h5", "h6"].includes(tag)) {
-          htmlEl.style.color = "#111";
-          htmlEl.style.borderColor = "#d1d5db";
-        } else if (tag === "a") {
-          htmlEl.style.color = "#1a56db";
-        } else if (tag === "code") {
-          htmlEl.style.backgroundColor = "#f3f4f6";
-          htmlEl.style.color = "#c7254e";
-          htmlEl.style.padding = "1px 4px";
-          htmlEl.style.borderRadius = "3px";
-        } else if (tag === "pre") {
-          htmlEl.style.backgroundColor = "#f3f4f6";
-          htmlEl.style.color = "#1a1a1a";
-          htmlEl.style.border = "1px solid #e5e7eb";
-          htmlEl.style.borderRadius = "6px";
-          htmlEl.style.padding = "12px";
-        } else if (tag === "blockquote") {
-          htmlEl.style.borderLeftColor = "#d1d5db";
-          htmlEl.style.color = "#555";
-          htmlEl.style.backgroundColor = "transparent";
-        } else if (tag === "strong" || tag === "b") {
-          htmlEl.style.color = "#111";
-        } else if (tag === "table") {
-          htmlEl.style.borderColor = "#d1d5db";
-        } else if (tag === "th") {
-          htmlEl.style.backgroundColor = "#f9fafb";
-          htmlEl.style.color = "#111";
-          htmlEl.style.borderColor = "#d1d5db";
-        } else if (tag === "td") {
-          htmlEl.style.borderColor = "#e5e7eb";
-          htmlEl.style.color = "#333";
-        } else if (tag === "hr") {
-          htmlEl.style.borderColor = "#e5e7eb";
-          htmlEl.style.backgroundColor = "#e5e7eb";
-        }
-      });
-
-      // Replace checkbox inputs with text symbols
-      clone.querySelectorAll('input[type="checkbox"]').forEach((el) => {
-        const checkbox = el as HTMLInputElement;
-        const span = document.createElement("span");
-        span.textContent = checkbox.checked ? "\u2611 " : "\u2610 ";
-        span.style.fontSize = "14px";
-        span.style.color = "#333";
-        span.style.verticalAlign = "middle";
-        span.style.marginRight = "4px";
-        checkbox.replaceWith(span);
-      });
-
-      clone.querySelectorAll("li").forEach((el) => {
-        const li = el as HTMLElement;
-        li.style.display = "flex";
-        li.style.alignItems = "baseline";
-        li.style.gap = "2px";
-      });
-
-      document.body.appendChild(clone);
-
-      const canvas = await html2canvas(clone, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        width: 700,
-        windowWidth: 700,
-      });
-
-      document.body.removeChild(clone);
-
-      const imgWidth = 190; // A4 width minus margins (mm)
-      const pageHeight = 277; // A4 height minus margins (mm)
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
       const pdf = new jsPDF("p", "mm", "a4");
-      let heightLeft = imgHeight;
-      let position = 10; // top margin
+      const pageWidth = 190;
+      const pageHeight = 277;
+      const marginLeft = 10;
+      const marginTop = 15;
+      let y = marginTop;
 
-      pdf.addImage(
-        canvas.toDataURL("image/png"),
-        "PNG",
-        10, // left margin
-        position,
-        imgWidth,
-        imgHeight
-      );
-      heightLeft -= pageHeight;
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight + 10;
+      const addPage = () => {
         pdf.addPage();
-        pdf.addImage(
-          canvas.toDataURL("image/png"),
-          "PNG",
-          10,
-          position,
-          imgWidth,
-          imgHeight
-        );
-        heightLeft -= pageHeight;
+        y = marginTop;
+      };
+
+      const checkSpace = (needed: number) => {
+        if (y + needed > pageHeight) addPage();
+      };
+
+      const writeText = (
+        text: string,
+        size: number,
+        style: "normal" | "bold" | "italic" = "normal",
+        color: [number, number, number] = [51, 51, 51],
+        indent = 0
+      ) => {
+        pdf.setFontSize(size);
+        pdf.setFont("helvetica", style);
+        pdf.setTextColor(color[0], color[1], color[2]);
+        const lines = pdf.splitTextToSize(sanitizePdfText(text), pageWidth - indent);
+        const lineHeight = size * 0.5;
+        for (const line of lines) {
+          checkSpace(lineHeight);
+          pdf.text(line, marginLeft + indent, y);
+          y += lineHeight;
+        }
+      };
+
+      const title = frontMatter?.title || activePath || "Document";
+      writeText(title, 22, "bold", [17, 17, 17]);
+      y += 4;
+      pdf.setDrawColor(184, 68, 42);
+      pdf.setLineWidth(0.5);
+      pdf.line(marginLeft, y, marginLeft + 80, y);
+      y += 8;
+
+      const body = stripMatchingLeadingHeading(getMarkdownBody(content), title);
+      const blocks = body.split(/\n\n+/).map((block) => block.trim()).filter(Boolean);
+      let inCodeBlock = false;
+      let codeLines: string[] = [];
+
+      const flushCodeBlock = () => {
+        if (codeLines.length === 0) return;
+        const codeText = codeLines.join("\n");
+        const lines = pdf.splitTextToSize(sanitizePdfText(codeText), pageWidth - 8);
+        const codeHeight = lines.length * 4 + 6;
+        checkSpace(codeHeight);
+        pdf.setFillColor(243, 244, 246);
+        pdf.roundedRect(marginLeft, y - 2, pageWidth, codeHeight, 1, 1, "F");
+        pdf.setFontSize(9);
+        pdf.setFont("courier", "normal");
+        pdf.setTextColor(30, 30, 30);
+        for (const line of lines) {
+          pdf.text(line, marginLeft + 4, y + 2);
+          y += 4;
+        }
+        y += 6;
+        codeLines = [];
+      };
+
+      for (const block of blocks) {
+        if (block.startsWith("```")) {
+          const lines = block.split("\n");
+          const closesInBlock = lines.length > 1 && lines[lines.length - 1].trim() === "```";
+          const contentLines = closesInBlock ? lines.slice(1, -1) : lines.slice(1);
+          codeLines.push(...contentLines);
+          if (closesInBlock) flushCodeBlock();
+          else inCodeBlock = true;
+          continue;
+        }
+
+        if (inCodeBlock) {
+          if (block.endsWith("```")) {
+            const lines = block.split("\n");
+            codeLines.push(...lines.slice(0, -1));
+            flushCodeBlock();
+            inCodeBlock = false;
+          } else {
+            codeLines.push(block);
+          }
+          continue;
+        }
+
+        const headerMatch = block.match(/^(#{1,6})\s+(.+)$/);
+        if (headerMatch) {
+          const level = headerMatch[1].length;
+          const sizes = [16, 14, 12, 11, 10, 10];
+          checkSpace(8);
+          writeText(stripInlineMarkdown(headerMatch[2]), sizes[level - 1] || 10, "bold", [17, 17, 17]);
+          y += 2;
+          continue;
+        }
+
+        if (block.includes("|") && block.split("\n").some((line) => line.trim().startsWith("|"))) {
+          for (const row of block.split("\n")) {
+            if (row.match(/^\|[\s-:|]+\|$/)) continue;
+            const cells = row.split("|").map((cell) => cell.trim()).filter(Boolean);
+            if (cells.length > 0) writeText(cells.join("  |  "), 9);
+          }
+          y += 3;
+          continue;
+        }
+
+        if (block.match(/^[-*]\s/m) || block.match(/^\d+\.\s/m) || block.match(/^- \[[ xX]\]/m)) {
+          for (const item of block.split("\n")) {
+            const cleaned = stripInlineMarkdown(item)
+              .replace(/^- \[[xX]\]\s+/, "[x] ")
+              .replace(/^- \[ \]\s+/, "[ ] ")
+              .replace(/^[-*]\s+/, "- ")
+              .replace(/^\d+\.\s+/, "- ");
+            writeText(cleaned, 10, "normal", [51, 51, 51], 3);
+            y += 1;
+          }
+          y += 2;
+          continue;
+        }
+
+        writeText(stripInlineMarkdown(block.replace(/\n/g, " ")), 10);
+        y += 3;
       }
+
+      if (codeLines.length > 0) flushCodeBlock();
 
       const filename = (frontMatter?.title || activePath || "document")
         .replace(/[^a-zA-Z0-9-_ ]/g, "")
         .replace(/\s+/g, "-")
         .toLowerCase();
 
-      const { save } = await import("@tauri-apps/plugin-dialog");
       const pdfBytes = pdf.output("arraybuffer");
 
       const savePath = await save({
@@ -280,11 +319,11 @@ export function MarkdownPreview() {
       });
 
       if (savePath) {
-        const { invoke } = await import("@tauri-apps/api/core");
         const bytes = new Uint8Array(pdfBytes);
         let binary = "";
-        for (let i = 0; i < bytes.length; i++) {
-          binary += String.fromCharCode(bytes[i]);
+        const chunkSize = 32768;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
         }
         const dataBase64 = btoa(binary);
         await invoke("write_binary_file", { path: savePath, dataBase64 });

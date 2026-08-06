@@ -87,6 +87,11 @@ fn find_mcp_binary() -> Option<String> {
 }
 
 #[tauri::command]
+pub fn get_mcp_binary_path() -> Option<String> {
+    find_mcp_binary()
+}
+
+#[tauri::command]
 pub fn start_mcp_server(
     vault_path: String,
     _port: u16,

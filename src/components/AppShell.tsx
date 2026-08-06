@@ -22,6 +22,13 @@ import { Onboarding } from "./Onboarding";
 import { AppChromeBar } from "./AppChromeBar";
 import { FrontMatterBar } from "./editor/FrontMatterBar";
 import { shouldSkipOnboarding } from "@/lib/onboardingPrefs";
+import {
+  DEFAULT_EDITOR_MODE_STORAGE_KEY,
+  DENSITY_STORAGE_KEY,
+  THEME_STORAGE_KEY,
+  isDensity,
+  isEditorMode,
+} from "@/stores/uiStore";
 
 export function AppShell() {
   const isOpen = useVaultStore((s) => s.isOpen);
@@ -36,6 +43,10 @@ export function AppShell() {
   const setPreviewRatio = useUIStore((s) => s.setPreviewRatio);
   const toggleEditor = useUIStore((s) => s.toggleEditor);
   const togglePreview = useUIStore((s) => s.togglePreview);
+  const setEditorMode = useUIStore((s) => s.setEditorMode);
+  const setDefaultEditorMode = useUIStore((s) => s.setDefaultEditorMode);
+  const setTheme = useUIStore((s) => s.setTheme);
+  const setDensity = useUIStore((s) => s.setDensity);
   const setWorkspaceView = useUIStore((s) => s.setWorkspaceView);
   const setShowOnboarding = useUIStore((s) => s.setShowOnboarding);
   const toggleTerminal = useUIStore((s) => s.toggleTerminal);
@@ -48,13 +59,22 @@ export function AppShell() {
 
   // Restore saved theme preference (defaults to warm paper light if none set)
   useEffect(() => {
-    const saved = localStorage.getItem("sv-theme");
-    if (saved) {
-      document.documentElement.setAttribute("data-theme", saved);
-    } else {
-      document.documentElement.removeAttribute("data-theme");
-    }
-  }, []);
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    setTheme(saved === "dark" ? "dark" : "light");
+  }, [setTheme]);
+
+  // Restore saved default document layout.
+  useEffect(() => {
+    const saved = localStorage.getItem(DEFAULT_EDITOR_MODE_STORAGE_KEY);
+    const mode = isEditorMode(saved) ? saved : "split";
+    setDefaultEditorMode(mode);
+    setEditorMode(mode);
+  }, [setDefaultEditorMode, setEditorMode]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(DENSITY_STORAGE_KEY);
+    setDensity(isDensity(saved) ? saved : "comfortable");
+  }, [setDensity]);
 
   useEffect(() => {
     setSidebarCollapsed(localStorage.getItem("sv-sidebar-collapsed") === "true");
