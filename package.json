@@ -10,6 +10,7 @@
     "tauri": "tauri",
     "build:macos-installer": "scripts/build-macos-installer.sh",
     "build:windows-installer": "powershell -ExecutionPolicy Bypass -File scripts/build-windows-installer.ps1",
+    "build:linux-installer": "scripts/build-linux-installer.sh",
     "build:updater-manifest": "node scripts/generate-updater-manifest.mjs"
   },
   "dependencies": {

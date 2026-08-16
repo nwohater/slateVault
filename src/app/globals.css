@@ -183,6 +183,14 @@ input, textarea, select {
   color: var(--text);
 }
 
+/* On Linux, Chromium hands off <select> popups to the native GTK widget,
+   which renders its own (often white) background but still inherits the
+   page's `color`, producing invisible text. Force both explicitly. */
+select option {
+  background-color: var(--bg-elevated);
+  color: var(--text);
+}
+
 input:focus,
 textarea:focus,
 select:focus {
