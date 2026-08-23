@@ -1,0 +1,11 @@
+# WEBKIT_DISABLE_DMABUF_RENDERER works around a WebKitGTK crash
+# (Wayland "Error 71 (Protocol error)") on NVIDIA + native Wayland.
+[Desktop Entry]
+Type=Application
+Name=slateVault
+Comment=Local-first AI-native markdown vault
+Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 slatevault
+Icon=slatevault
+Terminal=false
+Categories=Office;TextEditor;
+StartupWMClass=slateVault

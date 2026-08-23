@@ -1,0 +1,9 @@
+# Rust's default linker on this target (rust-lld) has an archive-ordering bug
+# that fails to resolve symbols from rusqlite's bundled (C-compiled) SQLite
+# archive in release builds specifically ("undefined symbol: sqlite3_*").
+# ld.bfd fixes that but is too strict about OpenSSL's transitive shared-lib
+# dependency ("DSO missing from command line"); ld.gold works but rustc flags
+# it as deprecated/buggy. mold builds both binaries cleanly. Requires the
+# `mold` package. Scoped to Linux only; macOS/Windows builds are unaffected.
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]

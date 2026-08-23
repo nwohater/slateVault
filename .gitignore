@@ -35,3 +35,9 @@ index.db
 dist/
 release-assets/
 src-tauri/binaries/
+
+# arch packaging build output (makepkg working dirs + built packages)
+packaging/arch/pkg/
+packaging/arch/src/
+packaging/arch/*.pkg.tar.zst
+packaging/arch/*.pkg.tar.zst.sig

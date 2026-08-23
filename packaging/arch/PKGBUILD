@@ -1,0 +1,60 @@
+# Maintainer: nwohater
+#
+# Builds slateVault (the Tauri app) and its slatevault-mcp sidecar together
+# and installs both to /usr/bin, mirroring what scripts/build-linux-installer.sh
+# does for the Ubuntu .deb. Unlike that script, we don't need dpkg-deb or an
+# actual deb/rpm/appimage bundle: src-tauri/src/mcp_manager.rs already falls
+# back to looking up `slatevault-mcp` on PATH, so installing both binaries
+# straight to /usr/bin plus a desktop entry is a complete, working install.
+#
+# The app itself still MUST go through `tauri build` (not a raw `cargo build
+# --release`): tauri-build's build.rs compiles in Cargo's build-script
+# profile, which is always "dev", regardless of the outer crate's profile --
+# so a plain `cargo build --release` still embeds `cfg(dev)` and the app
+# tries to load the Vite/Next dev server (http://localhost:3000) at runtime
+# instead of the bundled static files. Only the `tauri` CLI sets the env vars
+# that make build.rs pick production mode correctly. --no-bundle skips the
+# unneeded deb/rpm/appimage packaging step.
+#
+# Build with (from repo root): scripts/build-arch-installer.sh
+# or directly:                 cd packaging/arch && makepkg -f
+
+pkgname=slatevault
+pkgver=0.2.5
+pkgrel=1
+pkgdesc="Local-first AI-native markdown vault"
+arch=('x86_64')
+url="https://github.com/nwohater/slateVault"
+license=('MIT')
+depends=('webkit2gtk-4.1' 'gtk3' 'libappindicator' 'librsvg' 'openssl')
+makedepends=('mold')
+# cargo/rustc and npm are required but deliberately not listed here: on a
+# rustup-managed system (this machine included), pacman's `rust` package
+# would file-conflict with rustup's own /usr/bin/cargo, /usr/bin/rustc shims.
+# Make sure both are on PATH before building.
+
+_projectroot="$startdir/../.."
+
+pkgver() {
+  grep -m1 '^version' "$_projectroot/src-tauri/Cargo.toml" | sed -E 's/version = "(.*)"/\1/'
+}
+
+build() {
+  cd "$_projectroot"
+  # makepkg sets its own RUSTFLAGS (debuginfo, remap-path-prefix, etc.), which
+  # takes total precedence over .cargo/config.toml's target.rustflags -- so
+  # the linker fix there gets silently shadowed under makepkg specifically.
+  # Extend makepkg's RUSTFLAGS in place instead of relying on the config file.
+  export RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-fuse-ld=mold"
+  npm ci
+  cargo build --manifest-path src-tauri/Cargo.toml --release -p slatevault-mcp
+  npx tauri build --no-bundle
+}
+
+package() {
+  cd "$_projectroot"
+  install -Dm755 src-tauri/target/release/slatevault-app "$pkgdir/usr/bin/slatevault"
+  install -Dm755 src-tauri/target/release/slatevault-mcp "$pkgdir/usr/bin/slatevault-mcp"
+  install -Dm644 packaging/arch/slatevault.desktop "$pkgdir/usr/share/applications/slatevault.desktop"
+  install -Dm644 src-tauri/icons/icon.png "$pkgdir/usr/share/icons/hicolor/512x512/apps/slatevault.png"
+}
