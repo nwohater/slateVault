@@ -299,7 +299,11 @@ fn https_credential_input(remote_url: &str) -> Option<String> {
         return None;
     }
 
-    let protocol = if url.starts_with("http://") { "http" } else { "https" };
+    let protocol = if url.starts_with("http://") {
+        "http"
+    } else {
+        "https"
+    };
     let mut input = format!("protocol={}\nhost={}\n", protocol, host);
     if !path.is_empty() {
         input.push_str(&format!("path={}\n", path));
@@ -405,8 +409,8 @@ fn run_git_checked_noninteractive(
     configure_git_auth_probe(&mut command);
     command.args(args);
 
-    let output = command_output_with_timeout(command, timeout)
-        .map_err(|e| format!("{}: {}", label, e))?;
+    let output =
+        command_output_with_timeout(command, timeout).map_err(|e| format!("{}: {}", label, e))?;
     let stderr = String::from_utf8_lossy(&output.stderr);
     if output.status.success() {
         Ok(git_output_text(&output))
@@ -457,7 +461,13 @@ fn vault_has_untracked_changes(vault: &Vault) -> CmdResult<bool> {
     let root = vault.root.to_string_lossy();
     let status = run_git_stdout(
         vault,
-        &["-C", &root, "status", "--porcelain", "--untracked-files=all"],
+        &[
+            "-C",
+            &root,
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+        ],
         "Status failed",
     )?;
     Ok(status.lines().any(|line| line.starts_with("?? ")))
@@ -869,10 +879,17 @@ pub fn git_stage(path: String, state: State<'_, VaultState>) -> CmdResult<String
 
 #[tauri::command]
 pub fn git_stage_all(state: State<'_, VaultState>) -> CmdResult<String> {
-    let lock = state.0.lock().map_err(|e| e.to_string())?;
-    let vault = lock.as_ref().ok_or("No vault is open")?;
-    let root = vault.root.to_string_lossy();
-    run_git_checked(vault, &["-C", &root, "add", "-A"], "Stage all failed")
+    with_vault(&state, |vault| {
+        let files = vault.status()?;
+        for file in &files {
+            vault.stage_path(&file.path)?;
+        }
+        Ok(format!(
+            "Staged {} file{}",
+            files.len(),
+            if files.len() == 1 { "" } else { "s" }
+        ))
+    })
 }
 
 #[tauri::command]
@@ -883,11 +900,16 @@ pub fn git_stage_paths(paths: Vec<String>, state: State<'_, VaultState>) -> CmdR
 
     // Unstage everything first so only the selected paths end up in the commit.
     // This may fail on an initial commit (no HEAD yet) — that's fine, nothing is staged.
-    let _ = run_git_checked(vault, &["-C", &root, "reset", "HEAD", "--", "."], "Unstage failed");
+    let _ = run_git_checked(
+        vault,
+        &["-C", &root, "reset", "HEAD", "--", "."],
+        "Unstage failed",
+    );
 
-    // Stage only the caller-selected paths.
+    // Stage only the caller-selected paths. Use the core staging path so files
+    // detected by libgit2 do not get skipped by Git CLI stat-cache shortcuts.
     for path in &paths {
-        run_git_checked(vault, &["-C", &root, "add", "--", path], "Stage failed")?;
+        vault.stage_path(path).map_err(|e| e.to_string())?;
     }
 
     Ok(format!(
@@ -1045,15 +1067,10 @@ pub fn git_auth_status(state: State<'_, VaultState>) -> CmdResult<GitAuthStatus>
     let gcm_version = git_output_success(&["credential-manager", "--version"])
         .or_else(|| git_output_success(&["credential-manager-core", "--version"]));
     let gcm_installed = gcm_version.is_some();
-    let credential_helper = git_output_success(&[
-        "-C",
-        &root,
-        "config",
-        "--get",
-        "credential.helper",
-    ])
-    .or_else(|| git_output_success(&["config", "--global", "--get", "credential.helper"]))
-    .filter(|value| !value.trim().is_empty());
+    let credential_helper =
+        git_output_success(&["-C", &root, "config", "--get", "credential.helper"])
+            .or_else(|| git_output_success(&["config", "--global", "--get", "credential.helper"]))
+            .filter(|value| !value.trim().is_empty());
     let remote_url = remote_url_from_git(vault);
     let remote_kind = classify_remote_kind(remote_url.as_deref()).to_string();
     let provider = classify_git_provider(remote_url.as_deref()).to_string();
@@ -1142,7 +1159,11 @@ pub fn git_auth_status(state: State<'_, VaultState>) -> CmdResult<GitAuthStatus>
         provider,
         auth_state: auth_state.to_string(),
         message: message.to_string(),
-        raw_error: if stderr.is_empty() { None } else { Some(stderr) },
+        raw_error: if stderr.is_empty() {
+            None
+        } else {
+            Some(stderr)
+        },
     })
 }
 
@@ -1182,7 +1203,8 @@ pub fn git_connect_provider(state: State<'_, VaultState>) -> CmdResult<String> {
 pub fn git_reconnect_provider(state: State<'_, VaultState>) -> CmdResult<String> {
     let lock = state.0.lock().map_err(|e| e.to_string())?;
     let vault = lock.as_ref().ok_or("No vault is open")?;
-    let remote_url = remote_url_from_git(vault).ok_or("No git remote is configured for this vault")?;
+    let remote_url =
+        remote_url_from_git(vault).ok_or("No git remote is configured for this vault")?;
 
     if classify_remote_kind(Some(&remote_url)) != "https" {
         return Err("Reconnect is only available for HTTPS remotes.".to_string());
@@ -1225,8 +1247,15 @@ pub fn git_connect_provider_for_url(url: String) -> CmdResult<String> {
             .or_else(|| git_output_success(&["credential-manager-core", "--version"]))
             .is_some();
         let (state, message) = classify_auth_failure(&stderr, remote_kind, gcm_installed);
-        if matches!(state, "needs-login" | "missing-gcm" | "repo-not-found" | "network-error") {
-            Err(format!("Provider login failed: {}\n\nGit said: {}", message, stderr.trim()))
+        if matches!(
+            state,
+            "needs-login" | "missing-gcm" | "repo-not-found" | "network-error"
+        ) {
+            Err(format!(
+                "Provider login failed: {}\n\nGit said: {}",
+                message,
+                stderr.trim()
+            ))
         } else {
             Err(format!("Provider login failed: {}", stderr.trim()))
         }
@@ -1265,7 +1294,9 @@ pub fn git_convert_remote_to_https(state: State<'_, VaultState>) -> CmdResult<St
             .to_string()
     })?;
 
-    vault.set_git_remote(&https_url).map_err(|e| e.to_string())?;
+    vault
+        .set_git_remote(&https_url)
+        .map_err(|e| e.to_string())?;
     vault.config.sync.remote_url = Some(https_url.clone());
     vault.local_config.sync.remote_url = Some(https_url.clone());
     vault.save_config().map_err(|e| e.to_string())?;
@@ -3481,7 +3512,8 @@ pub fn generate_project_brief(
                 if !is_about_doc(&doc.path) {
                     brief.push_str(&format!(
                         "### {}\n\n{}\n\n",
-                        doc.front_matter.title, doc.content.trim()
+                        doc.front_matter.title,
+                        doc.content.trim()
                     ));
                 }
             }

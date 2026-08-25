@@ -111,14 +111,18 @@ pub struct SearchDocumentsParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[schemars(description = "Read a vault-wide wiki document, such as AI agent rules or coding standards")]
+#[schemars(
+    description = "Read a vault-wide wiki document, such as AI agent rules or coding standards"
+)]
 pub struct ReadWikiDocParams {
     #[schemars(description = "Path relative to the vault wiki/ folder")]
     pub path: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[schemars(description = "Search vault-wide wiki documents for coding standards, AI rules, and shared guidance")]
+#[schemars(
+    description = "Search vault-wide wiki documents for coding standards, AI rules, and shared guidance"
+)]
 pub struct SearchWikiParams {
     #[schemars(description = "Search query")]
     pub query: String,

@@ -48,7 +48,11 @@ fn sanitize_wiki_path(path: &str) -> Result<PathBuf, McpError> {
     Ok(cleaned)
 }
 
-fn collect_wiki_markdown(base: &Path, dir: &Path, out: &mut Vec<(String, String)>) -> Result<(), McpError> {
+fn collect_wiki_markdown(
+    base: &Path,
+    dir: &Path,
+    out: &mut Vec<(String, String)>,
+) -> Result<(), McpError> {
     if !dir.exists() {
         return Ok(());
     }
@@ -56,8 +60,9 @@ fn collect_wiki_markdown(base: &Path, dir: &Path, out: &mut Vec<(String, String)
     for entry in std::fs::read_dir(dir)
         .map_err(|e| McpError::internal_error(format!("Failed to read wiki: {}", e), None))?
     {
-        let entry = entry
-            .map_err(|e| McpError::internal_error(format!("Failed to read wiki entry: {}", e), None))?;
+        let entry = entry.map_err(|e| {
+            McpError::internal_error(format!("Failed to read wiki entry: {}", e), None)
+        })?;
         let path = entry.path();
         if path.is_dir() {
             collect_wiki_markdown(base, &path, out)?;
@@ -71,8 +76,9 @@ fn collect_wiki_markdown(base: &Path, dir: &Path, out: &mut Vec<(String, String)
             .unwrap_or(&path)
             .to_string_lossy()
             .replace('\\', "/");
-        let content = std::fs::read_to_string(&path)
-            .map_err(|e| McpError::internal_error(format!("Failed to read {}: {}", rel, e), None))?;
+        let content = std::fs::read_to_string(&path).map_err(|e| {
+            McpError::internal_error(format!("Failed to read {}: {}", rel, e), None)
+        })?;
         out.push((rel, content));
     }
 
@@ -374,7 +380,9 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
-    #[tool(description = "List vault-wide wiki documents for coding standards, AI rules, and shared guidance")]
+    #[tool(
+        description = "List vault-wide wiki documents for coding standards, AI rules, and shared guidance"
+    )]
     fn list_wiki_docs(&self) -> Result<CallToolResult, McpError> {
         let vault = self.open_vault()?;
         let wiki_dir = vault.root.join("wiki");
@@ -401,7 +409,9 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(output)]))
     }
 
-    #[tool(description = "Read a vault-wide wiki document, such as AI agent rules or coding standards")]
+    #[tool(
+        description = "Read a vault-wide wiki document, such as AI agent rules or coding standards"
+    )]
     fn read_wiki_doc(
         &self,
         Parameters(params): Parameters<ReadWikiDocParams>,
@@ -411,10 +421,7 @@ impl SlateVaultMcpServer {
         let rel = sanitize_wiki_path(&params.path)?;
         let full = wiki_dir.join(&rel);
         let content = std::fs::read_to_string(&full).map_err(|e| {
-            McpError::internal_error(
-                format!("Failed to read wiki/{}: {}", params.path, e),
-                None,
-            )
+            McpError::internal_error(format!("Failed to read wiki/{}: {}", params.path, e), None)
         })?;
 
         Ok(CallToolResult::success(vec![Content::text(format!(
@@ -438,7 +445,9 @@ impl SlateVaultMcpServer {
         Ok(CallToolResult::success(vec![Content::text(content)]))
     }
 
-    #[tool(description = "Search vault-wide wiki documents for coding standards, AI rules, and shared guidance")]
+    #[tool(
+        description = "Search vault-wide wiki documents for coding standards, AI rules, and shared guidance"
+    )]
     fn search_wiki(
         &self,
         Parameters(params): Parameters<SearchWikiParams>,
@@ -627,14 +636,28 @@ impl SlateVaultMcpServer {
             .copied()
             .filter(|d| d.front_matter.canonical)
             .collect();
-        let protected_count = substantive_docs.iter().filter(|d| d.front_matter.protected).count();
-        let ai_count = substantive_docs.iter().filter(|d| format!("{:?}", d.front_matter.author).to_lowercase() == "ai").count();
-        let draft_count = substantive_docs.iter().filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "draft").count();
+        let protected_count = substantive_docs
+            .iter()
+            .filter(|d| d.front_matter.protected)
+            .count();
+        let ai_count = substantive_docs
+            .iter()
+            .filter(|d| format!("{:?}", d.front_matter.author).to_lowercase() == "ai")
+            .count();
+        let draft_count = substantive_docs
+            .iter()
+            .filter(|d| format!("{:?}", d.front_matter.status).to_lowercase() == "draft")
+            .count();
 
         // Folder counts
-        let mut folder_counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+        let mut folder_counts: std::collections::BTreeMap<String, usize> =
+            std::collections::BTreeMap::new();
         for doc in &substantive_docs {
-            let folder = if doc.path.contains('/') { doc.path.split('/').next().unwrap_or("root") } else { "(root)" };
+            let folder = if doc.path.contains('/') {
+                doc.path.split('/').next().unwrap_or("root")
+            } else {
+                "(root)"
+            };
             *folder_counts.entry(folder.to_string()).or_default() += 1;
         }
 
@@ -649,7 +672,11 @@ impl SlateVaultMcpServer {
         output.push_str("_This brief serves as an initialization context for AI agents entering this project. Read key documents first, respect constraints, and follow suggested actions._\n\n");
         output.push_str(&format!(
             "- **Documents:** {} ({} canonical, {} protected, {} AI-authored, {} drafts)\n",
-            substantive_docs.len(), canonical.len(), protected_count, ai_count, draft_count
+            substantive_docs.len(),
+            canonical.len(),
+            protected_count,
+            ai_count,
+            draft_count
         ));
         if !folder_counts.is_empty() {
             output.push_str("\n**Structure:**\n");
@@ -670,7 +697,10 @@ impl SlateVaultMcpServer {
             output.push_str("_These are canonical — they define the source of truth._\n\n");
             for doc in &canonical {
                 if !is_about_doc(&doc.path) {
-                    output.push_str(&format!("### {}\n\n{}\n\n", doc.front_matter.title, doc.content));
+                    output.push_str(&format!(
+                        "### {}\n\n{}\n\n",
+                        doc.front_matter.title, doc.content
+                    ));
                 }
             }
         }

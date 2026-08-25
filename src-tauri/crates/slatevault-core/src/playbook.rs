@@ -183,9 +183,8 @@ Write an audit report that covers:
 
     pub fn save(&self, vault_root: &Path) -> Result<()> {
         let path = vault_root.join("playbooks.json");
-        let content = serde_json::to_string_pretty(self).map_err(|e| {
-            crate::CoreError::Io(std::io::Error::new(std::io::ErrorKind::Other, e))
-        })?;
+        let content = serde_json::to_string_pretty(self)
+            .map_err(|e| crate::CoreError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
         std::fs::write(&path, content)?;
         Ok(())
     }
@@ -340,7 +339,9 @@ fn build_reverse_engineer_section(folders: &[String], canonical_count: usize) ->
         );
     }
     if has_folder(folders, "guides") {
-        lines.push("- Improve `guides/` if setup or workflow docs are missing or stale.".to_string());
+        lines.push(
+            "- Improve `guides/` if setup or workflow docs are missing or stale.".to_string(),
+        );
     } else {
         lines.push(
             "- Only create `guides/` if the project clearly needs setup or workflow documentation that does not already exist elsewhere."
@@ -367,13 +368,19 @@ fn build_reverse_engineer_section(folders: &[String], canonical_count: usize) ->
 fn build_resume_section(folders: &[String]) -> String {
     let mut lines = vec![];
     if has_folder(folders, "changelog") {
-        lines.push("- Check `changelog/` first for the quickest session-level history.".to_string());
+        lines
+            .push("- Check `changelog/` first for the quickest session-level history.".to_string());
     }
     if has_folder(folders, "todo") {
-        lines.push("- Review `todo/` for incomplete work, planned tasks, or blocked items.".to_string());
+        lines.push(
+            "- Review `todo/` for incomplete work, planned tasks, or blocked items.".to_string(),
+        );
     }
     if has_folder(folders, "ideas") {
-        lines.push("- Distinguish unfinished implementation from future ideas captured in `ideas/`.".to_string());
+        lines.push(
+            "- Distinguish unfinished implementation from future ideas captured in `ideas/`."
+                .to_string(),
+        );
     }
     if has_folder(folders, "context") || has_folder(folders, "prd") {
         lines.push(
@@ -400,7 +407,8 @@ fn build_code_review_section(folders: &[String]) -> String {
     } else {
         lines.push("- If the review surfaces a meaningful architectural decision, create `decisions/` intentionally only after checking for related docs.".to_string());
     }
-    if has_folder(folders, "specs") || has_folder(folders, "prd") || has_folder(folders, "context") {
+    if has_folder(folders, "specs") || has_folder(folders, "prd") || has_folder(folders, "context")
+    {
         lines.push("- If code changes alter expected behavior, update the most relevant existing spec, PRD, or context doc instead of creating duplicates.".to_string());
     }
     if lines.is_empty() {
@@ -417,7 +425,10 @@ fn build_release_notes_section(folders: &[String]) -> String {
         lines.push("- If no changelog structure exists, create release notes intentionally in a consistent location.".to_string());
     }
     if has_folder(folders, "bugs") {
-        lines.push("- Cross-check `bugs/` so known issues and fixes are represented accurately.".to_string());
+        lines.push(
+            "- Cross-check `bugs/` so known issues and fixes are represented accurately."
+                .to_string(),
+        );
     }
     if has_folder(folders, "prd") || has_folder(folders, "ideas") {
         lines.push("- Distinguish shipped work from planned work by checking `prd/` and `ideas/` before listing features.".to_string());
@@ -429,7 +440,9 @@ fn build_release_notes_section(folders: &[String]) -> String {
 fn build_onboarding_section(folders: &[String], canonical_count: usize) -> String {
     let mut lines = vec![];
     if has_folder(folders, "guides") {
-        lines.push("- Improve or extend `guides/` if onboarding material already exists.".to_string());
+        lines.push(
+            "- Improve or extend `guides/` if onboarding material already exists.".to_string(),
+        );
     } else {
         lines.push("- If no `guides/` folder exists, create onboarding structure intentionally only after checking `context/`, `prd/`, and existing prompts/docs.".to_string());
     }
@@ -437,7 +450,10 @@ fn build_onboarding_section(folders: &[String], canonical_count: usize) -> Strin
         lines.push("- Use `context/` as the main source for architecture, services, and implementation details.".to_string());
     }
     if has_folder(folders, "prd") {
-        lines.push("- Use `prd/` to explain product purpose, scope, and current shipped behavior.".to_string());
+        lines.push(
+            "- Use `prd/` to explain product purpose, scope, and current shipped behavior."
+                .to_string(),
+        );
     }
     if canonical_count > 0 {
         lines.push("- Treat canonical docs as the source of truth and link out to them instead of rephrasing them loosely.".to_string());
@@ -451,21 +467,34 @@ fn build_onboarding_section(folders: &[String], canonical_count: usize) -> Strin
 fn build_audit_section(folders: &[String], canonical_count: usize) -> String {
     let mut lines = vec![];
     if has_folder(folders, "context") {
-        lines.push("- Check whether `context/` still matches the current code structure and integrations.".to_string());
+        lines.push(
+            "- Check whether `context/` still matches the current code structure and integrations."
+                .to_string(),
+        );
     }
     if has_folder(folders, "prd") {
-        lines.push("- Check whether `prd/` still reflects what is actually built and shipped.".to_string());
+        lines.push(
+            "- Check whether `prd/` still reflects what is actually built and shipped.".to_string(),
+        );
     }
     if has_folder(folders, "ideas") {
         lines.push("- Watch for idea docs being mistaken for current functionality.".to_string());
     }
     if canonical_count > 0 {
-        lines.push("- Pay special attention to whether canonical docs are still accurate and complete.".to_string());
+        lines.push(
+            "- Pay special attention to whether canonical docs are still accurate and complete."
+                .to_string(),
+        );
     } else {
-        lines.push("- Identify which existing docs are strongest candidates for canonical status.".to_string());
+        lines.push(
+            "- Identify which existing docs are strongest candidates for canonical status."
+                .to_string(),
+        );
     }
     if has_folder(folders, "notes") {
-        lines.push("- Write the audit report to `notes/` if that folder already exists.".to_string());
+        lines.push(
+            "- Write the audit report to `notes/` if that folder already exists.".to_string(),
+        );
     } else {
         lines.push("- If `notes/` does not exist, choose the most sensible existing location or create `notes/` intentionally for the audit report.".to_string());
     }
@@ -488,7 +517,10 @@ fn render_playbook_specific_section(
         )],
         "resume-session" => vec![("{{resume_section}}", build_resume_section(folders))],
         "code-review-docs" => {
-            vec![("{{code_review_section}}", build_code_review_section(folders))]
+            vec![(
+                "{{code_review_section}}",
+                build_code_review_section(folders),
+            )]
         }
         "sprint-release-notes" => vec![(
             "{{release_notes_section}}",
@@ -499,7 +531,10 @@ fn render_playbook_specific_section(
             build_onboarding_section(folders, canonical_count),
         )],
         "architecture-audit" => {
-            vec![("{{audit_section}}", build_audit_section(folders, canonical_count))]
+            vec![(
+                "{{audit_section}}",
+                build_audit_section(folders, canonical_count),
+            )]
         }
         _ => Vec::new(),
     }
@@ -529,11 +564,9 @@ pub fn render_prompt(
     prompt = prompt.replace("{{doc_count}}", &doc_count.to_string());
     prompt = prompt.replace("{{canonical_count}}", &canonical_count.to_string());
 
-    for (placeholder, rendered) in render_playbook_specific_section(
-        &playbook.id,
-        folders,
-        canonical_count,
-    ) {
+    for (placeholder, rendered) in
+        render_playbook_specific_section(&playbook.id, folders, canonical_count)
+    {
         prompt = prompt.replace(placeholder, &rendered);
     }
 

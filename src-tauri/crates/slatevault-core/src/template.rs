@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::document::DocStatus;
 use crate::error::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -10,6 +11,75 @@ pub struct ProjectTemplate {
     pub folders: Vec<String>,
     #[serde(default)]
     pub files: HashMap<String, String>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub file_metadata: HashMap<String, TemplateFileMetadata>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apply_template_uses_file_metadata_for_frontmatter() {
+        let docs_dir =
+            std::env::temp_dir().join(format!("slatevault-template-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&docs_dir).expect("create temp docs dir");
+
+        let mut files = HashMap::new();
+        files.insert(
+            "overview/agent-project-guide.md".to_string(),
+            "Guide body".to_string(),
+        );
+
+        let mut file_metadata = HashMap::new();
+        file_metadata.insert(
+            "overview/agent-project-guide.md".to_string(),
+            TemplateFileMetadata {
+                canonical: true,
+                protected: true,
+                tags: vec!["project-management".to_string(), "canonical".to_string()],
+                status: Some(DocStatus::Final),
+            },
+        );
+
+        let template = ProjectTemplate {
+            label: "Project Management".to_string(),
+            folders: vec!["overview".to_string()],
+            files,
+            file_metadata,
+        };
+
+        let created = apply_template(&docs_dir, "Project Mgmt", &template).expect("apply template");
+        assert_eq!(created, vec!["overview/agent-project-guide.md".to_string()]);
+
+        let raw = std::fs::read_to_string(docs_dir.join("overview/agent-project-guide.md"))
+            .expect("read generated doc");
+        let doc = crate::document::Document::parse(&raw, "overview/agent-project-guide.md")
+            .expect("parse generated doc");
+
+        assert!(doc.front_matter.canonical);
+        assert!(doc.front_matter.protected);
+        assert_eq!(doc.front_matter.project, "Project Mgmt");
+        assert_eq!(doc.front_matter.status, DocStatus::Final);
+        assert_eq!(
+            doc.front_matter.tags,
+            vec!["project-management".to_string(), "canonical".to_string()]
+        );
+
+        std::fs::remove_dir_all(&docs_dir).ok();
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TemplateFileMetadata {
+    #[serde(default)]
+    pub canonical: bool,
+    #[serde(default)]
+    pub protected: bool,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub status: Option<DocStatus>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,6 +134,7 @@ impl TemplateConfig {
                     "notes".to_string(),
                 ],
                 files: software_files,
+                file_metadata: HashMap::new(),
             },
         );
 
@@ -111,6 +182,7 @@ impl TemplateConfig {
                     "definitions".to_string(),
                 ],
                 files: agile_files,
+                file_metadata: HashMap::new(),
             },
         );
 
@@ -158,6 +230,7 @@ impl TemplateConfig {
                     "ideas".to_string(),
                 ],
                 files: vibe_files,
+                file_metadata: HashMap::new(),
             },
         );
 
@@ -176,7 +249,8 @@ impl TemplateConfig {
         );
         research_files.insert(
             "experiments/_about.md".to_string(),
-            "Experiments — spikes, prototypes, test results, benchmarks, and reproduction notes.".to_string(),
+            "Experiments — spikes, prototypes, test results, benchmarks, and reproduction notes."
+                .to_string(),
         );
         research_files.insert(
             "decisions/_about.md".to_string(),
@@ -200,6 +274,114 @@ impl TemplateConfig {
                     "notes".to_string(),
                 ],
                 files: research_files,
+                file_metadata: HashMap::new(),
+            },
+        );
+
+        let mut project_management_files = HashMap::new();
+        project_management_files.insert(
+            "overview/_about.md".to_string(),
+            "Project overview — summary, stakeholders, goals, success metrics, and current ownership.".to_string(),
+        );
+        project_management_files.insert(
+            "overview/project-summary.md".to_string(),
+            "# Project Summary\n\n## Purpose\n\nDescribe what this project is, why it exists, and what outcome it should create.\n\n## Current State\n\n- \n\n## Success Metrics\n\n- \n\n## Owners\n\n- \n".to_string(),
+        );
+        project_management_files.insert(
+            "overview/agent-project-guide.md".to_string(),
+            "# Agent Project Guide\n\nUse this project as project-management memory. Read this guide before creating, updating, or reorganizing project-management docs.\n\n## Folder Map\n\n- `overview/` holds the project summary, stakeholders, goals, success metrics, and current ownership.\n- `planning/` holds milestones, timelines, scope, roadmap, and sequencing.\n- `requirements/` holds user needs, business rules, acceptance criteria, constraints, and must-haves.\n- `meetings/raw-notes/` holds messy transcripts, copied chat notes, and unprocessed notes when preserving the original input is useful.\n- `meetings/notes/` holds cleaned, dated meeting notes.\n- `meetings/action-items.md` holds the rolling action list.\n- `meetings/decisions-from-meetings.md` holds decisions captured during meetings before durable items are promoted.\n- `meetings/follow-ups.md` holds people-specific and date-specific follow-ups.\n- `decisions/decision-log.md` holds durable decisions that affect direction, scope, ownership, timeline, or risk.\n- `risks/risk-register.md` holds blockers, dependencies, assumptions, escalations, and mitigation plans.\n- `delivery/` holds status reports, launch plans, handoffs, retrospectives, and outcome tracking.\n- `resources/` holds links, assets, screenshots, source material, and external references.\n\n## Agent Workflow\n\nWhen the user provides meeting notes or project updates:\n\n1. Preserve raw notes in `meetings/raw-notes/` when useful.\n2. Create or update a dated clean note in `meetings/notes/`.\n3. Extract open actions into `meetings/action-items.md`.\n4. Add meeting decisions to `meetings/decisions-from-meetings.md`.\n5. Promote durable decisions into `decisions/decision-log.md`.\n6. Update `risks/risk-register.md` when blockers, dependencies, or assumptions change.\n7. Update `planning/milestones.md` when dates, sequencing, or delivery state changes.\n8. Update `overview/project-summary.md` only when purpose, scope, owners, success metrics, or current state materially changes.\n\nPrefer appending dated updates over rewriting history. Keep raw notes separate from synthesized project memory. Do not overwrite canonical docs casually; propose or summarize significant changes for human review when possible.\n".to_string(),
+        );
+        project_management_files.insert(
+            "planning/_about.md".to_string(),
+            "Planning — roadmap, milestones, timeline, scope, sequencing, and delivery assumptions.".to_string(),
+        );
+        project_management_files.insert(
+            "planning/milestones.md".to_string(),
+            "# Milestones\n\n## Current Milestone\n\n- \n\n## Upcoming\n\n- \n\n## Completed\n\n- \n".to_string(),
+        );
+        project_management_files.insert(
+            "requirements/_about.md".to_string(),
+            "Requirements — user needs, business rules, acceptance criteria, constraints, and must-haves.".to_string(),
+        );
+        project_management_files.insert(
+            "meetings/_about.md".to_string(),
+            "Meetings — raw notes, cleaned meeting notes, extracted action items, decisions, and follow-ups.\n\n## Agent Note Workflow\n\nWhen the user provides meeting notes through an AI agent:\n\n1. Preserve raw notes in `meetings/raw-notes/` when useful.\n2. Create or update a dated clean note in `meetings/notes/`.\n3. Extract open actions into `meetings/action-items.md`.\n4. Add meeting decisions to `meetings/decisions-from-meetings.md`.\n5. Add people/date follow-ups to `meetings/follow-ups.md`.\n6. Promote durable decisions into `decisions/decision-log.md` when they affect project direction, scope, ownership, timeline, or risk.".to_string(),
+        );
+        project_management_files.insert(
+            "meetings/action-items.md".to_string(),
+            "# Action Items\n\n## Open\n\n- [ ] \n\n## Waiting On\n\n- [ ] \n\n## Completed\n\n- [x] \n".to_string(),
+        );
+        project_management_files.insert(
+            "meetings/decisions-from-meetings.md".to_string(),
+            "# Decisions From Meetings\n\nCapture decisions made during meetings before promoting durable items into the main decision log.\n\n## Decisions\n\n- \n".to_string(),
+        );
+        project_management_files.insert(
+            "meetings/follow-ups.md".to_string(),
+            "# Follow-Ups\n\n## By Person\n\n- \n\n## By Date\n\n- \n".to_string(),
+        );
+        project_management_files.insert(
+            "decisions/_about.md".to_string(),
+            "Decisions — decision log, open questions, tradeoffs, approvals, and rationale."
+                .to_string(),
+        );
+        project_management_files.insert(
+            "decisions/decision-log.md".to_string(),
+            "# Decision Log\n\n| Date | Decision | Owner | Rationale | Follow-Up |\n| --- | --- | --- | --- | --- |\n|  |  |  |  |  |\n".to_string(),
+        );
+        project_management_files.insert(
+            "risks/_about.md".to_string(),
+            "Risks — blockers, dependencies, assumptions, escalations, and mitigation plans."
+                .to_string(),
+        );
+        project_management_files.insert(
+            "risks/risk-register.md".to_string(),
+            "# Risk Register\n\n| Risk | Impact | Likelihood | Owner | Mitigation | Status |\n| --- | --- | --- | --- | --- | --- |\n|  |  |  |  |  |  |\n".to_string(),
+        );
+        project_management_files.insert(
+            "delivery/_about.md".to_string(),
+            "Delivery — status reports, launch plans, handoff notes, retrospectives, and outcome tracking.".to_string(),
+        );
+        project_management_files.insert(
+            "resources/_about.md".to_string(),
+            "Resources — links, assets, reference material, vendor docs, screenshots, and supporting files.".to_string(),
+        );
+        let mut project_management_file_metadata = HashMap::new();
+        for path in [
+            "overview/project-summary.md",
+            "overview/agent-project-guide.md",
+            "planning/milestones.md",
+            "meetings/action-items.md",
+            "decisions/decision-log.md",
+            "risks/risk-register.md",
+        ] {
+            project_management_file_metadata.insert(
+                path.to_string(),
+                TemplateFileMetadata {
+                    canonical: true,
+                    tags: vec!["project-management".to_string(), "canonical".to_string()],
+                    ..Default::default()
+                },
+            );
+        }
+
+        templates.insert(
+            "project-management".to_string(),
+            ProjectTemplate {
+                label: "Project Management".to_string(),
+                folders: vec![
+                    "overview".to_string(),
+                    "planning".to_string(),
+                    "requirements".to_string(),
+                    "meetings".to_string(),
+                    "meetings/raw-notes".to_string(),
+                    "meetings/notes".to_string(),
+                    "decisions".to_string(),
+                    "risks".to_string(),
+                    "delivery".to_string(),
+                    "resources".to_string(),
+                ],
+                files: project_management_files,
+                file_metadata: project_management_file_metadata,
             },
         );
 
@@ -209,6 +391,7 @@ impl TemplateConfig {
                 label: "Blank".to_string(),
                 folders: vec![],
                 files: HashMap::new(),
+                file_metadata: HashMap::new(),
             },
         );
 
@@ -275,7 +458,11 @@ pub struct TemplateInfo {
 /// File values in the template are treated as the markdown body content.
 /// Proper YAML frontmatter is always generated automatically.
 /// Returns the list of created file paths (for use as ai_context_files).
-pub fn apply_template(docs_dir: &Path, template: &ProjectTemplate) -> Result<Vec<String>> {
+pub fn apply_template(
+    docs_dir: &Path,
+    project_name: &str,
+    template: &ProjectTemplate,
+) -> Result<Vec<String>> {
     let mut created_files = Vec::new();
     // Create folders
     for folder in &template.folders {
@@ -312,11 +499,23 @@ pub fn apply_template(docs_dir: &Path, template: &ProjectTemplate) -> Result<Vec
             let doc = crate::document::Document::new(
                 title,
                 body.clone(),
-                String::new(),
+                project_name.to_string(),
                 path.clone(),
-                vec![],
+                template
+                    .file_metadata
+                    .get(path)
+                    .map(|metadata| metadata.tags.clone())
+                    .unwrap_or_default(),
                 None,
             );
+            let mut doc = doc;
+            if let Some(metadata) = template.file_metadata.get(path) {
+                doc.front_matter.canonical = metadata.canonical;
+                doc.front_matter.protected = metadata.protected;
+                if let Some(status) = &metadata.status {
+                    doc.front_matter.status = status.clone();
+                }
+            }
             if let Ok(content) = doc.to_string() {
                 std::fs::write(&file_path, content)?;
                 created_files.push(path.clone());

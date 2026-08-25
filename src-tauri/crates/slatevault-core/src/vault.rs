@@ -1,5 +1,5 @@
-use std::path::{Component, Path, PathBuf};
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Component, Path, PathBuf};
 
 use crate::config::{AiConfig, McpConfig, SyncConfig, VaultConfig, VaultMeta};
 use crate::document::Document;
@@ -172,7 +172,7 @@ impl Vault {
         // Apply template, pin created files as AI context, and set folder order
         let template_config = TemplateConfig::load(&self.root)?;
         if let Some(tmpl) = template_config.get(template) {
-            let created = crate::template::apply_template(&project.docs_dir(), tmpl)?;
+            let created = crate::template::apply_template(&project.docs_dir(), name, tmpl)?;
             if !created.is_empty() {
                 project.config.project.ai_context_files = created;
             }
@@ -496,7 +496,8 @@ impl Vault {
         let statuses = self.repo.statuses(Some(
             git2::StatusOptions::new()
                 .include_untracked(true)
-                .recurse_untracked_dirs(true),
+                .recurse_untracked_dirs(true)
+                .update_index(true),
         ))?;
 
         let mut result = Vec::new();
@@ -959,7 +960,12 @@ impl Vault {
             return Ok(Vec::new());
         }
 
-        let head_tree = match self.repo.head().ok().and_then(|head| head.peel_to_tree().ok()) {
+        let head_tree = match self
+            .repo
+            .head()
+            .ok()
+            .and_then(|head| head.peel_to_tree().ok())
+        {
             Some(tree) => tree,
             None => return Ok(Vec::new()),
         };
@@ -1480,8 +1486,8 @@ mod tests {
         let temp_dir = tempfile::tempdir().expect("create temp dir");
         let _vault = Vault::create(temp_dir.path(), "Test Vault").expect("create vault");
 
-        let gitignore = std::fs::read_to_string(temp_dir.path().join(".gitignore"))
-            .expect("read .gitignore");
+        let gitignore =
+            std::fs::read_to_string(temp_dir.path().join(".gitignore")).expect("read .gitignore");
 
         assert!(gitignore.contains("index.db\n"));
         assert!(gitignore.contains("index.db-shm\n"));
